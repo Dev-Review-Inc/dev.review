@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="reviewer">
+  <!-- The maskable variant. A launcher may crop this to a circle, so the
+       background runs to the edges with no rounding of its own and the glyph
+       is scaled into the middle 80%, which is the safe zone every mask keeps. -->
+  <rect width="512" height="512" fill="#0e0f12"/>
+  <g transform="translate(256 256) scale(0.66) translate(-256 -256)"
+     stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M136 176h110M136 240h74" stroke="#3b4252" stroke-width="26"/>
+    <path d="M136 336h60" stroke="#3b4252" stroke-width="26"/>
+    <path d="M232 322l54 54 110-148" stroke="#6ea8fe" stroke-width="42"/>
+  </g>
+</svg>

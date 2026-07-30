@@ -1,0 +1,162 @@
+// The world the interface is dropped into, from inside the page.
+//
+// A classic script rather than a module: it is injected before anything else
+// runs, so that by the time the interface asks for its storage or its
+// destination, both are already answering.
+//
+// Only one thing is replaced, and it is the only thing that leaves the machine:
+// `fetch`. Above it sit the real S3 adapter, the real signing, the real GitHub
+// destination and the real interface, so what these journeys exercise is the
+// app, not a rehearsal of it. Below it sits a Map. That is what makes the suite
+// runnable in a commit hook: there is no token to hold, and nothing to reach.
+//
+// The seed is written in ahead of this file by the harness.
+
+(() => {
+  const seed = globalThis.__seed;
+  const bucket = seed.bucket;
+
+  // Object storage, as a Map of key to text.
+  const objects = new Map(Object.entries(seed.objects));
+
+  // What the interface sent out, so a test can assert on what would have
+  // reached GitHub rather than only on what the page then said.
+  const sent = [];
+
+  globalThis.__world = {
+    objects,
+    sent,
+
+    /**
+     * @param {string} key the object key
+     * @param {string} body what it holds now
+     * @returns {void}
+     */
+    put(key, body) {
+      objects.set(key, body);
+    },
+  };
+
+  const xml = (parts) => parts.join("");
+
+  function escapeText(text) {
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function listing(prefix) {
+    const contents = [...objects.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, body]) =>
+        xml([
+          "<Contents>",
+          `<Key>${escapeText(key)}</Key>`,
+          `<Size>${new TextEncoder().encode(body).length}</Size>`,
+          "<LastModified>2026-07-29T15:41:10.000Z</LastModified>",
+          `<ETag>&quot;${body.length}-${key.length}&quot;</ETag>`,
+          "</Contents>",
+        ]),
+      );
+
+    return xml([
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">',
+      `<Name>${bucket}</Name>`,
+      `<Prefix>${escapeText(prefix)}</Prefix>`,
+      "<IsTruncated>false</IsTruncated>",
+      ...contents,
+      "</ListBucketResult>",
+    ]);
+  }
+
+  function storage(url, method, body) {
+    const key = decodeURIComponent(url.pathname.replace(`/${bucket}/`, "").replace(`/${bucket}`, ""));
+
+    if (method === "GET" && url.searchParams.get("list-type") === "2") {
+      return new Response(listing(url.searchParams.get("prefix") || ""), {
+        status: 200,
+        headers: { "content-type": "application/xml" },
+      });
+    }
+
+    if (method === "GET") {
+      const held = objects.get(key);
+
+      return held === undefined
+        ? new Response("", { status: 404 })
+        : new Response(new TextEncoder().encode(held), { status: 200 });
+    }
+
+    if (method === "PUT") {
+      objects.set(key, new TextDecoder().decode(body));
+
+      return new Response("", { status: 200 });
+    }
+
+    if (method === "DELETE") {
+      objects.delete(key);
+
+      return new Response("", { status: 204 });
+    }
+
+    return new Response("", { status: 405 });
+  }
+
+  function json(payload, status = 200) {
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  function destination(url, method, body) {
+    const path = url.pathname;
+
+    if (path === "/user") return json({ login: seed.login });
+
+    if (path === "/search/issues") {
+      // The queue is two searches merged. Only the review-requested one has
+      // anything in it, which is also what proves the merge is not doubling up.
+      const requested = url.searchParams.get("q").includes("review-requested");
+
+      return json({ items: requested ? seed.pulls : [] });
+    }
+
+    const pull = path.match(/^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)(\/[a-z]+)?$/);
+
+    if (!pull) return json({ message: `nothing here: ${method} ${path}` }, 404);
+
+    const [, , , , part] = pull;
+
+    if (!part) return json({ head: { sha: seed.headCommit } });
+    if (part === "/files") return json(seed.files);
+
+    if (part === "/reviews" && method === "POST") {
+      sent.push({ what: "review", body: JSON.parse(body) });
+
+      return json({ html_url: `${seed.pulls[0].html_url}#pullrequestreview-1` });
+    }
+
+    if (part === "/comments" && method === "POST") {
+      sent.push({ what: "comment", body: JSON.parse(body) });
+
+      return json({ html_url: `${seed.pulls[0].html_url}#discussion_r1` });
+    }
+
+    return json({ message: `nothing here: ${method} ${path}` }, 404);
+  }
+
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(typeof input === "string" ? input : input.url, location.href);
+    const method = (options.method || "GET").toUpperCase();
+
+    if (url.origin === seed.endpoint) return storage(url, method, options.body);
+    if (url.origin === "https://api.github.com") return destination(url, method, options.body);
+
+    // Anything else would have been a real request out of the machine. A commit
+    // hook must never make one, so this is a failure rather than a pass-through.
+    throw new TypeError(`the suite refused an unexpected request: ${method} ${url}`);
+  };
+})();

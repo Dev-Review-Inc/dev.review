@@ -1,0 +1,6 @@
+# Tauri v2's dependency tree reaches crates published for edition 2024, which
+# older toolchains refuse to parse with an error that names a transitive crate
+# rather than the real problem. Pinning stable here means `cargo test` works
+# from a checkout instead of failing in a way nobody can read.
+[toolchain]
+channel = "stable"

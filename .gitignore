@@ -1,0 +1,22 @@
+node_modules/
+.DS_Store
+
+# Agent scratch: worktrees, session state, local settings. Ignored here rather
+# than only in a personal global ignore, because a contributor's fork has no
+# such rule and the first PR from anyone using Claude Code would carry theirs.
+.claude/
+
+/serve/reviewer-serve
+/serve/serve
+
+# Runtime, not source: drafts the collector writes, its seen-state, and the
+# throwaway checkouts it reviews in.
+/drafts/
+/state/
+/worktrees/
+/clones/
+/logs/
+
+# Design mockups dropped in for reference
+/mockup*.html
+/design-mockups/

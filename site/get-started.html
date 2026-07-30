@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started &#183; dev.review</title>
+<meta name="description" content="One address installs both review skills. Point them at storage you own, and read a drafted review of your own code. Nothing posts until you send it.">
+<meta property="og:title" content="Get started &#183; dev.review">
+<meta property="og:description" content="One address, two skills, and a review of your own code waiting to be read.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="masthead">
+  <a class="brand" href="./">dev.review</a>
+  <nav>
+    <a href="manifesto.html">Manifesto</a>
+    <a href="the-work.html">The work</a>
+    <a href="neutrality.html">Neutrality</a>
+    <a href="get-started.html" aria-current="page">Get started</a>
+    <a href="pricing.html">Pricing</a>
+  </nav>
+</header>
+
+<section class="band hero">
+  <span class="eyebrow">Get started</span>
+  <h1 class="display">Read a real review of your own code.</h1>
+  <p class="lede">You need an agent, somewhere to keep files, and a way to reach your pull requests. All three are already yours. What follows installs the two skills that do the drafting; after that, reviews arrive on their own and wait for you. Nothing reaches GitHub until you send it.</p>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Step one &#183; install</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>One address carries both skills and the queue helper they need, inline, so there is nothing to chase down afterwards. Hand it to your agent:</p>
+    <pre class="block mono">read https://dev.review/install and follow it</pre>
+    <p>Or fetch it and do it yourself. It is a document rather than a script: every block in it is one file, with the path it belongs at written above it, so you can read the whole thing before anything lands on your disk.</p>
+    <p><a class="skill-get mono" href="install">dev.review/install &#8595;</a></p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Step two &#183; point it somewhere</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>Name a drafts directory in your <code>CLAUDE.md</code>, and attach a source in the app to that same directory. That is the whole integration: the sweep writes there, the app reads there, and nothing sits between them.</p>
+    <p>A folder on this computer works, and so does a bucket you own. Neither is ours, which is why there is no account to make here.</p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Step three &#183; read what arrives</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>Run the sweep. It finds the pull requests waiting on you, drafts each one, and stops. Open the app and the reviews are there, with the clean lenses shown beside the flagged ones and the QA evidence underneath.</p>
+    <p>Then you do the part that is yours: cut what is wrong and send what is left, under your own name.</p>
+    <p><a href="./#demo">See what that looks like &#8594;</a></p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Or do it by hand</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>Each skill is one markdown file in its own directory, and the sweep's queue helper sits beside its <code>SKILL.md</code> in a <code>collector/</code> directory:</p>
+    <pre class="block mono">~/.claude/skills/dev-review/SKILL.md
+~/.claude/skills/dev-review-sweep/SKILL.md
+~/.claude/skills/dev-review-sweep/collector/</pre>
+    <p>Running the app yourself, and what the GitHub token needs to be scoped to, are both in the documentation.</p>
+    <p><a href="docs.html#start">Running it &#8594;</a></p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">What you installed</span>
+
+  <div class="skill">
+    <h2 class="h2"><code>dev-review</code></h2>
+    <p>Drafts one pull request. It claims the file first, so two runs cannot fight over the same review, then rewrites it as each lens finishes, with a note on where it has got to. The app shows all of that as work in progress and keeps posting locked until the run sets <code>finishedAt</code>.</p>
+    <p>Unattended by design: it asks nothing and waits for nothing, because the person it is drafting for is not at the keyboard.</p>
+    <p><a class="skill-get mono" href="skills/dev-review.md">dev-review.md &#8595;</a></p>
+  </div>
+
+  <div class="skill">
+    <h2 class="h2"><code>dev-review-sweep</code></h2>
+    <p>Finds the pull requests awaiting your review, including your own, and drafts the ones that have no draft yet. It hands the reviewing skill its unattended mode, which means the QA runs without asking rather than not at all. One failure is reported and the sweep carries on to the next.</p>
+    <p>It carries a small queue helper, which is the part that decides what is new and what got deferred.</p>
+    <p><a class="skill-get mono" href="skills/dev-review-sweep.md">dev-review-sweep.md &#8595;</a></p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Writing your own</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>Neither of these is privileged. A skill is a thing that writes one JSON file into storage you own, and the app reads whatever it finds there. The schema is published and versioned, so a skill written against it is a skill this interface can read, whoever wrote it and whatever agent runs it.</p>
+    <p class="pullquote">The whole integration is a file on disk.</p>
+    <p>Which is also the honest reason these two are worth reading rather than trusting: they are one way of producing that file, and the format is the part that matters.</p>
+    <p><a href="docs.html#schema">The draft schema &#8594;</a></p>
+  </div>
+</section>
+
+<section class="band flush">
+  <div class="hero-actions">
+    <a class="button primary" href="install">Install it &#8595;</a>
+    <a class="button" href="./#demo">Read a drafted review</a>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="foot-cols">
+    <div>
+      <h3>The argument</h3>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="neutrality.html">Neutrality</a></li>
+        <li><a href="the-work.html">The work</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Product</h3>
+      <ul>
+        <li><a href="./#demo">The demo</a></li>
+        <li><a href="get-started.html">Get started</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Documentation</h3>
+      <ul>
+        <li><a href="docs.html">Overview</a></li>
+        <li><a href="docs.html#schema">The draft schema</a></li>
+        <li><a href="docs.html#start">Running it</a></li>
+        <li><a href="docs.html#adapter">Writing an adapter</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="colophon">
+    <span>dev.review</span>
+    <span>Ink and Paper follow your operating system.</span>
+    <span>Nothing on this page asks for an email.</span>
+  </div>
+</footer>
+
+</body>
+</html>

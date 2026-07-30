@@ -1,0 +1,511 @@
+/* dev.review, the site.
+ *
+ * The palette, the two themes and the type stack are the app's, copied rather
+ * than reinvented: the site and the product have to read as one object, and a
+ * second identity is how that quietly stops being true. What the site adds is
+ * scale. The app is restrained because it is a working tool and every pixel is
+ * someone's afternoon; a page that argues can be loud.
+ *
+ * Ink is the native form. Paper follows the operating system, as in the app.
+ * There is no toggle here either. */
+
+:root {
+  color-scheme: dark;
+
+  --bg:#0e0f12; --panel:#101216; --panel2:#131519; --panel3:#16191f;
+  --border:#24282f; --border2:#1f2329;
+  --text:#e6e8ec; --bright:#eceff3; --dim:#a7aeb9; --dim2:#8b929d;
+  --faint:#5b626d; --faint2:#3b424d;
+  --accent:#6ea8fe; --accentFg:#0e0f12; --postFg:#f2f5ff;
+  --green:#57c98a; --red:#ff6b6b; --amber:#e8b04b;
+  --okBg:rgba(87,201,138,.10);
+  --shadow:rgba(0,0,0,.42);
+
+  --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans:'IBM Plex Sans', system-ui, sans-serif;
+
+  /* One measure for running prose, held everywhere, so the eye never has to
+     find the left edge again. */
+  --measure: 34rem;
+  --gutter: clamp(20px, 5vw, 76px);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --bg:#faf8f4; --panel:#fffdf9; --panel2:#fffdf9; --panel3:#f7f3ea;
+    --border:#e4dfd4; --border2:#ece7dd;
+    --text:#211e19; --bright:#0b0a07; --dim:#443e33; --dim2:#6f685c;
+    --faint:#98907f; --faint2:#cec6b6;
+    --accent:#1e46c8; --accentFg:#fffdf9; --postFg:#fffefb;
+    --green:#2f6b46; --red:#a8332a; --amber:#8a5c0c;
+    --okBg:#e8f2ec;
+    --shadow:rgba(15,20,30,.10);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.65;
+  /* The page is the outermost scroller. Nothing inside it may chain out to
+     the browser, and nothing may chain in from the pinned stage. */
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--accent); color: var(--accentFg); }
+
+/* Type ------------------------------------------------------------------ */
+
+.mono { font-family: var(--mono); }
+
+.eyebrow {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+h1, h2, h3 { margin: 0; font-weight: 600; text-wrap: balance; }
+
+/* Poster scale, and the only place the page raises its voice. IBM Plex Sans
+   at 700 with the tracking pulled in reads as a grotesque; a second display
+   face would be a second identity. */
+.display {
+  font-size: clamp(2.7rem, 8.4vw, 7rem);
+  font-weight: 700;
+  letter-spacing: -.035em;
+  line-height: .94;
+  color: var(--bright);
+}
+
+.thesis-word {
+  font-size: clamp(2.2rem, 7vw, 5.5rem);
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1;
+  color: var(--bright);
+}
+
+.h2 {
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  color: var(--bright);
+}
+
+.lede {
+  max-width: 40rem;
+  font-size: clamp(1.05rem, 1.7vw, 1.4rem);
+  line-height: 1.45;
+  color: var(--dim);
+  text-wrap: pretty;
+}
+
+p { margin: 0 0 1.1em; max-width: var(--measure); text-wrap: pretty; }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--accent); text-underline-offset: .2em; }
+
+code {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  padding: .15em .35em;
+  border-radius: 4px;
+}
+
+/* Frame ----------------------------------------------------------------- */
+
+/* Every section is separated by one hairline that runs the full width. The
+   app is built out of hairlines; so is this. */
+.band {
+  padding: clamp(56px, 9vw, 128px) var(--gutter);
+  border-bottom: 1px solid var(--border);
+}
+
+.band.tight { padding-top: clamp(36px, 5vw, 64px); padding-bottom: clamp(36px, 5vw, 64px); }
+.band.flush { border-bottom: none; }
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  padding: 14px var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.brand {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--bright);
+  text-decoration: none;
+}
+
+.masthead nav { display: flex; gap: 18px; flex-wrap: wrap; margin-left: auto; }
+
+.masthead nav a {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dim2);
+  text-decoration: none;
+}
+
+.masthead nav a:hover { color: var(--bright); }
+.masthead nav a[aria-current="page"] { color: var(--accent); }
+
+/* Hero ------------------------------------------------------------------ */
+
+.hero { display: grid; gap: clamp(24px, 3.5vw, 40px); }
+.hero .display { max-width: 16ch; }
+.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button:hover { background: var(--panel3); color: var(--bright); }
+
+.button.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--postFg);
+  font-weight: 700;
+}
+
+.button.primary:hover { background: var(--accent); color: var(--postFg); filter: brightness(1.08); }
+
+/* The three wants, as a poster ------------------------------------------ */
+
+/* Numbered, stated as positions, divided by rules rather than by cards. A
+   card would make each one a feature. */
+.wants {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--border);
+}
+
+.want {
+  padding: clamp(28px, 3.6vw, 48px) clamp(20px, 2.4vw, 34px);
+  border-right: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.want:last-child { border-right: none; }
+.want .n { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; color: var(--faint); }
+.want p { color: var(--dim); font-size: 15px; }
+
+@media (max-width: 900px) {
+  .wants { grid-template-columns: 1fr; }
+  .want { border-right: none; border-bottom: 1px solid var(--border); }
+  .want:last-child { border-bottom: none; }
+}
+
+/* The argument, as a stair ---------------------------------------------- */
+
+/* The positioning document is a syllogism: a premise and three consequences
+   hanging off it. Setting it as a chain that steps right, each rung hung off
+   its own rule, is the argument's shape made visible rather than described.
+   This is the one composition on the site that takes a risk. */
+.chain { list-style: none; margin: 0; padding: 0; display: grid; }
+
+.chain li {
+  --step: 0;
+  padding: clamp(20px, 2.4vw, 30px) 0 clamp(20px, 2.4vw, 30px) clamp(16px, 2.2vw, 28px);
+  margin-left: calc(var(--step) * clamp(10px, 3.4vw, 62px));
+  border-left: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+}
+
+.chain li:first-child { border-left-color: var(--accent); }
+.chain li:nth-child(2) { --step: 1; }
+.chain li:nth-child(3) { --step: 2; }
+.chain li:nth-child(4) { --step: 3; }
+.chain li:nth-child(5) { --step: 4; }
+
+.chain .step {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.chain li:first-child .step, .chain li:last-child .step { color: var(--accent); }
+
+.chain .claim {
+  font-size: clamp(1.15rem, 2.3vw, 1.85rem);
+  font-weight: 600;
+  letter-spacing: -.015em;
+  line-height: 1.2;
+  color: var(--bright);
+  max-width: 30ch;
+}
+
+.chain .because { font-size: 15px; color: var(--dim); max-width: var(--measure); }
+
+/* The stage ------------------------------------------------------------- */
+
+/* Pinned with sticky inside a tall wrapper. No scroll listener, no class
+   toggle, no compensating spacer: the browser unpins it on the way back up
+   for free, and there is no frame where the layout has shifted. */
+.stage-wrap {
+  position: relative;
+  height: 240vh;
+  border-bottom: 1px solid var(--border);
+}
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 480px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overscroll-behavior: contain;
+}
+
+/* The signal that this is alive. Without it people scroll past what they
+   read as a screenshot, and the whole page has failed. */
+.stage-chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.stage-chrome .live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.stage-chrome .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-chrome .dot { animation: none; }
+}
+
+.stage-chrome .said { color: var(--dim2); }
+.stage-chrome .out { margin-left: auto; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.stage-chrome .out:hover { text-decoration: underline; }
+
+.stage-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: var(--bg);
+}
+
+/* Below 760 the app stacks its own panes. The stage stops being a window on
+   a desktop layout and becomes the whole phone screen, which is the honest
+   answer: the same page, the same demo, tighter. */
+@media (max-width: 760px) {
+  .stage-wrap { height: 200vh; }
+  .stage-chrome { padding: 8px 14px; gap: 8px; font-size: 10px; }
+  .stage-chrome .said { display: none; }
+}
+
+/* Prose pages ----------------------------------------------------------- */
+
+.page { padding: clamp(48px, 7vw, 96px) var(--gutter) clamp(64px, 9vw, 128px); }
+.page > * + * { margin-top: clamp(28px, 3vw, 44px); }
+
+.prose { max-width: var(--measure); display: grid; gap: 1.1em; }
+.prose h2 { font-size: clamp(1.3rem, 2.4vw, 1.75rem); letter-spacing: -.015em; color: var(--bright); }
+.prose h3 {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-top: 1.2em;
+}
+.prose ul, .prose ol { margin: 0; padding-left: 1.3em; }
+.prose li { margin: .5em 0; max-width: var(--measure); }
+.prose li::marker { color: var(--faint); }
+
+blockquote {
+  margin: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--accent);
+  color: var(--dim);
+  font-size: 1.05rem;
+}
+
+/* A plain hairline table, the app's own. */
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 12px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+th { background: var(--panel3); font-weight: 600; color: var(--bright); }
+.table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+
+/* A statement that stands on its own between two paragraphs. */
+.pullquote {
+  max-width: 22ch;
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  color: var(--bright);
+}
+
+.note {
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  font-size: 14px;
+  color: var(--dim2);
+  max-width: var(--measure);
+}
+
+/* Footer ---------------------------------------------------------------- */
+
+footer.site {
+  padding: clamp(40px, 5vw, 72px) var(--gutter);
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  display: grid;
+  gap: 32px;
+}
+
+.foot-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 28px;
+}
+
+.foot-cols h3 {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 10px;
+}
+
+.foot-cols ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.foot-cols a { font-size: 14px; color: var(--dim); text-decoration: none; }
+.foot-cols a:hover { color: var(--bright); text-decoration: underline; }
+
+.colophon {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  border-top: 1px solid var(--border2);
+  padding-top: 22px;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+/* Skip link, because the first thing on the page after the nav is a 240vh
+   scroll trap for anyone driving with a keyboard. */
+.skip {
+  position: absolute;
+  left: -9999px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: var(--accentFg);
+  font-family: var(--mono);
+  font-size: 12px;
+  z-index: 10;
+}
+
+.skip:focus { left: var(--gutter); top: 8px; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Skills ---------------------------------------------------------------- */
+
+/* One entry per skill, separated by the same hairline the bands use, so a
+   list of two reads as a list rather than as two orphaned headings. */
+.skill { max-width: var(--measure); padding: 28px 0; border-top: 1px solid var(--border); }
+.skill:first-of-type { border-top: none; padding-top: 22px; }
+.skill .h2 { margin-bottom: 14px; }
+.skill .h2 code { font-size: .8em; }
+
+/* The link that hands over the file. It is the point of the page, so it reads
+   as an action rather than as another sentence with an underline. */
+.skill-get {
+  display: inline-block;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.skill-get:hover { border-color: var(--accent); background: var(--panel2); }
+
+/* A block of literal text - paths, a command - that must not be re-wrapped.
+   It scrolls inside itself so a long line cannot push the page sideways. */
+.block {
+  max-width: var(--measure);
+  margin: 0 0 1.1em;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel2);
+  font-size: 12.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+}

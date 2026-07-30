@@ -1,0 +1,425 @@
+// Writing. Every change the reader makes goes through one of these.
+//
+// None of them writes to the agent's draft. That file has one author and this
+// app is not it, which is the whole point of the rework: the reader's decisions
+// and the agent's document no longer share a set of bytes to fight over.
+
+import { draftKey } from "../domain/draft-path.js";
+import { READING } from "../queries/index.js";
+
+export class Commands {
+  /**
+   * @param {object} options what to write through
+   * @param {import("../state/multi-event-store.js").MultiEventStore} options.state the logs
+   * @param {import("../queries/index.js").Queries} options.queries how to read back
+   * @param {object} [options.sync] pushes a source's log to its adapter
+   */
+  constructor({ state, queries, sync }) {
+    this.state = state;
+    this.queries = queries;
+    this.sync = sync;
+    this._pending = {};
+  }
+
+  // ---- Sources
+
+  /**
+   * Add a source: a name and the storage its drafts come from.
+   *
+   * @param {{name: string, adapter: object}} source the source
+   * @param {object} [secret] adapter credentials, kept out of the log
+   * @returns {Promise<object>} the source, as it now reads
+   */
+  async addSource(source, secret) {
+    const event = this.state.track(null, "sources", null, "create", {
+      name: source.name,
+      adapter: source.adapter,
+    });
+
+    if (secret) await this.state.setSecret(event.objectId, secret);
+
+    this.state.open(event.objectId);
+
+    return this.queries.findSource(event.objectId);
+  }
+
+  /**
+   * @param {object} source which source
+   * @param {string} name the new name
+   * @returns {void}
+   */
+  renameSource(source, name) {
+    this.state.track(null, "sources", source.id, "rename", { name });
+  }
+
+  /**
+   * Point a source at different storage.
+   *
+   * @param {object} source which source
+   * @param {object} adapter the adapter configuration, without credentials
+   * @param {object} [secret] adapter credentials, kept out of the log
+   * @returns {Promise<void>} when it is recorded
+   */
+  async configureSource(source, adapter, secret) {
+    this.state.track(null, "sources", source.id, "configure", { adapter });
+
+    if (secret) await this.state.setSecret(source.id, secret);
+  }
+
+  /**
+   * Remove a source, its decisions, and its credentials.
+   *
+   * Nothing is deleted from the customer's storage. The drafts are the agent's
+   * and the synced log is theirs; forgetting a source here is this browser
+   * forgetting, not a deletion on their behalf.
+   *
+   * @param {object} source which source
+   * @returns {Promise<void>} when it is gone from here
+   */
+  async removeSource(source) {
+    this.state.track(null, "sources", source.id, "delete");
+
+    await this.state.forgetSecret(source.id);
+    await this.state.close(source.id);
+  }
+
+  // ---- Destinations
+
+  /**
+   * Add somewhere reviews can be posted.
+   *
+   * Whatever configuration the destination carries is recorded with it, the way
+   * a source records its adapter's, so it can be rebuilt on the next load. The
+   * credential is not part of that and arrives separately.
+   *
+   * @param {{type: string, label: string}} destination the destination
+   * @param {object} [secret] the token, kept out of the log
+   * @returns {Promise<object>} the destination, as it now reads
+   */
+  async addDestination(destination, secret) {
+    const event = this.state.track(null, "destinations", null, "create", {
+      ...destination,
+      name: destination.label,
+    });
+
+    if (secret) await this.state.setSecret(event.objectId, secret);
+
+    return this.queries.findDestination(event.objectId);
+  }
+
+  /**
+   * Give a destination a different name.
+   *
+   * @param {object} destination which destination
+   * @param {string} label the new name
+   * @returns {void}
+   */
+  renameDestination(destination, label) {
+    this.state.track(null, "destinations", destination.id, "rename", { label });
+  }
+
+  /**
+   * Replace a destination's credential, keeping the destination itself.
+   *
+   * A rotated token is the same destination with a new key, so its id stands
+   * and nothing recorded against it is disturbed.
+   *
+   * @param {object} destination which destination
+   * @param {object} secret the credential, merged over what is stored
+   * @returns {Promise<void>} when it is written
+   */
+  async recredentialDestination(destination, secret) {
+    await this.mergeSecret(destination.id, secret);
+  }
+
+  /**
+   * @param {object} destination which destination
+   * @returns {Promise<void>} when it and its token are gone
+   */
+  async removeDestination(destination) {
+    this.state.track(null, "destinations", destination.id, "delete");
+
+    await this.state.forgetSecret(destination.id);
+  }
+
+  // ---- Reading a pull request
+
+  /**
+   * Take a pull request off the queue.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  dismissPull(source, pull) {
+    this.track(source, "pulls", pull.key, "dismiss");
+  }
+
+  /**
+   * Put a dismissed pull request back.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  restorePull(source, pull) {
+    this.track(source, "pulls", pull.key, "restore");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} body the review body as the reader wants it
+   * @returns {void}
+   */
+  editComment(source, pull, body) {
+    this.track(source, "pulls", pull.key, "editComment", { body });
+  }
+
+  /**
+   * Put the review body back to what the agent drafted.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  resetComment(source, pull) {
+    this.track(source, "pulls", pull.key, "resetComment");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} event APPROVE, COMMENT or REQUEST_CHANGES
+   * @returns {void}
+   */
+  chooseVerdict(source, pull, event) {
+    this.track(source, "pulls", pull.key, "chooseVerdict", { event });
+  }
+
+  /**
+   * Record that the review went out.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {{url: string, event: string}} review what was sent, and where it landed
+   * @returns {void}
+   */
+  recordPostedReview(source, pull, review) {
+    this.track(source, "pulls", pull.key, "post", review);
+    // A sent review is done with, so it leaves the queue without the reader
+    // having to say so twice.
+    this.track(source, "pulls", pull.key, "dismiss");
+  }
+
+  // ---- Findings
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @returns {void}
+   */
+  dropFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "drop");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @returns {void}
+   */
+  restoreFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "restore");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @param {string} body the comment as the reader wants it
+   * @returns {void}
+   */
+  editFinding(source, pull, finding, body) {
+    this.track(source, "findings", this._finding(pull, finding), "editBody", { body });
+  }
+
+  /**
+   * Put a finding back to what the agent wrote.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @returns {void}
+   */
+  resetFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "resetBody");
+  }
+
+  /**
+   * Write a comment of the reader's own, anchored to a line.
+   *
+   * The id comes from the event store rather than from the path and line, so
+   * two comments on the same line are two comments.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {{path: string, line: number, body: string}} comment what and where
+   * @returns {object} the finding, as it now reads
+   */
+  addFinding(source, pull, comment) {
+    const event = this.track(source, "findings", null, "create", {
+      pull: pull.key,
+      path: comment.path,
+      line: comment.line,
+      body: comment.body,
+      mine: true,
+    });
+
+    return this.queries
+      .findingsForPull(source, pull)
+      .find((finding) => finding.id === event.objectId);
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding one of the reader's own findings
+   * @returns {void}
+   */
+  removeFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "delete");
+  }
+
+  /**
+   * Record that one finding went out on its own, ahead of the review.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @param {{url: string}} comment where it landed
+   * @returns {void}
+   */
+  recordPostedFinding(source, pull, finding, comment) {
+    this.track(source, "findings", this._finding(pull, finding), "post", comment);
+  }
+
+  /**
+   * Show only the files and lenses carrying a finding, or show everything.
+   *
+   * @param {object} source the source being read
+   * @param {boolean} only whether to narrow the view
+   * @returns {void}
+   */
+  showFlaggedOnly(source, only) {
+    this.track(source, "preferences", READING, only ? "flagOnly" : "showAll");
+  }
+
+  // ---- Reading the diff
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} path which file
+   * @param {boolean} viewed whether it has now been read
+   * @returns {void}
+   */
+  markFile(source, pull, path, viewed) {
+    const action = viewed ? "markViewed" : "markUnviewed";
+
+    this.track(source, "files", `${pull.key}:${path}`, action);
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} path which file
+   * @param {boolean} collapsed whether it is now folded away
+   * @returns {void}
+   */
+  collapseFile(source, pull, path, collapsed) {
+    const action = collapsed ? "collapse" : "expand";
+
+    this.track(source, "files", `${pull.key}:${path}`, action);
+  }
+
+  /**
+   * Merge a credential over what is already stored.
+   *
+   * A field submitted empty means "leave this alone", not "blank this". A
+   * reader correcting a bucket name should not have to retype a secret key
+   * they cannot see to avoid destroying it.
+   *
+   * @param {string} id whose credential
+   * @param {object} secret the parts being changed
+   * @returns {Promise<void>} when it is written
+   */
+  async mergeSecret(id, secret) {
+    if (!secret) return;
+
+    const kept = await this.state.secret(id);
+    const merged = { ...kept };
+
+    for (const [key, value] of Object.entries(secret)) {
+      if (value === "" || value === null || value === undefined) continue;
+
+      merged[key] = value;
+    }
+
+    await this.state.setSecret(id, merged);
+  }
+
+  // ---- The one place any of this is written down
+
+  /**
+   * Record an event against a source, and get it synced.
+   *
+   * @param {object} source the source being read
+   * @param {string} collection which collection
+   * @param {string|null} objectId what it concerns
+   * @param {string} action what was done
+   * @param {*} [data] the payload
+   * @returns {object} the event
+   */
+  track(source, collection, objectId, action, data) {
+    const event = this.state.track(source.id, collection, objectId, action, data);
+
+    this._laterSync(source);
+
+    return event;
+  }
+
+  /**
+   * Bring every log back from local storage.
+   *
+   * @returns {Promise<void>} when the app has its state again
+   */
+  restore() {
+    return this.state.restore();
+  }
+
+  // Syncing is debounced because dropping four findings in a row is one thought
+  // and should be one write, not four.
+  _laterSync(source) {
+    if (!this.sync) return;
+
+    clearTimeout(this._pending[source.id]);
+
+    this._pending[source.id] = setTimeout(() => {
+      this.sync.push(source).catch(() => {
+        // A reader who is offline keeps reading. The log is local first, and
+        // the next successful push carries everything that has piled up.
+      });
+    }, 1000);
+  }
+
+  _finding(pull, finding) {
+    // A finding the reader wrote has an id of its own already; one the agent
+    // wrote is identified by the pull request it belongs to and the agent's
+    // stable id, so the decision survives a redraft.
+    return finding.mine ? finding.id : `${pull.key}:${finding.id}`;
+  }
+}
+
+export { draftKey };

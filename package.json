@@ -1,0 +1,10 @@
+{
+  "name": "reviewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:units && npm run test:e2e",
+    "test:units": "node --test \"test/**/*.test.js\"",
+    "test:e2e": "node --test \"e2e/**/*.test.js\""
+  }
+}

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The work &#183; dev.review</title>
+<meta name="description" content="An agent writes one JSON file into storage you already own. The app asks your git host what awaits your review, derives the path, and reads it. You decide what leaves.">
+<meta property="og:title" content="The work &#183; dev.review">
+<meta property="og:description" content="One file arrives. You decide what leaves.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="masthead">
+  <a class="brand" href="./">dev.review</a>
+  <nav>
+    <a href="manifesto.html">Manifesto</a>
+    <a href="the-work.html" aria-current="page">The work</a>
+    <a href="neutrality.html">Neutrality</a>
+    <a href="get-started.html">Get started</a>
+    <a href="pricing.html">Pricing</a>
+  </nav>
+</header>
+
+<section class="band hero">
+  <span class="eyebrow">The work</span>
+  <h1 class="display">One file arrives. You decide what leaves.</h1>
+  <p class="lede">A change is in front of you because it is waiting on you. The review is drafted before you open it. Nothing reaches GitHub until you say so, and when it does it goes under your name.</p>
+</section>
+
+<section class="band">
+  <span class="eyebrow">The sequence</span>
+  <ol class="chain" style="margin-top: 28px">
+    <li>
+      <span class="step">Drafted</span>
+      <p class="claim">An agent writes one JSON file into storage you already own.</p>
+      <p class="because">That is the whole integration. There is no API, no upload and no notification. The agent writes into a folder on your computer or a bucket you control, and it is the only author of the file it wrote.</p>
+    </li>
+    <li>
+      <span class="step">Found</span>
+      <p class="claim">The path is derived, never listed.</p>
+      <p class="because">The app asks GitHub which pull requests await your review, derives a path for each, and requests it. A pull request owns a directory, <code>drafts/&lt;owner&gt;--&lt;repo&gt;-&lt;number&gt;/</code>, with its draft at <code>review.json</code> and any media beside it. A missing file means nothing has been drafted yet. A draft left behind after its review request is gone is simply never asked for, so the queue stays accurate without anyone tidying it.</p>
+    </li>
+    <li>
+      <span class="step">Read</span>
+      <p class="claim">Every lens is shown, including the clean ones.</p>
+      <p class="because">Each carries a line on what was actually checked. Hiding the clean ones makes a review look shorter and makes thoroughness unprovable. The difference between checked and clean, and not looked at, is the entire value of a review.</p>
+    </li>
+    <li>
+      <span class="step">Decided</span>
+      <p class="claim">Drop what is wrong. Edit what is nearly right.</p>
+      <p class="because">Findings are staged, not sent. A dropped finding is marked rather than deleted, so it can be restored and what the agent said stays readable. An edited one keeps the agent's original words alongside yours.</p>
+    </li>
+    <li>
+      <span class="step">Posted</span>
+      <p class="claim">You post it, under your own name.</p>
+      <p class="because">The verdict, the body and the findings you kept go up as one review. A tool that posts on its own behalf has quietly moved the accountability somewhere nobody agreed to.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Coverage</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>Sections are whatever the agent decides they are. The app does not know what a review is made of and does not need to: it renders the sections it is handed, in the order given, and offers each as a filter over the findings.</p>
+    <p class="pullquote">A lens with nothing flagged is the most useful thing on the page.</p>
+    <p>An agent reviewing a schema migration can emit data loss, rollback and locking. One reviewing copy can emit tone and grammar. Nothing is declared in advance, and nobody has to bend a review into four fixed headings that were right for one codebase.</p>
+    <p>A finding is one comment on one line. It carries a path, a line, an optional badge, and a body written as it would be posted. It can carry a replacement for the line, which GitHub renders with an Apply button. Ordering is the agent's, so the most important one goes first.</p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Evidence</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>QA evidence shows the change was driven, not only read. A recording of the app being exercised is a fact. A claim in a summary is a claim.</p>
+    <p>A draft can carry one paragraph on what was actually driven, and a scenario for each run: the route it drove, what it proves, a verdict, and a recording sitting beside the draft. A failing scenario is evidence rather than an error, and it is the most valuable thing a review carries, so it is shown first.</p>
+    <p>None of it is posted. It is there so you can see what was exercised before deciding how much of the review to trust.</p>
+    <p class="note">A recording named by a draft has to stay inside the drafts directory. An absolute path, or one climbing out, is refused. A draft cannot make the app open an arbitrary file.</p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Your decisions</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>The app never writes to a draft. What you drop, edit, post, dismiss and read is kept in the app's own append-only log, one file per device, in the same storage the drafts came from.</p>
+    <p>Two things follow. The agent and the app can never race for the same bytes, so an agent is free to rewrite its draft while you are part way through reading it. And a second device folds the same log and picks up where you left off, because the log is yours and it is already where you keep things.</p>
+    <p>That is also why sync is sold as a client rather than as a pipe. The bytes ride storage you already own. There is no tier at which we hold your files.</p>
+    <p><a href="docs.html#schema">The draft schema &#8594;</a></p>
+  </div>
+</section>
+
+<section class="band flush">
+  <div class="hero-actions">
+    <a class="button primary" href="./#demo">Use it &#8595;</a>
+    <a class="button" href="neutrality.html">Neutrality</a>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="foot-cols">
+    <div>
+      <h3>The argument</h3>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="neutrality.html">Neutrality</a></li>
+        <li><a href="the-work.html">The work</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Product</h3>
+      <ul>
+        <li><a href="./#demo">The demo</a></li>
+        <li><a href="get-started.html">Get started</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Documentation</h3>
+      <ul>
+        <li><a href="docs.html">Overview</a></li>
+        <li><a href="docs.html#schema">The draft schema</a></li>
+        <li><a href="docs.html#start">Running it</a></li>
+        <li><a href="docs.html#adapter">Writing an adapter</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="colophon">
+    <span>dev.review</span>
+    <span>Ink and Paper follow your operating system.</span>
+    <span>Nothing on this page asks for an email.</span>
+  </div>
+</footer>
+
+</body>
+</html>

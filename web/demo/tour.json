@@ -1,0 +1,82 @@
+{
+  "label": "Take the tour",
+  "drafts": {
+    "drafts/dev-review--dev.review-39/review.json": {
+      "schema": 3,
+      "owner": "dev-review",
+      "repo": "dev.review",
+      "number": 39,
+      "title": "Forget a draft the reader has cleared",
+      "url": "https://github.com/dev-review/dev.review/pull/39",
+      "reviewedAt": "e7a6cd5",
+      "draftedAt": "2026-07-30T09:12:04Z",
+      "finishedAt": "2026-07-30T09:16:41Z",
+      "verdict": "COMMENT",
+      "summary": "The listing is now the whole truth about what is held, and a read failure still is not.",
+      "comment": "**Start here.** This is the interface, running, with a real review loaded into it. Nothing on this page is a picture.\n\nThe pane on the left is the agent's verdict. Every lens it looked through is listed, including the ones that came back clean, each with a line on what was actually checked. Click one and the review filters to it. Click **Two authors** to see what a clean lens is for.\n\nThe pane you are reading is the review body. Below it sit the findings, each anchored to a line of the diff. Open the **Diff** tab and the same cards hang under the lines they are about.\n\nDrop a finding you disagree with and it stops being part of the review. Reload this page and it is still dropped, because your decisions are an append-only log and not a page of state. **Post review**, bottom right, is where a real review would leave. Here it goes nowhere and says so.",
+      "sections": [
+        {
+          "key": "correctness",
+          "label": "Correctness",
+          "color": "critical",
+          "body": "The change makes `loadAll` authoritative about what the source holds. That is the right call, and it puts weight on a path underneath it that was never load bearing before."
+        },
+        {
+          "key": "contracts",
+          "label": "Contracts",
+          "color": "warn",
+          "body": "What a function promises its callers, and whether the code still keeps that promise after the change."
+        },
+        {
+          "key": "tests-conventions",
+          "label": "Tests",
+          "color": "warn",
+          "body": "The commit ships a test with it, which is the house rule. What that test pins down, and what it leaves loose, is the question."
+        },
+        {
+          "key": "two-authors",
+          "label": "Two authors",
+          "color": "ok",
+          "body": "Clean, and worth showing rather than hiding.\n\nThe rule this repository is built on is that the app never writes to a draft: the agent is the only author of the file it wrote, so the two can never race for the same bytes. A change that starts deleting things is exactly where that rule gets broken by accident.\n\nChecked: `loadAll` deletes only from `this._byKey`, which is this app's in-memory projection. The only `adapter.remove` in the diff is in the test, driving the adapter directly to stand in for an agent clearing its own file. Nothing here writes to or deletes a draft.\n\n**A lens with nothing in it is the point.** Hiding it would make this review look shorter and make its thoroughness unprovable. Checked and clean, and not looked at, are different answers."
+        }
+      ],
+      "findings": [
+        {
+          "id": "read-failure-reads-as-cleared",
+          "section": "correctness",
+          "path": "web/src/state/drafts.js",
+          "line": 120,
+          "kind": "failure-as-answer",
+          "color": "critical",
+          "blocking": true,
+          "body": "This makes the listing authoritative about what has been cleared, but the read underneath it is still not.\n\n`_absorb` does `await this.adapter.read(path).catch(() => null)` and then deletes the key. So a bucket that answers one GET with a 500 clears the review from the queue, with the same marks removed and the same row reset that a real clearing produces. The reader cannot tell the two apart.\n\nEverything else on this path is careful about exactly this. `Adapter.poll` skips a round rather than report that everything vanished, and says why: a backend that is briefly unreachable is not a change. `Drafts.load` records `could not be read: ...` as a problem and keeps the last good draft. `_absorb` is the one reader of the three that treats a failed read as an answer.\n\nThis commit is what makes it matter. Before it, a spurious delete from `_absorb` was papered over on the next refresh, because the refresh only ever added. Now the refresh removes too, so the wrong answer sticks.",
+          "suggestion": "      let bytes;\n\n      try {\n        bytes = await this.adapter.read(path);\n      } catch (error) {\n        // Unreachable is not empty. Keeping the entry means a flaky bucket\n        // costs a refresh rather than the reader's place in the queue.\n        continue;\n      }\n"
+        },
+        {
+          "id": "returns-everything-calls-it-moved",
+          "section": "contracts",
+          "path": "web/src/state/drafts.js",
+          "line": 111,
+          "kind": "contract-drift",
+          "color": "warn",
+          "blocking": false,
+          "body": "The return was documented as the keys that were read, and is now documented as the keys that moved. The code did not change to match: `_absorb` returns every key it managed to read, and `loadAll` hands it every path in the listing, so the array is still every draft in the source plus the ones that went.\n\nBoth callers ignore the value. `app.js` awaits `loadAll()` twice and uses neither result, so nothing is wrong today, and that is the problem: a promise nobody checks, describing precision the function does not have. The next caller to believe it will redraw every row on every refresh and it will look like a render bug.\n\nEither compare against the previous marks so the word is true, or drop the return and the sentence together. The second is smaller."
+        },
+        {
+          "id": "test-pins-the-easy-half",
+          "section": "tests-conventions",
+          "path": "test/use-cases/reading-a-review.test.js",
+          "line": 45,
+          "kind": "untested-boundary",
+          "color": "warn",
+          "blocking": false,
+          "body": "This proves the case the commit message opens with, and it is the right test to have written.\n\nIt does not pin the boundary the change introduces. `loadAll` now has two ways to conclude a draft is gone: absent from the listing, which is what this covers, and a read that failed inside `_absorb`, which is not covered anywhere and now has a permanent consequence. A second test that makes the adapter throw on `read` and asserts the entry survives would fail today, which is the useful kind of test to be missing.\n\nThe `MemoryAdapter` is already imported in this file, so standing one up that rejects a read is a few lines."
+        }
+      ],
+      "qa": {
+        "note": "Nothing was driven. The change is in a projection with no rendering of its own, and the observable difference is a queue row that keeps its ready dot after a draft is cleared, which needs a source, a cleared draft and a backgrounded tab to reproduce honestly. Read instead: `Adapter.poll` and `Drafts.load` for how the other two readers of the same listing handle an unreachable backend, and both `loadAll` call sites in `app.js` to check what the return value is used for."
+      }
+    }
+  },
+  "media": {}
+}

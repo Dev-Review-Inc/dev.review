@@ -1,0 +1,95 @@
+{
+  "label": "A real review",
+  "drafts": {
+    "drafts/dev-review--dev.review-41/review.json": {
+      "schema": 3,
+      "owner": "dev-review",
+      "repo": "dev.review",
+      "number": 41,
+      "title": "Say why a storage backend cannot be used here",
+      "url": "https://github.com/dev-review/dev.review/pull/41",
+      "reviewedAt": "2f27fbb",
+      "draftedAt": "2026-07-30T16:02:11Z",
+      "finishedAt": "2026-07-30T16:19:40Z",
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The right idea, but two of the three new messages are wrong in environments this app ships to: Chrome on Android, and its own desktop shell.",
+      "sections": [
+        {
+          "key": "messages",
+          "label": "What the reader is told",
+          "color": "critical"
+        },
+        {
+          "key": "the-form",
+          "label": "The form",
+          "color": "warn"
+        },
+        {
+          "key": "tests",
+          "label": "Tests",
+          "color": "warn"
+        },
+        {
+          "key": "escaping",
+          "label": "Escaping and the DOM",
+          "color": "ok",
+          "body": "Nothing to fix here, and it was worth checking, because this change is entirely about putting new sentences on a page.\n\nEvery string it adds goes through `textContent`. `storageOptions` builds the option label and `picker` assigns it with `node.textContent` (header.js:878). The hint goes through `element()` in `dom.js`, which sets `textContent` too (dom.js:49). No `innerHTML` anywhere on the path.\n\nThe strings themselves are literals in `filesystem.js` and `tauri.js`. The one interpolated value is `type.label`, which comes from an adapter class's `static label`, not from a source's stored configuration and not from a draft. So there is nothing here that a hostile drafts directory could reach."
+        }
+      ],
+      "findings": [
+        {
+          "id": "android-is-not-a-flag",
+          "section": "messages",
+          "path": "web/src/adapters/filesystem.js",
+          "line": 309,
+          "kind": "impossible-remedy",
+          "color": "critical",
+          "blocking": true,
+          "body": "`chromium()` is true on Chrome for Android, and Chrome for Android does not implement `showDirectoryPicker`. So this branch tells a reader on Android that their browser has the API switched off, and the hint sends them looking for a flag. There is no switch to find, and no version of that browser where flipping one would help.\n\nThe docblock above says the Chromium case gets a hint rather than a diagnosis, because we cannot see a flag from in here. The hint is hedged. `reason` is not: it states the cause outright, and `reason` is the string that lands in the option's own text, which is the sentence the reader actually reads.\n\n`navigator.userAgentData.mobile` is exactly the observable that separates the two cases, and it sits on the same object `chromium()` already reaches for.",
+          "suggestion": "      reason: \"this browser is not offering the File System Access API\",\n"
+        },
+        {
+          "id": "desktop-told-to-get-chrome",
+          "section": "messages",
+          "path": "web/src/adapters/filesystem.js",
+          "line": 315,
+          "kind": "impossible-remedy",
+          "color": "critical",
+          "body": "This is the branch that runs inside the desktop app. `tauri.conf.json` sets `frontendDist` to `../web`, so the shell serves this same file, and its macOS webview is WKWebView, which has neither `showDirectoryPicker` nor `navigator.userAgentData`. A reader who is already in the packaged app is told to go and get Chrome.\n\nThe form still opens on the right backend, because `firstUsable` skips to `tauri`, and `This computer` is enabled directly underneath. So this is a wrong sentence rather than a dead end. It is still the failure mode the commit message sets out to kill: naming a cause that does not apply, in the one place the reader looks for what to do next.\n\n`inTauri()` is already exported from `tauri.js`, and is the check that keeps this branch off the desktop build."
+        },
+        {
+          "id": "hint-belongs-to-nothing",
+          "section": "the-form",
+          "path": "web/src/app/header.js",
+          "line": 378,
+          "kind": "orphaned-hint",
+          "color": "warn",
+          "body": "This draws a hint for every type that carries one, whatever backend is selected. In Brave, a reader who picks `S3 bucket` still gets a sentence about `brave://flags` sitting under an S3 form, attached to nothing they chose and explaining nothing in front of them.\n\nTying it to the selection is not the fix: the backend with a hint is by definition the one that cannot be selected. The missing thing is a limit. The comment states the invariant (\"At most one backend has a hint\") and nothing holds it. It is a property of today's two `unavailability` functions, and this loop is what turns a third one into a stack of caveats on the form with no test to notice."
+        },
+        {
+          "id": "disabled-is-still-the-value",
+          "section": "the-form",
+          "path": "web/src/app/header.js",
+          "line": 858,
+          "kind": "placeholder-as-value",
+          "color": "warn",
+          "body": "`select.value` follows whichever option carries `selected`, disabled or not. A disabled selected option is the standard way to build a placeholder, so this is not an edge case.\n\nAnd the change relies on it. Editing a `tauri` source in a browser tab keeps `setup.type` as `tauri` (header.js:355 only reassigns when the type is absent from the list, and unusable types are now on the list). `storageOptions` marks it disabled, `picker` then marks it selected, the select reads back `tauri`, and `saveSource` writes it. That is the intended behaviour, spelled out at header.js:387: renameable, not repointable. It works.\n\nWhat is wrong is this sentence. \"unreachable by ... the form's own value\" is false, and it is the line the next person touching `saveSource` will read before deciding they do not need a guard there."
+        },
+        {
+          "id": "form-itself-untested",
+          "section": "tests",
+          "path": "test/app/picker.test.js",
+          "line": 5,
+          "kind": "untested-seam",
+          "color": "warn",
+          "body": "This proves `storageOptions` and `picker` in isolation, and it proves them well. It stops one layer short of the thing the reader sees.\n\n`drawSourceForm` is what puts the hint on the page, what decides the form opens on a usable backend, and what suppresses the folder button for a backend that cannot be used here. Every behavioural claim in this commit message is a claim about that function. Nothing under `test/` calls it: it is referenced only by `header.js` and `view.js`.\n\nThe fake document here is already most of what such a test needs. What is in the way is `find()`, which reaches `document.getElementById` (dom.js:31), so the form is fetched by id rather than passed in. Widening this fake with a small id map would cover the three claims above and would have caught the hint appearing under an S3 form."
+        }
+      ],
+      "qa": {
+        "note": "Not driven, and worth being exact about why. This change is a browser feature detect, and its three new branches are reached by three environments none of which this pass could boot: a Chromium browser with the File System Access API switched off, a non-Chromium browser, and the packaged desktop shell. Driving one of them in Chrome on this machine would have exercised the one branch that is already correct and proved nothing about the two that are not.\n\nWhat was read instead: `unavailability` in both adapters against how `adapterTypes` composes them, `drawSourceForm` end to end for what it appends in each case, `picker` and `storageOptions` against the DOM behaviour they assume, and both new test files. The two message findings come from working out which branch each environment falls into, not from watching one fall."
+      },
+      "comment": "**Request changes** on the messages, not on the idea. Keeping an unusable backend listed with its reason is right, and the reader in Brave is better off after this than before it.\n\nBut the point of the change is that a message names a cause the reader can act on, and two of the three do not. Chrome on Android gets told about a flag that does not exist for it. The desktop app, which serves this same `web/` directory, gets told to go and install Chrome while the backend it wants sits enabled underneath.\n\nBoth are the same shape as the bug being fixed: an assertion about a cause we cannot see. `reason` asserts; only `hint` hedges. The docblock is already careful about this distinction and the code does not keep to it."
+    }
+  },
+  "media": {}
+}

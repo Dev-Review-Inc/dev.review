@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dev.review</title>
+<meta name="description" content="See what is changing across the systems you are responsible for, and act on it. The review is drafted before you open it. You read it, cut what is wrong, and send it under your own name.">
+<meta property="og:title" content="dev.review">
+<meta property="og:description" content="You cannot review what you cannot see. Every change waiting on you, already drafted. Any agent, any storage, any host.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="site.css">
+
+<!-- Deploy layout: this directory is served at the origin root, and web/ is
+     served at /app/. One origin, so the demo below is a same-origin frame and
+     the app needs no separate property to drift away from. -->
+<!-- A reader who has already attached their own storage is sent on to the
+     interface. It runs as a module, so the pitch is painted first and swapped
+     rather than blocked on a decision most visitors do not need made. -->
+<script type="module" src="/enter.js"></script>
+</head>
+<body>
+
+<a class="skip" href="#after">Skip the demo</a>
+
+<header class="masthead">
+  <a class="brand" href="./">dev.review</a>
+  <nav>
+    <a href="manifesto.html">Manifesto</a>
+    <a href="the-work.html">The work</a>
+    <a href="neutrality.html">Neutrality</a>
+    <a href="get-started.html">Get started</a>
+    <a href="pricing.html">Pricing</a>
+  </nav>
+</header>
+
+<section class="band hero">
+  <span class="eyebrow">Code change triage</span>
+  <h1 class="display">You cannot review what you cannot see.</h1>
+  <p class="lede">This is where you see it, and act on it. The review is drafted before you open it, across every repository you are on. You read it, cut what is wrong, and send it under your own name. Nothing reaches GitHub until you say so.</p>
+  <div class="hero-actions">
+    <a class="button primary" href="#demo">Use it below &#8595;</a>
+    <a class="button" href="manifesto.html">Read the manifesto</a>
+  </div>
+</section>
+
+<section class="wants">
+  <div class="want">
+    <span class="n">01</span>
+    <span class="thesis-word">See</span>
+    <p>Some systems will always require full human eyes on every change. That is a property of the systems, not a gap in the tooling, so it does not expire as agents improve. Eyes cannot land on a change they cannot see.</p>
+  </div>
+  <div class="want">
+    <span class="n">02</span>
+    <span class="thesis-word">Effectively</span>
+    <p>Attention is finite. Seeing more than you can act on is not seeing, it is noise. Look with attention proportional to the change, and act on what you find without leaving the page.</p>
+  </div>
+  <div class="want">
+    <span class="n">03</span>
+    <span class="thesis-word">Neutrally</span>
+    <p>A tool that owns the agent, the storage and the host makes your seeing contingent on that vendor. Bring whatever review agent you like. Keep your files wherever you keep them. Leave without losing anything.</p>
+  </div>
+</section>
+
+<section class="band tight">
+  <span class="eyebrow">Below this line</span>
+  <h2 class="h2" style="margin-top: 14px">The rest of this page is the product.</h2>
+  <p style="margin-top: 14px; color: var(--dim)">Not a video and not a screenshot. It is the same build we ship, loaded with two reviews: a tour we wrote, and a real review of a real commit in the repository that renders it. Drop a finding you disagree with. Reload the page. It is still gone, because the event log is real.</p>
+  <p style="color: var(--dim)">Nothing is asked of you. There is no agent to run, no token to paste, and no folder to pick. The post button at the bottom right is inert here and says so.</p>
+</section>
+
+<section class="stage-wrap" id="demo">
+  <div class="stage">
+    <div class="stage-chrome">
+      <span class="live"><i class="dot"></i>live</span>
+      <span class="said">This is the app. Click anything. Switch review with the source chip, top left.</span>
+      <a class="out" href="#after">keep reading &#8595;</a>
+    </div>
+    <iframe class="stage-frame" src="app/?demo=1" title="dev.review, loaded with two sample reviews" loading="lazy"></iframe>
+  </div>
+</section>
+
+<div id="after"></div>
+
+<section class="band">
+  <span class="eyebrow">What a review is</span>
+  <h2 class="h2" style="margin: 16px 0 24px">A change arrives because it is waiting on you.</h2>
+  <div class="prose">
+    <p>The agent writes one JSON file into storage you already own. There is no API, no upload and no notification. The app asks your git host which pull requests await your review, derives the filename for each, and reads it.</p>
+    <p>Every lens is shown, including the clean ones, each with a line on what was actually checked. A lens with nothing flagged is the most useful thing on the page: it is the difference between checked and clean, and not looked at.</p>
+    <p>QA evidence shows the change was driven, not only read. The reviewer is the accountable party, so the reviewer decides what goes out.</p>
+    <p><a href="the-work.html">How the work runs &#8594;</a></p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Neutrality</span>
+  <p class="pullquote" style="margin: 16px 0 24px">Any agent. Any storage. Any host.</p>
+  <div class="prose">
+    <p>The whole integration is a JSON file on disk, published and versioned, so anything that can write that file can feed this interface. Nothing here is coupled to one generator, one storage backend or one git host.</p>
+    <p>The bundled vendors cannot take this position, because each of them wants to own generation and the reading surface together. Neutrality is not only a principle here. The systems you are responsible for rarely all live in one place, so a tool tied to one host fails the first want by construction.</p>
+    <p><a href="neutrality.html">The neutrality position &#8594;</a></p>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="foot-cols">
+    <div>
+      <h3>The argument</h3>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="neutrality.html">Neutrality</a></li>
+        <li><a href="the-work.html">The work</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Product</h3>
+      <ul>
+        <li><a href="#demo">The demo</a></li>
+        <li><a href="get-started.html">Get started</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Documentation</h3>
+      <ul>
+        <li><a href="docs.html">Overview</a></li>
+        <li><a href="docs.html#schema">The draft schema</a></li>
+        <li><a href="docs.html#start">Running it</a></li>
+        <li><a href="docs.html#adapter">Writing an adapter</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="colophon">
+    <span>dev.review</span>
+    <span>Ink and Paper follow your operating system.</span>
+    <span>Nothing on this page asks for an email.</span>
+  </div>
+</footer>
+
+</body>
+</html>

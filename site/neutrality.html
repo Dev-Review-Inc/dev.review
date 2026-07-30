@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neutrality &#183; dev.review</title>
+<meta name="description" content="Any agent, any storage, any host. The whole integration is a published JSON schema, so anything that can write that file can feed this interface. There is no source that points at us.">
+<meta property="og:title" content="Neutrality &#183; dev.review">
+<meta property="og:description" content="Your agents. Your storage. Your host.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="masthead">
+  <a class="brand" href="./">dev.review</a>
+  <nav>
+    <a href="manifesto.html">Manifesto</a>
+    <a href="the-work.html">The work</a>
+    <a href="neutrality.html" aria-current="page">Neutrality</a>
+    <a href="get-started.html">Get started</a>
+    <a href="pricing.html">Pricing</a>
+  </nav>
+</header>
+
+<section class="band hero">
+  <span class="eyebrow">Neutrality</span>
+  <h1 class="display">Your agents. Your storage. Your host.</h1>
+  <p class="lede">You can leave, which is the reason to stay. Nothing here is coupled to one generator, one storage backend or one git host, and the pieces that would couple it are the pieces we have decided not to build.</p>
+</section>
+
+<section class="band">
+  <span class="eyebrow">The whole integration</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>A draft is one JSON file. The schema is published and versioned, so anything that can write that file can feed this interface: a skill, a script, a CI job, a generator that does not exist yet.</p>
+    <p class="pullquote">A format anyone can write is a format nobody owns.</p>
+    <p>The bundled vendors cannot take this position, because each of them wants to own generation and the reading surface together. Sitting above the generators is only credible if we are not one of them.</p>
+    <p><a href="docs.html#schema">The draft schema &#8594;</a></p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">Where drafts live</span>
+  <p style="margin: 16px 0 24px; color: var(--dim); max-width: var(--measure)">A source is a name and the storage its drafts sit in. Every one of them points at storage you already own.</p>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Source</th><th>What it is</th><th>Where it works</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>A folder on this computer</td>
+          <td>The File System Access API, with the folder handle remembered between sessions</td>
+          <td>Chromium browsers</td>
+        </tr>
+        <tr>
+          <td>This computer</td>
+          <td>The desktop build's own filesystem access</td>
+          <td>Inside the desktop app</td>
+        </tr>
+        <tr>
+          <td>S3-compatible bucket</td>
+          <td>Any S3-compatible endpoint: AWS, R2, MinIO</td>
+          <td>Anywhere, given bucket CORS</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose" style="margin-top: 24px">
+    <p>Where a review is posted is configured apart from where drafts are read, because they are independent choices. Today the destination is GitHub, with your own token. The token never leaves your browser: nothing proxies, and no credential exists anywhere but the machine you are sitting at.</p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">What we refuse</span>
+  <div class="prose" style="margin-top: 22px">
+    <h3>No source points at us</h3>
+    <p>Every backend reads storage the customer already owns. There is no adapter that points at our infrastructure, and adding one would be the first step in taking the position back.</p>
+
+    <h3>No tier holds your files</h3>
+    <p>Hosting the pipe would mean holding files derived from your source, and the security review the whole position avoids. What is sold is the client that syncs and coordinates a team, over storage you already have.</p>
+
+    <h3>We are not the generator</h3>
+    <p>Generation is a different business, competing on inference. This reads whatever wrote the draft and has no opinion about which agent did, which is the only reason the schema is worth publishing.</p>
+  </div>
+</section>
+
+<section class="band">
+  <span class="eyebrow">The gap</span>
+  <div class="prose" style="margin-top: 22px">
+    <p>This reads GitHub only today.</p>
+    <p>Seeing across the systems you are responsible for means seeing across hosts, and those systems rarely all live in one place. That is a hole in the first want, and for anyone whose work spans more than one host the product does not yet do the thing it argues for.</p>
+    <p>Adding a host is adding a file. That makes it cheap, not done.</p>
+  </div>
+</section>
+
+<section class="band flush">
+  <div class="hero-actions">
+    <a class="button primary" href="./#demo">Use it &#8595;</a>
+    <a class="button" href="docs.html#adapter">Write an adapter</a>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="foot-cols">
+    <div>
+      <h3>The argument</h3>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="neutrality.html">Neutrality</a></li>
+        <li><a href="the-work.html">The work</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Product</h3>
+      <ul>
+        <li><a href="./#demo">The demo</a></li>
+        <li><a href="get-started.html">Get started</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Documentation</h3>
+      <ul>
+        <li><a href="docs.html">Overview</a></li>
+        <li><a href="docs.html#schema">The draft schema</a></li>
+        <li><a href="docs.html#start">Running it</a></li>
+        <li><a href="docs.html#adapter">Writing an adapter</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="colophon">
+    <span>dev.review</span>
+    <span>Ink and Paper follow your operating system.</span>
+    <span>Nothing on this page asks for an email.</span>
+  </div>
+</footer>
+
+</body>
+</html>
