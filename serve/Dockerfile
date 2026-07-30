@@ -15,10 +15,10 @@ COPY serve/*.go ./
 # embeds the tree of the commit it was built from. The placeholder web/ in the
 # source tree is deliberately not copied.
 #
-# It takes the root: this image is the app, served at dev.review. The
-# marketing site is a separate image that builds on this one and mounts the
-# interface under its own /app/, which is how the demo it frames stays
-# same-origin without this image knowing anything about it.
+# It takes the root: this image is the app, served at app.dev.review. The
+# marketing site at dev.review is a separate image that builds on this one and
+# mounts the interface under its own /app/, which is how the demo it frames
+# stays same-origin without this image knowing anything about it.
 COPY web ./web
 
 # The install document, generated from the skills and advertised as an address
