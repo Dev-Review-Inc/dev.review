@@ -4,8 +4,20 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # Outside contributions arrive as pull requests from forks, and a pull request
+  # nobody has verified is a pull request the maintainer has to verify by hand.
+  # This is also what branch protection requires: a rule can only require a
+  # check that actually runs on the pull request.
+  pull_request:
+    branches: [main]
+
+# Read-only by default. The one job that needs to write does so by asking for it
+# itself, so nothing else in this file can be given a token that pushes.
+permissions:
+  contents: read
 
 jobs:
+  # The name matters: branch protection requires this check by it.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -46,6 +58,12 @@ jobs:
 
   build:
     needs: test
+    # Only what has landed gets published. A fork's pull request is given a
+    # read-only token and no secrets, by design, so an ungated build job would
+    # fail at the registry login on every outside contribution and read as the
+    # contributor's fault. Nothing from a fork is ever built into an image
+    # anyone can pull.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
