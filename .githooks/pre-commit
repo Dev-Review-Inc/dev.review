@@ -1,0 +1,64 @@
+#!/bin/sh
+# Checks that must pass before a commit lands.
+#
+# Tracked, and pointed at by core.hooksPath, rather than living in .git/hooks:
+# hooks in .git are local to one clone, are not carried by a bundle or a push,
+# and are lost with the directory. This repository lost its originals exactly
+# that way. Tracked, they survive a reboot and a contributor gets them too.
+#
+# Enable with:  git config core.hooksPath .githooks
+#
+# Each check runs only when the commit touches files it applies to, so a commit
+# that changes prose does not wait for the Go suite.
+
+set -e
+
+changed=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$changed" ] && exit 0
+
+has() { echo "$changed" | grep -qE "$1"; }
+step() { printf '\n%s:\n' "$1"; }
+ok() { printf '  OK.\n'; }
+
+echo "Changed files:"
+echo "$changed" | sed 's/^/  - /'
+
+if has '\.js$|\.mjs$'; then
+  step "ESLint"
+  npx --no-install eslint $(echo "$changed" | grep -E '\.m?js$' | tr '\n' ' ') 2>/dev/null || {
+    printf '  (eslint not installed, skipped)\n'
+  }
+  ok
+
+  step "JS specs"
+  npm run --silent test:units
+  ok
+fi
+
+if has '^serve/.*\.go$'; then
+  step "gofmt"
+  unformatted=$(gofmt -l serve/)
+  if [ -n "$unformatted" ]; then
+    printf '  not formatted:\n%s\n' "$unformatted"
+    exit 1
+  fi
+  ok
+
+  step "go vet"
+  (cd serve && go vet ./...)
+  ok
+
+  step "Go tests"
+  (cd serve && go test ./...)
+  ok
+fi
+
+if has '\.md$'; then
+  step "markdownlint"
+  npx --no-install markdownlint $(echo "$changed" | grep -E '\.md$' | tr '\n' ' ') 2>/dev/null || {
+    printf '  (markdownlint not installed, skipped)\n'
+  }
+  ok
+fi
+
+printf '\nGit hooks: passed.\n'
