@@ -6,20 +6,20 @@
 // skill without rebuilding the document and this goes red, rather than the site
 // quietly handing out an installer for last month's skill.
 //
-//   node site/install-doc.mjs
+//   node skills/install-doc.mjs
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-import { buildInstall } from "../../site/install-doc.mjs";
+import { buildInstall } from "../../skills/install-doc.mjs";
 
 describe("the install document", () => {
   test("is the one its sources build", () => {
     assert.equal(
-      fs.readFileSync("site/install.md", "utf8"),
+      fs.readFileSync("install.md", "utf8"),
       buildInstall(),
-      "site/install.md is stale - rebuild it with: node site/install-doc.mjs",
+      "install.md is stale - rebuild it with: node skills/install-doc.mjs",
     );
   });
 

@@ -1,7 +1,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-import { anApp, agentWrites, aDraft, aPull } from "./helper.js";
+import { anApp, agentWrites, aDraft } from "./helper.js";
 
 describe("What a finding carries when it is posted on its own", () => {
   test("a committable suggestion goes with it, as it would with the review", async () => {

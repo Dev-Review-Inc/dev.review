@@ -348,6 +348,40 @@ func TestExtensionlessKeepsItsType(t *testing.T) {
 	}
 }
 
+// A directory can be served in production, not only in development.
+//
+// The marketing site is a different image built on this same binary: its own
+// pages at the root, the interface copied in beneath them. That image has
+// content on disk rather than embedded, and it is production, so serving from
+// disk must not imply the development behaviour. It did: -dir was wired
+// straight to the live handler, which sets no-store on everything and mounts a
+// reload endpoint.
+func TestDirectoryServedForProduction(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!doctype html><title>from disk</title>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler, err := build(dir, "", false)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	response := get(t, handler, http.MethodGet, "/", nil)
+
+	if !strings.Contains(response.Body.String(), "from disk") {
+		t.Fatal("did not serve the directory")
+	}
+
+	if got := response.Header().Get("Cache-Control"); got == "no-store" {
+		t.Error("production must not serve with the development cache policy")
+	}
+
+	if reload := get(t, handler, http.MethodGet, "/.reload", nil); reload.Code == http.StatusOK {
+		t.Error("the reload endpoint must not exist outside development")
+	}
+}
+
 func TestMissingFileWithExtensionIs404(t *testing.T) {
 	handler := handlerFor(t)
 

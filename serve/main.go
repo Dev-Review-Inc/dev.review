@@ -27,11 +27,12 @@ var site embed.FS
 
 func main() {
 	address := flag.String("addr", ":8080", "address to listen on")
-	dir := flag.String("dir", "", "serve this directory from disk instead of the embedded copy (development)")
+	dir := flag.String("dir", "", "serve this directory from disk instead of the embedded copy")
+	dev := flag.Bool("dev", false, "reload on edit and never cache, for development against -dir")
 	policy := flag.String("csp", "", "replace the content security policy (see README)")
 	flag.Parse()
 
-	handler, err := build(*dir, *policy)
+	handler, err := build(*dir, *policy, *dev)
 	if err != nil {
 		log.Fatalf("serve: %v", err)
 	}
@@ -40,13 +41,21 @@ func main() {
 	log.Fatal(http.ListenAndServe(*address, handler))
 }
 
-// build chooses between the embedded snapshot and a directory on disk.
+// build chooses what is served, and how.
 //
-// The embedded case is the default because it is what ships. A directory is for
-// development, where a reload has to pick up an edit without a rebuild.
-func build(dir, policy string) (http.Handler, error) {
+// The embedded case is the default because it is what this image ships. A
+// directory is not by itself a development signal: the marketing site is a
+// separate image built on this same binary, with its pages on disk and the
+// interface copied in beneath them, and that is production. Development is the
+// -dev flag, which is what adds the reload endpoint and refuses to let a
+// browser hold an edit.
+func build(dir, policy string, dev bool) (http.Handler, error) {
 	if dir != "" {
-		return newLive(os.DirFS(dir), policy), nil
+		if dev {
+			return newLive(os.DirFS(dir), policy), nil
+		}
+
+		return newSnapshot(os.DirFS(dir), policy)
 	}
 
 	files, err := fs.Sub(site, "web")

@@ -1,4 +1,4 @@
-// Builds site/install.md out of the files it installs.
+// Builds install.md out of the files it installs.
 //
 // The install document carries the skills and the collector inline, so that one
 // fetch of one URL is the whole install and nothing has to be chased down
@@ -9,7 +9,7 @@
 // Editing a skill and forgetting the install document turns that test red
 // instead of quietly shipping an installer for last month's skill.
 //
-//   node site/install-doc.mjs        rewrite site/install.md
+//   node skills/install-doc.mjs      rewrite install.md
 
 import fs from "node:fs";
 import path from "node:path";
@@ -20,12 +20,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // Each skill, and where it has to land for Claude Code to find it.
 const SKILLS = [
   {
-    file: "skills/dev-review.md",
+    file: "dev-review.md",
     to: "~/.claude/skills/dev-review/SKILL.md",
     what: "Drafts one pull request into the schema.",
   },
   {
-    file: "skills/dev-review-sweep.md",
+    file: "dev-review-sweep.md",
     to: "~/.claude/skills/dev-review-sweep/SKILL.md",
     what: "Finds what is waiting and runs the first over each.",
   },
@@ -94,7 +94,7 @@ export function buildInstall() {
   for (const name of COLLECTOR) {
     out.push(`### \`${COLLECTOR_TO}/${name}\``);
     out.push("");
-    const body = read(path.join("skills/collector", name));
+    const body = read(path.join("collector", name));
     const wrap = fence(body);
 
     out.push(`${wrap}javascript`);
@@ -116,6 +116,6 @@ export function buildInstall() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  fs.writeFileSync(path.join(here, "install.md"), buildInstall());
-  console.log("wrote site/install.md");
+  fs.writeFileSync(path.join(here, "..", "install.md"), buildInstall());
+  console.log("wrote install.md");
 }

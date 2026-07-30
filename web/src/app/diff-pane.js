@@ -155,7 +155,7 @@ function fileBlock(app, pull, file, findings, readOnly) {
   // dropping it would be impossible.
   const shown = new Set(hunks.flatMap((hunk) => hunk.lines.map((line) => line.newLine)));
 
-  for (const finding of findings.filter((finding) => !shown.has(finding.line))) {
+  for (const finding of findings.filter((candidate) => !shown.has(candidate.line))) {
     block.append(findingCard(app, pull, finding, { actions: !readOnly }));
   }
 

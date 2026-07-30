@@ -24,7 +24,7 @@ apart, because they are independent choices.
 A **source** is a name and the storage its drafts live in.
 
 | Source | What it is | Where it works |
-|---|---|---|
+| --- | --- | --- |
 | A folder on this computer | The File System Access API, with the folder handle remembered between sessions | Chromium browsers |
 | This computer | The desktop build's own filesystem access | Inside the Tauri app |
 | S3 bucket | Any S3-compatible endpoint: AWS, R2, MinIO | Anywhere, given bucket CORS |
@@ -80,7 +80,7 @@ two browsers write the same file either.
 
 ```sh
 cd serve
-go run . -dir ../web
+go run . -dir ../web -dev
 ```
 
 For a deployable binary, copy the interface in and build:

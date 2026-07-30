@@ -1,6 +1,5 @@
 # The build context is the repository root, but serve/Dockerfile only ever
-# copies serve/*.go, serve/go.mod, site/ and web/. Everything listed here is
-# kept out
+# copies serve/*.go, serve/go.mod and web/. Everything listed here is kept out
 # so that editing it neither slows the context upload nor invalidates a build
 # cache layer that does not depend on it.
 
@@ -23,13 +22,10 @@ logs
 
 *.md
 
-# Except what the site hands out rather than writes about: the skills, and the
-# install document that carries them. Excluded, those links are 404s.
-!site/skills/*.md
-!site/install.md
+# Except the install document, which the site hands out rather than writes
+# about. The marketing image copies it out of this one; excluded, that is a 404.
+!install.md
 
-# The install document is generated from the files it installs. The generator
-# builds the site rather than being part of it, and the collector's own tests
-# are not what a reader downloads.
-site/install-doc.mjs
-site/skills/collector/test
+# The skills are the install document's sources rather than a second copy to
+# ship, and the generator builds the document rather than being part of it.
+skills

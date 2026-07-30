@@ -2,7 +2,6 @@ import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { App } from "../../web/src/app/app.js";
-import { MultiEventStore } from "../../web/src/state/multi-event-store.js";
 import { MemoryKeyValueStore } from "../../web/src/state/key-value-store.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
 import { adapterTypes } from "../../web/src/adapters/index.js";

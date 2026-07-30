@@ -15,6 +15,10 @@
 # project has no dependencies to install one into. They fail the commit rather
 # than skipping when unavailable: a check that quietly does nothing is worse
 # than no check, because it reads as a passing one.
+#
+# Their versions are pinned. Unpinned, npx takes the latest, and a release that
+# adds a rule blocks commits on files nobody touched - which is exactly how a
+# table in the README that had been fine for months suddenly stopped the build.
 
 set -e
 
@@ -30,7 +34,7 @@ echo "$changed" | sed 's/^/  - /'
 
 if has '\.js$|\.mjs$'; then
   step "ESLint"
-  npx -y eslint $(echo "$changed" | grep -E '\.m?js$' | tr '\n' ' ')
+  npx -y eslint@9 $(echo "$changed" | grep -E '\.m?js$' | tr '\n' ' ')
   ok
 
   step "JS specs"
@@ -58,7 +62,7 @@ fi
 
 if has '\.md$'; then
   step "markdownlint"
-  npx -y markdownlint-cli $(echo "$changed" | grep -E '\.md$' | tr '\n' ' ')
+  npx -y markdownlint-cli@0.45 $(echo "$changed" | grep -E '\.md$' | tr '\n' ' ')
   ok
 fi
 

@@ -40,7 +40,7 @@ test("keeps only the pull requests whose repository is in the workspace", () => 
   ];
 
   assert.deepStrictEqual(
-    withinWorkspace(prs, ["org/app"]).map((pr) => pr.number),
+    withinWorkspace(prs, ["org/app"]).map((entry) => entry.number),
     [1],
   );
 });

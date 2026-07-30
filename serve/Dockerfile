@@ -11,16 +11,21 @@ WORKDIR /src/serve
 COPY serve/go.mod ./
 COPY serve/*.go ./
 
-# What gets served, copied in here rather than committed, so the image always
+# The interface, copied in here rather than committed, so the image always
 # embeds the tree of the commit it was built from. The placeholder web/ in the
 # source tree is deliberately not copied.
 #
-# The marketing pages take the root and the interface sits under /app/, which is
-# what the site's own markup assumes: one origin, so the demo the homepage pins
-# into the page is a same-origin frame and the interface needs no second
-# property to drift away from.
-COPY site ./web
-COPY web ./web/app
+# It takes the root: this image is the app, served at app.dev.review. The
+# marketing site is a separate image that builds on this one and mounts the
+# interface under its own /app/, which is how the demo it frames stays
+# same-origin without this image knowing anything about it.
+COPY web ./web
+
+# The install document, generated from the skills and advertised as an address
+# people type. It sits at the repository root, where a reader looks for it, and
+# is placed into the served tree here so that it answers at /install and so the
+# marketing image can copy it out rather than keeping a second copy.
+COPY install.md ./web/install.md
 
 # Static, so the final stage needs no libc. -s -w drop the symbol and DWARF
 # tables, which the binary does not need to serve files.
@@ -37,6 +42,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /reviewer-se
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /reviewer-serve /reviewer-serve
+
+# The interface again, this time as files rather than embedded in the binary.
+# The binary does not need it; downstream images do. The marketing site is a
+# separate image built on this one, and it copies the interface out of here so
+# that the demo it frames is the published build rather than a second copy that
+# drifts. A few hundred kilobytes buys that guarantee.
+COPY --from=build /src/serve/web /web
 
 # Runs as uid 65532, which the base image already provides. Nothing here needs
 # root: Docker sets net.ipv4.ip_unprivileged_port_start=0, so an unprivileged

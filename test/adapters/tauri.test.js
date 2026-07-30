@@ -56,8 +56,8 @@ function fakeTauri({ convertFileSrc } = {}) {
       return file ? [...file.bytes] : null;
     },
 
-    storage_write: ({ path, bytes }) => {
-      files.set(path, { bytes: Uint8Array.from(bytes), modifiedAt: Date.now() });
+    storage_write: ({ path, bytes: written }) => {
+      files.set(path, { bytes: Uint8Array.from(written), modifiedAt: Date.now() });
 
       return null;
     },

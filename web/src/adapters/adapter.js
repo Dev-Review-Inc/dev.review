@@ -131,8 +131,8 @@ export class Adapter {
 
       const changed = [];
 
-      for (const [path, mark] of marks) {
-        if (previous.get(path) !== mark) changed.push(path);
+      for (const [path, entry] of marks) {
+        if (previous.get(path) !== entry) changed.push(path);
       }
 
       for (const path of previous.keys()) {
