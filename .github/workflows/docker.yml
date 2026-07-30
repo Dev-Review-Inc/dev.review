@@ -79,12 +79,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # An image path must be lowercase, and the owner is Dev-Review-Inc. Taking
+      # github.repository_owner verbatim produces a reference the registry
+      # refuses, so it is folded here rather than hardcoded, which would go
+      # stale the next time the account moves.
+      - id: owner
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
           # dev-review, not dev.review: a dot is legal in an image path but it
           # reads as a registry hostname to enough tools to be a bad bet.
-          images: ghcr.io/${{ github.repository_owner }}/dev-review
+          images: ghcr.io/${{ steps.owner.outputs.name }}/dev-review
           tags: |
             type=ref,event=branch
             type=ref,event=tag
