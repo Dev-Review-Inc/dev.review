@@ -17,6 +17,10 @@ node_modules/
 /clones/
 /logs/
 
+# www.dev.review lives here, following the domain-shaped layout, and is its own
+# repository. Ignored so this one never swallows it as an embedded checkout.
+/www/
+
 # Design mockups dropped in for reference
 /mockup*.html
 /design-mockups/

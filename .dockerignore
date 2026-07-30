@@ -20,6 +20,10 @@ worktrees
 clones
 logs
 
+# The marketing site's own checkout. Nothing in this image needs it, and the
+# build context is the repository root.
+www
+
 *.md
 
 # Except the install document, which the site hands out rather than writes
