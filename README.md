@@ -164,3 +164,19 @@ to its own origin.
 `test/adapters/conformance.js` is one suite that every source backend is run
 through. A backend either behaves like the others or fails out loud, which is
 what keeps adding a third one to an afternoon.
+
+## Contributing
+
+Issues and pull requests are welcome. `main` is protected, so everything lands
+through a pull request, and every commit carries a `Signed-off-by` line. See
+[CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for anything
+that should not be a public issue.
+
+## Licence
+
+[Apache-2.0](LICENSE). Use it, fork it, ship it, sell it. The patent grant is
+included, and there is no clause reserving anything back.
+
+What is sold is the client that syncs and coordinates a team over storage you
+already own. Nothing about that depends on the source being closed, which is
+why it is not.
