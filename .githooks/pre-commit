@@ -10,6 +10,11 @@
 #
 # Each check runs only when the commit touches files it applies to, so a commit
 # that changes prose does not wait for the Go suite.
+#
+# The node linters run through `npx -y` rather than a local binary, because this
+# project has no dependencies to install one into. They fail the commit rather
+# than skipping when unavailable: a check that quietly does nothing is worse
+# than no check, because it reads as a passing one.
 
 set -e
 
@@ -25,9 +30,7 @@ echo "$changed" | sed 's/^/  - /'
 
 if has '\.js$|\.mjs$'; then
   step "ESLint"
-  npx --no-install eslint $(echo "$changed" | grep -E '\.m?js$' | tr '\n' ' ') 2>/dev/null || {
-    printf '  (eslint not installed, skipped)\n'
-  }
+  npx -y eslint $(echo "$changed" | grep -E '\.m?js$' | tr '\n' ' ')
   ok
 
   step "JS specs"
@@ -55,9 +58,7 @@ fi
 
 if has '\.md$'; then
   step "markdownlint"
-  npx --no-install markdownlint $(echo "$changed" | grep -E '\.md$' | tr '\n' ' ') 2>/dev/null || {
-    printf '  (markdownlint not installed, skipped)\n'
-  }
+  npx -y markdownlint-cli $(echo "$changed" | grep -E '\.md$' | tr '\n' ' ')
   ok
 fi
 
