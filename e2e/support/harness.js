@@ -127,6 +127,20 @@ export function theFiles() {
         "+  end",
       ].join("\n"),
     },
+    {
+      // A file the change only removes, which is the one a list that counts
+      // additions alone has nothing to say about.
+      filename: "lib/legacy_error.rb",
+      additions: 0,
+      deletions: 4,
+      patch: [
+        "@@ -1,4 +0,0 @@",
+        "-module App",
+        "-  class LegacyError < StandardError",
+        "-  end",
+        "-end",
+      ].join("\n"),
+    },
   ];
 }
 

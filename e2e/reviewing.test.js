@@ -222,6 +222,65 @@ describe("Reading a review the agent drafted", () => {
   });
 });
 
+describe("Sizing the changed files from the list", () => {
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+    await page.until('document.querySelector("#files .file")', "the files to be listed");
+  });
+
+  after(() => page.close());
+
+  test("every row says what came out as well as what went in", async () => {
+    assert.deepEqual(
+      await page.eval(`[...document.querySelectorAll("#files .file")].map((row) => [
+        row.querySelector(".path").textContent,
+        row.querySelector(".adds")?.textContent || "",
+        row.querySelector(".dels")?.textContent || "",
+      ])`),
+      [
+        ["lib/error.rb", "+3", "−1"],
+        ["spec/error_spec.rb", "+2", "−0"],
+        // The motivating case: a row reading "+0" alone cannot tell a reader
+        // whether nothing happened or the whole file went.
+        ["lib/legacy_error.rb", "+0", "−4"],
+      ],
+    );
+  });
+
+  test("a deletion count reads the same in the list as it does over the diff", async () => {
+    const seen = await page.eval(`(() => {
+      const style = (selector) => {
+        const computed = getComputedStyle(document.querySelector(selector));
+        return { color: computed.color, size: computed.fontSize };
+      };
+      return {
+        listDels: style("#files .file .dels"),
+        headDels: style("#diff .diff-head .dels"),
+        listAdds: style("#files .file .adds"),
+      };
+    })()`);
+
+    assert.equal(seen.listDels.color, seen.headDels.color);
+    assert.equal(seen.listDels.size, seen.listAdds.size);
+  });
+
+  test("the findings badge still sits at the end of the row it belongs to", async () => {
+    assert.deepEqual(
+      await page.eval(
+        '[...document.querySelector("#files .file").children].map((el) => el.className)',
+      ),
+      ["path", "spacer", "adds", "dels", "n is-critical"],
+    );
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
 describe("Writing the review's summary", () => {
   let page;
 

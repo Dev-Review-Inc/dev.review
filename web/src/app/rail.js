@@ -276,6 +276,7 @@ function drawFiles(app) {
       element("span", "path", file.filename),
       element("span", "spacer", ""),
       element("span", "adds", `+${file.additions}`),
+      element("span", "dels", `−${file.deletions}`),
     );
 
     if (anchored.length) {
