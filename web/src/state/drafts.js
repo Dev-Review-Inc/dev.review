@@ -13,7 +13,7 @@ import { parseDraft } from "../domain/draft.js";
 
 // Where a source's drafts sit under its reader's root, matching the layout
 // the schema documents so an existing drafts directory can be attached as-is.
-const ROOT = "drafts/";
+export const ROOT = "drafts/";
 
 export class Drafts {
   /**

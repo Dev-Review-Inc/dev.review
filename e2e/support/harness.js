@@ -184,7 +184,12 @@ export async function openApp(browser, origin, world = {}) {
  */
 export async function attachStorage(page) {
   await page.click("#source-button");
-  await page.until('!document.querySelector("#setup-popover").hidden', "the setup popover");
+  await page.until('!document.querySelector("#setup-popover").hidden', "the settings panel");
+
+  // A fresh profile opens onto the teaching state; connecting GitHub is its
+  // way into the destination form.
+  await page.clickButton("#setup-popover", "Connect GitHub");
+  await page.until('!document.querySelector("#destination-form").hidden', "the destination form");
 
   await page.fill('[data-focus-key="destination:label"]', "Work GitHub");
   await page.fill('[data-focus-key="destination:token"]', TYPED.token);
@@ -194,6 +199,9 @@ export async function attachStorage(page) {
     "the destination to say who it signed in as",
   );
 
+  // With one half attached and the other still missing, the panel offers the
+  // missing half next: the source add form is already open.
+  await page.until('!document.querySelector("#source-form").hidden', "the source form");
   await page.choose("#source-form select", "s3");
   await page.fill('[data-focus-key="source:name"]', "Work");
   await page.fill('[data-focus-key="source:bucket"]', TYPED.bucket);
@@ -208,8 +216,17 @@ export async function attachStorage(page) {
     "the source to be attached",
   );
 
+  // The header names the new source part way through attaching it; the detail
+  // settles on the saved source last, with the clean footer's Done. Waiting
+  // for that button waits for the final redraw, so the click below cannot be
+  // aimed at a button that moves out from under it.
+  await page.until(
+    '[...document.querySelectorAll("#source-form button")].some((b) => b.textContent.trim() === "Done")',
+    "the saved source's detail to settle",
+  );
+
   // Setup is finished with, so it is put away. Leaving it open would leave its
-  // backdrop over the review underneath, which is not what a reader would do.
+  // scrim over the review underneath, which is not what a reader would do.
   await page.clickButton("#source-form", "Done");
   await page.until('document.querySelector("#setup-popover").hidden', "setup to close");
 }

@@ -197,3 +197,79 @@ describe("Fixing a destination", () => {
     assert.equal((await app2.state.secret(added.id)).token, "good");
   });
 });
+
+describe("Seeing how every source is doing", () => {
+  let databases;
+  let adapter;
+
+  beforeEach(async () => {
+    databases = someDatabases();
+    adapter = new MemoryAdapter();
+  });
+
+  function anApp() {
+    return new App({
+      database: databases,
+      adapter: () => adapter,
+      destination: () => aDestination(),
+    });
+  }
+
+  test("every configured source has been looked at once the app is up", async () => {
+    const app = anApp();
+    await app.boot();
+    await agentWrites(adapter, aDraft());
+    const work = await app.addSource({ name: "Work", adapter: { type: "memory" } });
+    const spare = await app.addSource({ name: "Spare", adapter: { type: "memory" } });
+
+    const reopened = anApp();
+    await reopened.boot();
+
+    assert.equal(reopened.health[work.id].state, "ok");
+    assert.equal(reopened.health[work.id].drafts, 1);
+    assert.equal(reopened.health[spare.id].state, "ok");
+    assert.ok(reopened.healthOf(work).at > 0);
+  });
+
+  test("a source nobody has written to yet is a warning rather than a fault", async () => {
+    const app = anApp();
+    await app.boot();
+    const source = await app.addSource({ name: "Work", adapter: { type: "memory" } });
+
+    assert.equal(app.healthOf(source).state, "warn");
+    assert.match(app.healthOf(source).reason, /sweep/i);
+  });
+
+  test("a source that cannot be reached is reported, and the rest still are", async () => {
+    const app = new App({
+      database: databases,
+      adapter: (config) => {
+        if (config.bucket) throw new Error("the bucket is gone");
+
+        return adapter;
+      },
+      destination: () => aDestination(),
+    });
+    await app.boot();
+    await agentWrites(adapter, aDraft());
+    const work = await app.addSource({ name: "Work", adapter: { type: "memory" } });
+    const gone = await app.addSource({
+      name: "Gone",
+      adapter: { type: "s3", bucket: "gone", region: "us-east-1" },
+    });
+
+    assert.equal(app.healthOf(gone).state, "broken");
+    assert.match(app.healthOf(gone).reason, /bucket is gone/);
+    assert.equal(app.healthOf(work).state, "ok");
+  });
+
+  test("a source that has been forgotten is no longer reported on", async () => {
+    const app = anApp();
+    await app.boot();
+    const source = await app.addSource({ name: "Work", adapter: { type: "memory" } });
+
+    await app.removeSource(source);
+
+    assert.equal(app.healthOf(source), null);
+  });
+});

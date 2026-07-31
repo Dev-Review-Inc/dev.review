@@ -1,19 +1,23 @@
-// The header: what is being read, what is waiting, and the two setup flows.
+// The header: what is being read, what is waiting, and the settings panel.
 //
 // Drafts come from a source and reviews go to a destination. They are separate
-// choices, so they are separate lists in one popover rather than one merged
+// choices, so they are separate groups in one panel rather than one merged
 // idea: a team can keep drafts in a bucket and post to GitHub, or keep them on
 // disk and post somewhere else, and neither decision constrains the other.
 //
-// Adding and editing share one form. They differ in what it is prefilled with
-// and what the submit does, and in nothing else, because a second form is a
-// second place for the two to drift apart.
+// The panel is master–detail: every source and destination on the left, one of
+// them opened on the right. The configured state is the resting state - the
+// forms only appear for the item being looked at, and nothing saves until the
+// footer says so.
 
 import { adapterTypes } from "../adapters/index.js";
 import { pickDirectory } from "../adapters/filesystem.js";
 import { destinationTypes } from "../destinations/index.js";
-import { age, element, find, initials, say } from "./dom.js";
+import { age, arm, element, find, initials, say } from "./dom.js";
 import { leaveWords } from "./words.js";
+
+// What the detail header calls a backend, under the item's name.
+const TYPE_WORDS = { filesystem: "local folder", tauri: "this computer", s3: "s3" };
 
 /**
  * A blank source form.
@@ -48,8 +52,9 @@ export function newDestinationSetup() {
  * @returns {void}
  */
 export function drawHeader(app) {
-  drawSources(app);
-  drawDestinations(app);
+  find("source-name").textContent = app.source ? app.source.name : "none";
+
+  drawSettings(app);
   drawQueue(app);
   drawOpen(app);
 
@@ -62,7 +67,10 @@ export function drawHeader(app) {
 }
 
 /**
- * Open the sources and destinations popover.
+ * Open the sources and destinations panel.
+ *
+ * Opened without a target, it rests on what is being read, so the reader lands
+ * on the source they are using rather than on an empty pane.
  *
  * @param {object} app the application
  * @returns {void}
@@ -71,6 +79,21 @@ export function openSetup(app) {
   find("setup-popover").hidden = false;
   find("setup-backdrop").hidden = false;
   find("source-button").setAttribute("aria-expanded", "true");
+
+  if (!app.settingsSelection?.kind) {
+    const destination = app.queries.findDestination(app.destinationId);
+
+    if (app.source) {
+      focusSource(app, app.source)
+        .then(() => app.changed())
+        .catch((failure) => say(failure.message, "error"));
+    } else if (destination) {
+      focusDestination(app, destination)
+        .then(() => app.changed())
+        .catch((failure) => say(failure.message, "error"));
+    }
+  }
+
   app.changed();
 }
 
@@ -115,33 +138,17 @@ export function toggleQueue(app) {
 }
 
 /**
- * Put a source into the form to be corrected, and show it.
+ * Open the panel on a source's detail, ready to be corrected.
  *
  * Exported because a source that cannot be read says so in the pane, and the
- * fix has to be reachable from there rather than only from this popover.
+ * fix has to be reachable from there rather than only from this panel.
  *
  * @param {object} app the application
  * @param {object} source which source
- * @returns {Promise<void>} when the form is showing it
+ * @returns {Promise<void>} when the panel is showing it
  */
 export async function editSource(app, source) {
-  const fields = fieldsForAdapter(source.adapter.type);
-
-  app.setup = {
-    editing: source,
-    name: source.name,
-    type: source.adapter.type,
-    // Only what is not a credential: a stored secret never reaches the page.
-    values: Object.fromEntries(
-      fields
-        .filter((field) => !field.secret)
-        .map((field) => [field.key, source.adapter[field.key] || ""]),
-    ),
-    handle: null,
-    secretsSet: await app.secretsSetFor(source),
-    problem: "",
-  };
-
+  await focusSource(app, source);
   openSetup(app);
 }
 
@@ -340,7 +347,7 @@ function stateLabel(entry) {
   return element("span", `state ${tone}`, word);
 }
 
-// ---- Sources
+// ---- The settings panel
 
 /**
  * What a backend needs asking for. The adapter declares it, so this form knows
@@ -350,114 +357,558 @@ function fieldsForAdapter(type) {
   return adapterTypes().find((candidate) => candidate.type === type)?.fields || [];
 }
 
-function drawSources(app) {
-  const list = find("source-list");
-  const sources = app.queries.allSources();
+/**
+ * Put a source into the detail, prefilled from what is stored.
+ */
+async function focusSource(app, source) {
+  const fields = fieldsForAdapter(source.adapter.type);
 
-  find("source-name").textContent = app.source ? app.source.name : "none";
-
-  list.replaceChildren();
-
-  for (const source of sources) {
-    list.append(sourceRow(app, source));
-  }
-
-  if (!sources.length) {
-    list.append(
-      element(
-        "div",
-        "popover-foot",
-        "Nothing attached yet. A draft source is the storage your review agent writes to.",
-      ),
-    );
-  }
-
-  drawSourceForm(app);
+  app.setup = {
+    editing: source,
+    name: source.name,
+    type: source.adapter.type,
+    // Only what is not a credential: a stored secret never reaches the page.
+    values: Object.fromEntries(
+      fields
+        .filter((field) => !field.secret)
+        .map((field) => [field.key, source.adapter[field.key] || ""]),
+    ),
+    handle: null,
+    secretsSet: await app.secretsSetFor(source),
+    problem: "",
+  };
+  app.settingsSelection = { kind: "source", id: source.id };
 }
 
-function sourceRow(app, source) {
-  const line = document.createElement("div");
-  line.className = "setup-line";
-
-  const row = document.createElement("button");
-  row.className = "setup-row";
-  row.setAttribute("aria-current", String(app.source?.id === source.id));
-
-  const top = document.createElement("div");
-  top.className = "top";
-  top.append(element("span", "name", source.name));
-
-  row.append(top, element("div", "dir", describeAdapter(source.adapter)));
-  row.addEventListener("click", () => {
-    app.switchSource(source).catch((failure) => say(failure.message, "error"));
-  });
-
-  const edit = document.createElement("button");
-  edit.className = "ghost setup-edit";
-  edit.textContent = "Edit";
-  edit.title = "Correct this source's storage or credentials";
-  edit.addEventListener("click", () => {
-    editSource(app, source).catch((failure) => say(failure.message, "error"));
-  });
-
-  line.append(row, edit, removeSourceButton(app, source));
-
-  return line;
+async function focusDestination(app, destination) {
+  app.destinationSetup = {
+    editing: destination,
+    label: destination.label || destination.name || "",
+    type: destination.type,
+    values: {},
+    secretsSet: await app.secretsSetFor(destination),
+    problem: "",
+  };
+  app.settingsSelection = { kind: "destination", id: destination.id };
 }
 
 /**
- * Forget a source, after asking once.
- *
- * It arms before it acts, the way the per-finding send does. What it undoes is
- * this app's knowledge of the storage: the credential is forgotten and the
- * store is closed. The drafts themselves are the reader's and are left exactly
- * where they are, which is why this asks once rather than dwelling on it, and
- * why the second press says what is actually being forgotten.
- *
- * @param {object} app the running app
- * @param {object} source the source to forget
- * @returns {HTMLElement} the button
+ * Begin adding, with blank forms and a pending row in the nav.
  */
-function removeSourceButton(app, source) {
-  const remove = document.createElement("button");
-
-  remove.className = "ghost danger setup-edit";
-  remove.textContent = "Remove";
-  remove.title = "Forget this source here. The drafts in it are left alone";
-
-  remove.addEventListener("click", async () => {
-    if (remove.dataset.armed !== "true") {
-      remove.dataset.armed = "true";
-      remove.textContent = "Forget it?";
-
-      setTimeout(() => {
-        remove.dataset.armed = "false";
-        remove.textContent = "Remove";
-      }, 2500);
-
-      return;
-    }
-
-    remove.disabled = true;
-
-    try {
-      await app.removeSource(source);
-      say(`${source.name} is no longer read here`, "ok");
-    } catch (failure) {
-      say(failure.message, "error");
-      remove.disabled = false;
-      remove.dataset.armed = "false";
-      remove.textContent = "Remove";
-    }
-  });
-
-  return remove;
+function startAdd(app, kind) {
+  app.setup = newSourceSetup();
+  app.destinationSetup = newDestinationSetup();
+  app.settingsSelection = { kind: "add", adding: kind, id: null };
+  app.changed();
 }
 
-function describeAdapter(adapter) {
-  const type = adapterTypes().find((candidate) => candidate.type === adapter.type);
+function dropSelection(app) {
+  app.setup = newSourceSetup();
+  app.destinationSetup = newDestinationSetup();
+  app.settingsSelection = { kind: "", id: null };
+  app.changed();
+}
 
-  return type ? type.label : adapter.type;
+function drawSettings(app) {
+  const sources = app.queries.allSources();
+  const destinations = app.queries.allDestinations();
+  const selection = app.settingsSelection || { kind: "" };
+
+  drawNav(app, sources, destinations, selection);
+
+  const add = find("settings-add");
+
+  add.classList.toggle("is-solid", !sources.length && !destinations.length);
+  add.onclick = () => startAdd(app, "source");
+
+  const teaching = !sources.length && !destinations.length && selection.kind !== "add";
+  const blank = !teaching && !selection.kind;
+
+  drawTeach(app, teaching);
+  find("settings-blank").hidden = !blank;
+
+  // Both forms are always in the page - hidden, they still declare what they
+  // would ask - and exactly one of them can be showing.
+  drawSourceForm(app);
+  drawDestinationForm(app);
+
+  find("source-form").hidden =
+    !(selection.kind === "source" || (selection.kind === "add" && selection.adding === "source"));
+  find("destination-form").hidden =
+    !(selection.kind === "destination" ||
+      (selection.kind === "add" && selection.adding === "destination"));
+}
+
+// ---- The nav
+
+/**
+ * What a nav row says a source resolves to, under its name.
+ *
+ * Never the backend's label: the reader knows what kind of storage they
+ * attached, what they forget is which storage. The browser's folder handles
+ * carry no path at all, so the remembered folder's name stands in, and when
+ * even that is gone the row says so honestly rather than inventing a path.
+ *
+ * @param {object} source the stored source
+ * @param {string} handleName the remembered folder's name, "" when unknown
+ * @returns {string} one line of where it points
+ */
+export function resolvedSource(source, handleName) {
+  const adapter = source.adapter;
+
+  if (adapter.type === "s3") {
+    const prefix = String(adapter.prefix || "").replace(/\/+$/, "");
+
+    return prefix ? `s3://${adapter.bucket}/${prefix}` : `s3://${adapter.bucket}`;
+  }
+
+  if (adapter.type === "tauri") return adapter.root || "";
+  if (adapter.type === "filesystem") return handleName ? `${handleName}/` : "folder on this computer";
+
+  return adapter.type;
+}
+
+/**
+ * The count a group header carries: how many rows need attention, wearing the
+ * worst colour present, and nothing at all when everything is fine.
+ *
+ * @param {({state: string}|null)[]} healths one health record per row, null when unprobed
+ * @returns {{count: number, tone: string}} what the header shows
+ */
+export function attention(healths) {
+  let count = 0;
+  let tone = "";
+
+  for (const health of healths) {
+    if (!health || health.state === "ok") continue;
+
+    count += 1;
+    tone = health.state === "broken" ? "bad" : tone || "warn";
+  }
+
+  return { count, tone };
+}
+
+/**
+ * How a destination is doing. There is no probe for these: the only one the
+ * app can vouch for is the open one, which either said who it signed in as or
+ * said what went wrong. The others are unknown, and unknown draws no dot.
+ */
+function destinationHealth(app, destination) {
+  if (app.destinationId !== destination.id) return null;
+  if (app.problems.destination) return { state: "broken", reason: app.problems.destination };
+  if (app.login) return { state: "ok", reason: "" };
+
+  return null;
+}
+
+function drawNav(app, sources, destinations, selection) {
+  const sourceList = find("source-list");
+  const destinationList = find("destination-list");
+  const addingSource = selection.kind === "add" && selection.adding === "source";
+  const addingDestination = selection.kind === "add" && selection.adding === "destination";
+
+  drawAttention(find("source-attention"), attention(sources.map((source) => app.healthOf(source))));
+  drawAttention(
+    find("destination-attention"),
+    attention(destinations.map((destination) => destinationHealth(app, destination))),
+  );
+
+  sourceList.replaceChildren();
+
+  for (const source of sources) sourceList.append(sourceRow(app, source, selection));
+
+  if (addingSource) sourceList.append(pendingRow(app.setup.name || "new source"));
+  else if (!sources.length) sourceList.append(element("div", "mono settings-none", "none yet"));
+
+  destinationList.replaceChildren();
+
+  for (const destination of destinations) {
+    destinationList.append(destinationRow(app, destination, selection));
+  }
+
+  if (addingDestination) {
+    destinationList.append(pendingRow(app.destinationSetup.label || "new destination"));
+  } else if (!destinations.length) {
+    destinationList.append(element("div", "mono settings-none", "none yet"));
+  }
+}
+
+function drawAttention(span, { count, tone }) {
+  span.textContent = count ? String(count) : "";
+  span.className = `mono${tone ? ` is-${tone}` : ""}`;
+}
+
+function healthDot(health) {
+  if (!health) return null;
+
+  const tone = health.state === "ok" ? "ok" : health.state === "warn" ? "warn" : "bad";
+  const dot = element("span", `settings-dot is-${tone}`, "");
+
+  dot.title = health.reason || "";
+
+  return dot;
+}
+
+function sourceRow(app, source, selection) {
+  const row = document.createElement("button");
+
+  row.type = "button";
+  row.className = "settings-row";
+  row.setAttribute(
+    "aria-current",
+    String(selection.kind === "source" && selection.id === source.id),
+  );
+
+  const text = element("div", "text", "");
+
+  text.append(
+    element("span", "name", source.name),
+    element("span", "dir mono", resolvedSource(source, app.handleNames?.[source.id] || "")),
+  );
+  row.append(text, element("span", "spacer", ""));
+
+  const dot = healthDot(app.healthOf(source));
+
+  if (dot) row.append(dot);
+
+  // One click does both things a row means: show me this one, and read from it.
+  row.addEventListener("click", () => {
+    focusSource(app, source)
+      .then(() => app.changed())
+      .catch((failure) => say(failure.message, "error"));
+    app.switchSource(source).catch((failure) => say(failure.message, "error"));
+  });
+
+  return row;
+}
+
+function destinationRow(app, destination, selection) {
+  const open = app.destinationId === destination.id;
+  const row = document.createElement("button");
+
+  row.type = "button";
+  row.className = "settings-row";
+  row.setAttribute(
+    "aria-current",
+    String(selection.kind === "destination" && selection.id === destination.id),
+  );
+
+  const dir = element("span", "dir mono", "");
+
+  // The visible line is the account; "signed in as" rides along for a screen
+  // reader, where a bare login under a label answers nothing.
+  if (open && app.login) {
+    dir.append(element("span", "said", "signed in as "), document.createTextNode(app.login));
+  } else {
+    dir.textContent = destination.type;
+  }
+
+  const text = element("div", "text", "");
+
+  text.append(element("span", "name", destination.label || destination.name), dir);
+  row.append(text, element("span", "spacer", ""));
+
+  const dot = healthDot(destinationHealth(app, destination));
+
+  if (dot) row.append(dot);
+
+  row.addEventListener("click", () => {
+    focusDestination(app, destination)
+      .then(() => app.changed())
+      .catch((failure) => say(failure.message, "error"));
+    app.switchDestination(destination).catch((failure) => say(failure.message, "error"));
+  });
+
+  return row;
+}
+
+/**
+ * The row an add-in-progress holds in the nav: the typed name over a promise
+ * that nothing has been saved, with a hollow dot where health will go.
+ */
+function pendingRow(name) {
+  const row = element("div", "settings-row is-pending", "");
+
+  row.setAttribute("aria-current", "true");
+
+  const text = element("div", "text", "");
+
+  text.append(
+    element("span", "name", name),
+    element("span", "dir mono is-new", "new — unsaved"),
+  );
+  row.append(text, element("span", "spacer", ""), element("span", "settings-dot is-hollow", ""));
+
+  return row;
+}
+
+// ---- The teaching state
+
+function drawTeach(app, show) {
+  const pane = find("settings-teach");
+
+  pane.hidden = !show;
+  pane.replaceChildren();
+
+  if (!show) return;
+
+  const intro = element("div", "teach-intro", "");
+
+  intro.append(
+    element("div", "teach-title", "Nothing connected yet."),
+    element(
+      "div",
+      "teach-text",
+      "Two halves, and you need one of each. Sources are where drafts come from; destinations are where your decisions end up.",
+    ),
+  );
+
+  const halves = element("div", "teach-halves", "");
+  const sourceCard = element("div", "teach-card", "");
+
+  sourceCard.append(
+    element("span", "mono kicker", "a source"),
+    element("span", "what", "reads drafts"),
+    element("span", "mono how", "a folder on this computer, or an S3 bucket"),
+  );
+
+  const destinationCard = element("div", "teach-card", "");
+
+  destinationCard.append(
+    element("span", "mono kicker", "a destination"),
+    element("span", "what", "posts decisions"),
+    element("span", "mono how", "GitHub, so reviews land on the real PR"),
+  );
+
+  halves.append(sourceCard, element("div", "teach-joint", ""), destinationCard);
+
+  const consequence = element(
+    "div",
+    "teach-text",
+    "Without a destination, everything stays on this machine — you can read and decide, but nothing reaches your team.",
+  );
+
+  const actions = element("div", "teach-actions", "");
+  const addSource = element("button", "settings-button fill", "Add a source");
+  const connect = element("button", "settings-button", "Connect GitHub");
+
+  addSource.type = "button";
+  addSource.addEventListener("click", () => startAdd(app, "source"));
+  connect.type = "button";
+  connect.addEventListener("click", () => startAdd(app, "destination"));
+
+  actions.append(
+    addSource,
+    connect,
+    element("span", "spacer", ""),
+    element("span", "mono either", "either order"),
+  );
+
+  pane.append(intro, halves, consequence, actions);
+}
+
+// ---- The source form
+
+/**
+ * Whether the source form differs from the stored record.
+ *
+ * A blank secret box means "keep what is held", so only a typed secret counts.
+ * A freshly picked folder always counts: picking is the change.
+ *
+ * @param {object} setup the form's state
+ * @param {object[]} fields what this backend declares
+ * @returns {boolean} true when saving would change something
+ */
+export function sourceDirty(setup, fields) {
+  if (!setup.editing) return false;
+  if (setup.name !== setup.editing.name) return true;
+  if (setup.type !== setup.editing.adapter.type) return true;
+  if (setup.handle) return true;
+
+  return fields.some((field) => {
+    const value = setup.values[field.key] || "";
+
+    return field.secret ? Boolean(value) : value !== (setup.editing.adapter[field.key] || "");
+  });
+}
+
+/**
+ * Whether the destination form differs from the stored record.
+ *
+ * @param {object} setup the form's state
+ * @returns {boolean} true when saving would change something
+ */
+export function destinationDirty(setup) {
+  if (!setup.editing) return false;
+  if (setup.label !== (setup.editing.label || setup.editing.name || "")) return true;
+
+  return Object.values(setup.values).some((value) => (value || "").trim() !== "");
+}
+
+/**
+ * The one status line under the fields, built from the last probe.
+ *
+ * A healthy source quotes what is true of it; anything else is the probe's own
+ * sentence, verbatim, because the probe already states the remedy.
+ *
+ * @param {{state: string, reason: string, drafts: number, at: number}|null} health the last probe
+ * @param {string} reads what a healthy line says is being read
+ * @returns {{text: string, tone: string}} the line and its colour
+ */
+export function statusLine(health, reads) {
+  if (!health) return { text: "", tone: "" };
+
+  if (health.state === "ok") {
+    const drafts = `${health.drafts} draft${health.drafts === 1 ? "" : "s"}`;
+
+    return { text: `reads ${reads} · ${drafts} · checked ${age(health.at)} ago`, tone: "" };
+  }
+
+  return { text: health.reason, tone: health.state === "warn" ? "warn" : "bad" };
+}
+
+/**
+ * Everything this app touches inside a source, named.
+ *
+ * Storage the reader owns is storage they are entitled to an inventory of, and
+ * three facts are worth more than any reassurance: the drafts are only ever
+ * read, the decisions written are this device's alone, and the other files in
+ * there are its other browsers. Explaining that convention in the abstract is
+ * the paragraph this pane deleted, so it is a list of real paths or it is
+ * nothing: a folder handle the browser has forgotten leaves nothing to quote.
+ *
+ * @param {object} source the stored source
+ * @param {string} handleName the remembered folder's name, "" when unknown
+ * @param {string} deviceId this browser
+ * @returns {{at: string, does: {path: string, doing: string}[]}|null} the inventory
+ */
+export function folderWork(source, handleName, deviceId) {
+  const at = resolvedSource(source, handleName);
+
+  if (!at || at === "folder on this computer") return null;
+
+  return {
+    at: `${at.replace(/\/+$/, "")}/`,
+    does: [
+      { path: "drafts/", doing: "read · the agent writes these, this app never does" },
+      { path: `.reviewer/events/${deviceId}.jsonl`, doing: "written · your decisions on this device" },
+      { path: ".reviewer/events/", doing: "read · what you decided on your other devices" },
+    ],
+  };
+}
+
+function folderInventory(work) {
+  const list = element("div", "settings-work", "");
+
+  list.append(element("div", "mono settings-work-at", `in ${work.at}`));
+
+  for (const entry of work.does) {
+    const row = element("div", "settings-work-row", "");
+    const path = element("span", "mono settings-work-path", entry.path);
+
+    // This device's file is a uuid, which is too long to read and not worth
+    // widening the column for. It truncates, and hovering gives it back whole.
+    path.title = `${work.at}${entry.path}`;
+
+    row.append(path, element("span", "mono settings-work-doing", entry.doing));
+    list.append(row);
+  }
+
+  return list;
+}
+
+function sourceStatus(app, setup) {
+  if (!setup.editing) {
+    // A folder is chosen, not probed: nothing can be counted before it is
+    // attached, so nothing is invented.
+    if (setup.type === "filesystem" && setup.handle) {
+      return { text: `will read ${setup.handle.name}/drafts/`, tone: "" };
+    }
+
+    return { text: "", tone: "" };
+  }
+
+  const reads =
+    setup.editing.adapter.type === "s3"
+      ? `${resolvedSource(setup.editing, "")}/drafts/`
+      : "drafts/";
+
+  return statusLine(app.healthOf(setup.editing), reads);
+}
+
+/**
+ * The detail's first line: name, how it is doing, what kind of thing it is,
+ * and the way to forget it.
+ */
+function detailHead(app, name, health, typeWord, onRemove) {
+  const head = element("div", "settings-head", "");
+
+  head.append(element("span", "settings-title", name));
+
+  if (health) {
+    const tone = health.state === "ok" ? "ok" : health.state === "warn" ? "warn" : "bad";
+    const word =
+      health.state === "ok" ? "connected" : health.state === "warn" ? "misconfigured" : "broken";
+    const state = element("span", `mono settings-state is-${tone}`, "");
+
+    state.append(element("span", "settings-dot", ""), document.createTextNode(word));
+    state.title = health.reason || "";
+    head.append(state);
+  }
+
+  head.append(element("span", "mono settings-type", typeWord), element("span", "spacer", ""));
+
+  const remove = element("button", "mono settings-remove", "Remove");
+
+  remove.type = "button";
+  remove.title = "Forget this here. Nothing in the storage itself is touched";
+  remove.addEventListener("click", () => {
+    if (arm(remove, "Forget it?", "Remove")) onRemove();
+  });
+
+  head.append(remove);
+
+  return head;
+}
+
+/**
+ * The segmented choice the one Add button opens onto: which half is being
+ * added. Exactly two options, so it is a pair of buttons rather than a select.
+ */
+function kindControl(app, active) {
+  const control = element("div", "settings-kind mono", "");
+
+  for (const [kind, label] of [["source", "draft source"], ["destination", "destination"]]) {
+    const option = element("button", "", label);
+
+    option.type = "button";
+    option.setAttribute("aria-pressed", String(kind === active));
+    option.addEventListener("click", () => {
+      app.settingsSelection = { kind: "add", adding: kind, id: null };
+      app.changed();
+    });
+    control.append(option);
+  }
+
+  return control;
+}
+
+function footWord(text, tone) {
+  return element("span", `mono settings-word${tone ? ` is-${tone}` : ""}`, text);
+}
+
+function footButton(text, variant, onClick) {
+  const button = element("button", `settings-button${variant ? ` ${variant}` : ""}`, text);
+
+  if (onClick) {
+    button.type = "button";
+    button.addEventListener("click", onClick);
+  } else {
+    button.type = "submit";
+  }
+
+  return button;
 }
 
 function drawSourceForm(app) {
@@ -485,12 +936,32 @@ function drawSourceForm(app) {
   const fields = chosen?.fields || [];
 
   form.replaceChildren();
-  form.append(
-    element("div", "card-head", editing ? `edit ${setup.editing.name}` : "new draft source"),
-  );
-  form.append(textField(setup, { key: "name", label: "name", placeholder: "work" }, "source"));
-  form.append(
-    picker("storage", storageOptions(types), setup.type, (value) => {
+
+  const body = element("div", "settings-body", "");
+
+  if (editing) {
+    body.append(
+      detailHead(
+        app,
+        setup.editing.name,
+        app.healthOf(setup.editing),
+        TYPE_WORDS[setup.editing.adapter.type] || setup.editing.adapter.type,
+        () => removeSource(app, setup.editing),
+      ),
+    );
+  } else {
+    body.append(element("div", "settings-title", "New draft source"));
+  }
+
+  const grid = element("div", "settings-fields", "");
+
+  if (!editing) {
+    grid.append(element("span", "mono settings-key", "Add"), kindControl(app, "source"));
+  }
+
+  grid.append(textField(app, setup, { key: "name", label: "Name", placeholder: "work" }, "source"));
+  grid.append(
+    picker("Stored in", storageOptions(types), setup.type, (value) => {
       setup.type = value;
       setup.problem = "";
       app.changed();
@@ -502,73 +973,103 @@ function drawSourceForm(app) {
   // option is a line of text and this is a sentence with a url in it. At most
   // one backend has a hint, so this is one line, not a list of caveats.
   for (const type of types) {
-    if (type.hint) form.append(element("div", "mono scan-note", `${type.label}: ${type.hint}`));
+    if (type.hint) grid.append(element("div", "mono settings-hint", `${type.label}: ${type.hint}`));
   }
 
   for (const field of fields) {
-    form.append(textField(setup.values, field, "source", setup.secretsSet[field.key]));
+    grid.append(
+      textField(
+        app,
+        setup.values,
+        { ...field, label: labelWord(field.label) },
+        "source",
+        setup.secretsSet[field.key],
+      ),
+    );
   }
 
   // A usable backend that asks nothing is one whose storage is chosen rather
-  // than typed, so the picker stands in for the whole form. A backend this
+  // than typed, so the folder row stands in for its fields. A backend this
   // build no longer offers, or one that cannot be used here, gets neither: it
   // can be renamed, not repointed.
   const usable = adapterTypes().some((type) => type.type === setup.type && !type.reason);
 
-  if (usable && !fields.length) form.append(folderButton(app, setup, editing));
+  if (usable && !fields.length) {
+    grid.append(element("span", "mono settings-key", "Folder"), folderRow(app, setup, editing));
+  }
 
-  if (setup.problem) form.append(element("div", "mono scan-note is-warn", setup.problem));
+  body.append(grid);
 
-  form.append(
-    element(
-      "div",
-      "mono scan-note",
-      "Drafts are read from a drafts/ directory at the root of this storage, and this app's own decisions are synced back beside them.",
-    ),
-  );
+  const status = sourceStatus(app, setup);
 
-  const actions = document.createElement("div");
-  actions.className = "setup-actions";
+  if (status.text) {
+    body.append(element("div", `mono settings-status${status.tone ? ` is-${status.tone}` : ""}`, status.text));
+  }
 
-  const submit = document.createElement("button");
-  submit.type = "submit";
-  submit.className = "ghost";
-  submit.textContent = editing ? "Save changes" : "+ Add source";
+  const work = editing
+    ? folderWork(setup.editing, app.handleNames?.[setup.editing.id] || "", app.deviceId || "")
+    : null;
 
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.className = "ghost";
-  cancel.textContent = editing ? "Cancel" : "Done";
-  cancel.addEventListener("click", () => {
-    if (!editing) {
+  if (work) body.append(folderInventory(work));
+
+  if (setup.problem) body.append(element("div", "mono settings-status is-warn", setup.problem));
+
+  const foot = element("div", "settings-foot", "");
+  const dirty = editing && sourceDirty(setup, fields);
+
+  if (!editing) {
+    foot.append(footWord("nothing saved yet", ""), element("span", "spacer", ""));
+    foot.append(footButton("Cancel", "plain", () => dropSelection(app)));
+    foot.append(footButton("Add source", "fill"));
+  } else if (dirty) {
+    foot.append(footWord("unsaved changes", ""), element("span", "spacer", ""));
+    foot.append(
+      footButton("Cancel", "plain", () => {
+        focusSource(app, setup.editing)
+          .then(() => app.changed())
+          .catch((failure) => say(failure.message, "error"));
+      }),
+    );
+    foot.append(footButton("Save", "fill"));
+  } else {
+    const waiting = app.unsyncedCounts?.[setup.editing.id] || 0;
+
+    foot.append(
+      waiting
+        ? footWord(`${waiting} decision${waiting === 1 ? "" : "s"} waiting to sync`, "bad")
+        : footWord("saved", ""),
+      element("span", "spacer", ""),
+    );
+    foot.append(footButton("Done", ""));
+  }
+
+  form.append(body, foot);
+
+  form.onsubmit = (event) => {
+    event.preventDefault();
+
+    // A clean form's submit is the Done button: there is nothing to save.
+    if (editing && !sourceDirty(setup, fieldsForAdapter(setup.type))) {
       closeSetup();
 
       return;
     }
 
-    app.setup = newSourceSetup();
-    app.changed();
-  });
-
-  actions.append(submit, element("span", "spacer", ""), cancel);
-  form.append(actions);
-
-  form.onsubmit = (event) => {
-    event.preventDefault();
     saveSource(app);
   };
 }
 
-function folderButton(app, setup, editing) {
-  const choose = document.createElement("button");
+// Field labels arrive lowercase from the adapters; the 74px column reads
+// better carrying a capital, the way the design writes them.
+function labelWord(label) {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function folderRow(app, setup, editing) {
+  const row = element("div", "settings-folder", "");
+  const choose = element("button", "mono settings-choose", "Choose…");
 
   choose.type = "button";
-  choose.className = "ghost";
-  choose.textContent = setup.handle
-    ? `Folder: ${setup.handle.name}`
-    : editing
-      ? "Choose the folder again…"
-      : "Choose folder…";
 
   // The picker only opens inside a user gesture, which is why this is its own
   // button rather than something the submit handler does. Re-picking is also
@@ -584,7 +1085,24 @@ function folderButton(app, setup, editing) {
     }
   });
 
-  return choose;
+  const name = setup.handle
+    ? `${setup.handle.name}/`
+    : editing
+      ? resolvedSource(setup.editing, app.handleNames?.[setup.editing.id] || "")
+      : "";
+
+  row.append(choose, element("span", "mono settings-path", name));
+
+  return row;
+}
+
+function removeSource(app, source) {
+  app.removeSource(source)
+    .then(() => {
+      say(`${source.name} is no longer read here`, "ok");
+      dropSelection(app);
+    })
+    .catch((failure) => say(failure.message, "error"));
 }
 
 /**
@@ -670,8 +1188,9 @@ async function saveSource(app) {
       });
 
       say(`saved ${setup.name.trim()}`, "ok");
+      await focusSource(app, app.queries.findSource(setup.editing.id) || setup.editing);
     } else {
-      await app.addSource({
+      const source = await app.addSource({
         name: setup.name.trim(),
         adapter: { type: setup.type, ...config },
         secret: Object.keys(secret).length ? secret : undefined,
@@ -681,12 +1200,18 @@ async function saveSource(app) {
       // Attaching storage that cannot be reached is a failure worth saying out
       // loud, rather than one the pane has to be read carefully to notice.
       say(app.problem, app.problem ? "error" : "");
+
+      // One half attached and the other still missing is the teaching state's
+      // own sequence, mid-way: the pane offers the missing half next.
+      if (!app.queries.allDestinations().length) {
+        app.setup = newSourceSetup();
+        app.destinationSetup = newDestinationSetup();
+        app.settingsSelection = { kind: "add", adding: "destination", id: null };
+      } else {
+        await focusSource(app, source);
+      }
     }
 
-    const kind = setup.type;
-
-    app.setup = newSourceSetup();
-    app.setup.type = kind;
     app.changed();
   } catch (failure) {
     // Nothing was saved, so nothing is cleared: the form keeps every word the
@@ -697,103 +1222,49 @@ async function saveSource(app) {
   }
 }
 
-// ---- Destinations
-
-function drawDestinations(app) {
-  const list = find("destination-list");
-  const destinations = app.queries.allDestinations();
-
-  list.replaceChildren();
-
-  for (const destination of destinations) {
-    list.append(destinationRow(app, destination));
-  }
-
-  if (!destinations.length) {
-    list.append(
-      element(
-        "div",
-        "popover-foot",
-        "Nowhere to post yet. Reviews go to whichever destination is chosen here.",
-      ),
-    );
-  }
-
-  drawDestinationForm(app);
-}
-
-function destinationRow(app, destination) {
-  const open = app.destinationId === destination.id;
-
-  const line = document.createElement("div");
-  line.className = "setup-line";
-
-  const row = document.createElement("button");
-  row.className = "setup-row";
-  row.setAttribute("aria-current", String(open));
-
-  const top = document.createElement("div");
-  top.className = "top";
-  top.append(element("span", "name", destination.label || destination.name));
-
-  row.append(
-    top,
-    element("div", "dir", open && app.login ? `signed in as ${app.login}` : destination.type),
-  );
-  row.addEventListener("click", () => {
-    app.switchDestination(destination).catch((failure) => say(failure.message, "error"));
-  });
-
-  const edit = document.createElement("button");
-  edit.className = "ghost setup-edit";
-  edit.textContent = "Edit";
-  edit.title = "Rename this destination or rotate its token";
-  edit.addEventListener("click", () => {
-    editDestination(app, destination).catch((failure) => say(failure.message, "error"));
-  });
-
-  line.append(row, edit);
-
-  return line;
-}
-
-async function editDestination(app, destination) {
-  app.destinationSetup = {
-    editing: destination,
-    label: destination.label || destination.name || "",
-    type: destination.type,
-    values: {},
-    secretsSet: await app.secretsSetFor(destination),
-    problem: "",
-  };
-
-  openSetup(app);
-}
+// ---- The destination form
 
 function drawDestinationForm(app) {
   const form = find("destination-form");
   const types = destinationTypes();
   const setup = app.destinationSetup;
-  const chosen = types.find((type) => type.type === setup.type) || types[0];
   const editing = Boolean(setup.editing);
+  const chosen = editing
+    ? types.find((type) => type.type === setup.editing.type)
+    : types.find((type) => type.type === setup.type) || types[0];
 
-  setup.type = chosen ? chosen.type : "";
+  if (!editing) setup.type = chosen ? chosen.type : "";
 
   form.replaceChildren();
-  form.append(
-    element(
-      "div",
-      "card-head",
-      editing ? `edit ${setup.editing.label || setup.editing.name}` : "new destination",
-    ),
-  );
+
+  const body = element("div", "settings-body", "");
+
+  if (editing) {
+    body.append(
+      detailHead(
+        app,
+        setup.editing.label || setup.editing.name,
+        destinationHealth(app, setup.editing),
+        setup.editing.type,
+        () => removeDestination(app, setup.editing),
+      ),
+    );
+  } else {
+    body.append(element("div", "settings-title", "New destination"));
+  }
+
+  const grid = element("div", "settings-fields", "");
+
+  if (!editing) {
+    grid.append(element("span", "mono settings-key", "Add"), kindControl(app, "destination"));
+  }
 
   // The kind is what the stored credential belongs to, so it is settled when a
   // destination is added and not reopened afterwards.
   if (types.length > 1 && !editing) {
-    form.append(
+    grid.append(
       picker(
-        "kind",
+        "Kind",
         types.map((type) => ({ value: type.type, label: type.label })),
         setup.type,
         (value) => {
@@ -805,17 +1276,23 @@ function drawDestinationForm(app) {
     );
   }
 
-  form.append(
-    textField(setup, { key: "label", label: "name", placeholder: chosen?.label || "" }, "destination"),
+  grid.append(
+    textField(
+      app,
+      setup,
+      { key: "label", label: "Name", placeholder: chosen?.label || "" },
+      "destination",
+    ),
   );
 
   for (const field of chosen?.fields || []) {
-    form.append(
+    grid.append(
       textField(
+        app,
         setup.values,
         {
           key: field.key,
-          label: field.label.toLowerCase(),
+          label: labelWord(field.label),
           mono: true,
           secret: field.secret,
           required: true,
@@ -825,40 +1302,57 @@ function drawDestinationForm(app) {
       ),
     );
 
-    if (field.hint) form.append(element("div", "mono scan-note", field.hint));
+    if (field.hint) grid.append(element("div", "mono settings-hint", field.hint));
   }
 
-  if (setup.problem) form.append(element("div", "mono scan-note is-warn", setup.problem));
+  body.append(grid);
 
-  const actions = document.createElement("div");
-  actions.className = "setup-actions";
+  if (setup.problem) body.append(element("div", "mono settings-status is-warn", setup.problem));
 
-  const submit = document.createElement("button");
-  submit.type = "submit";
-  submit.className = "ghost";
-  submit.textContent = editing ? "Save changes" : "+ Add destination";
+  const foot = element("div", "settings-foot", "");
+  const dirty = editing && destinationDirty(setup);
 
-  actions.append(submit);
-
-  if (editing) {
-    const cancel = document.createElement("button");
-    cancel.type = "button";
-    cancel.className = "ghost";
-    cancel.textContent = "Cancel";
-    cancel.addEventListener("click", () => {
-      app.destinationSetup = newDestinationSetup();
-      app.changed();
-    });
-
-    actions.append(element("span", "spacer", ""), cancel);
+  if (!editing) {
+    foot.append(footWord("nothing saved yet", ""), element("span", "spacer", ""));
+    foot.append(footButton("Cancel", "plain", () => dropSelection(app)));
+    foot.append(footButton("Add destination", "fill"));
+  } else if (dirty) {
+    foot.append(footWord("unsaved changes", ""), element("span", "spacer", ""));
+    foot.append(
+      footButton("Cancel", "plain", () => {
+        focusDestination(app, setup.editing)
+          .then(() => app.changed())
+          .catch((failure) => say(failure.message, "error"));
+      }),
+    );
+    foot.append(footButton("Save", "fill"));
+  } else {
+    foot.append(footWord("saved", ""), element("span", "spacer", ""));
+    foot.append(footButton("Done", ""));
   }
 
-  form.append(actions);
+  form.append(body, foot);
 
   form.onsubmit = (event) => {
     event.preventDefault();
+
+    if (editing && !destinationDirty(setup)) {
+      closeSetup();
+
+      return;
+    }
+
     saveDestination(app, chosen);
   };
+}
+
+function removeDestination(app, destination) {
+  app.removeDestination(destination)
+    .then(() => {
+      say(`${destination.label || destination.name} will not be posted to from here`, "ok");
+      dropSelection(app);
+    })
+    .catch((failure) => say(failure.message, "error"));
 }
 
 async function saveDestination(app, type) {
@@ -878,20 +1372,28 @@ async function saveDestination(app, type) {
       });
 
       say(`saved ${setup.label.trim() || type.label}`, "ok");
+      await focusDestination(
+        app,
+        app.queries.findDestination(setup.editing.id) || setup.editing,
+      );
     } else {
-      await app.addDestination({
+      const destination = await app.addDestination({
         type: type.type,
         label: setup.label.trim() || type.label,
         secret,
       });
 
       say(app.problem, app.problem ? "error" : "");
+
+      if (!app.queries.allSources().length) {
+        app.setup = newSourceSetup();
+        app.destinationSetup = newDestinationSetup();
+        app.settingsSelection = { kind: "add", adding: "source", id: null };
+      } else {
+        await focusDestination(app, destination);
+      }
     }
 
-    const kind = type.type;
-
-    app.destinationSetup = newDestinationSetup();
-    app.destinationSetup.type = kind;
     app.changed();
   } catch (failure) {
     setup.problem = failure.message;
@@ -904,21 +1406,24 @@ async function saveDestination(app, type) {
 
 /**
  * A labelled text input whose value lives on the app, so a redraw underneath
- * the reader's hands does not empty the form they are filling in.
+ * the reader's hands does not empty the form they are filling in. Typing
+ * redraws, because the footer and the pending nav row answer to every
+ * keystroke; the reader's place survives it through the focus key.
  *
+ * @param {object} app the application, told when a keystroke lands
  * @param {object} holder where the typed value is kept
  * @param {object} field what to ask for
  * @param {string} scope which form this belongs to, for focus restoration
  * @param {boolean} [stored] whether a credential is already held for this field
  * @returns {HTMLElement} the labelled input
  */
-function textField(holder, field, scope, stored = false) {
+function textField(app, holder, field, scope, stored = false) {
   const label = document.createElement("label");
-  const caption = element("span", "mono field-label", field.label);
+  const caption = element("span", "mono settings-key", field.label);
 
   // A stored credential is never rendered. Saying that one is held, and that an
   // empty box keeps it, is everything the reader needs and hands nothing back.
-  if (stored) caption.append(element("span", "field-set", "set"));
+  if (stored) caption.append(element("span", "settings-set", "set"));
 
   label.append(caption);
 
@@ -929,7 +1434,7 @@ function textField(holder, field, scope, stored = false) {
   input.autocomplete = "off";
   input.spellcheck = false;
   // A credential already held is not required again: blank means keep it. The
-  // submit checks this as well, because these fields sit in a popover and the
+  // submit checks this as well, because these fields sit in a panel and the
   // native check cannot be the only thing standing between a typo and a source
   // that silently reads nothing.
   input.required = Boolean(field.required) && !stored;
@@ -938,6 +1443,7 @@ function textField(holder, field, scope, stored = false) {
   input.dataset.focusKey = `${scope}:${field.key}`;
   input.addEventListener("input", () => {
     holder[field.key] = input.value;
+    app.changed();
   });
 
   label.append(input);
@@ -994,7 +1500,7 @@ export function firstUsable(types) {
 export function picker(label, options, chosen, onChange) {
   const wrapper = document.createElement("label");
 
-  wrapper.append(element("span", "mono field-label", label));
+  wrapper.append(element("span", "mono settings-key", label));
 
   const select = document.createElement("select");
 

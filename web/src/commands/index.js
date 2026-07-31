@@ -400,18 +400,15 @@ export class Commands {
   }
 
   // Syncing is debounced because dropping four findings in a row is one thought
-  // and should be one write, not four.
+  // and should be one write, not four. Nothing is caught here: a push that does
+  // not land answers so rather than throwing, and records that it did not, so
+  // the reader can be told how much is waiting.
   _laterSync(source) {
     if (!this.sync) return;
 
     clearTimeout(this._pending[source.id]);
 
-    this._pending[source.id] = setTimeout(() => {
-      this.sync.push(source).catch(() => {
-        // A reader who is offline keeps reading. The log is local first, and
-        // the next successful push carries everything that has piled up.
-      });
-    }, 1000);
+    this._pending[source.id] = setTimeout(() => this.sync.push(source), 1000);
   }
 
   _finding(pull, finding) {

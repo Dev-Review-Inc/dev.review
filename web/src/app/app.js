@@ -11,6 +11,7 @@
 import { MultiEventStore } from "../state/multi-event-store.js";
 import { IndexedDBKeyValueStore } from "../state/key-value-store.js";
 import { Drafts } from "../state/drafts.js";
+import { probe } from "../state/health.js";
 import { Sync, deviceIdFor } from "../state/sync.js";
 import runners from "../state/runners.js";
 import { Commands } from "../commands/index.js";
@@ -45,6 +46,18 @@ export class App {
     this.drafts = null;
     this.adapter = null;
     this.destination = null;
+
+    // How each source is doing, by id, from the last sweep. Kept beside the
+    // sources rather than on them because it is an observation about storage,
+    // not something the log records: it is true of this moment and this device.
+    this.health = {};
+
+    // Two more observations the sweep gathers, so the settings pane can draw
+    // synchronously: the remembered folder's name for each browser-folder
+    // source (the handle API hides the path), and how many of this reader's
+    // decisions have not yet landed in each source's storage.
+    this.handleNames = {};
+    this.unsyncedCounts = {};
 
     this.queries = new Queries({ state: this.state, drafts: { find: () => null, problem: () => "" } });
     this.commands = new Commands({ state: this.state, queries: this.queries });
@@ -103,6 +116,81 @@ export class App {
     await this._openSource(await this.state.preference("source"));
 
     this.changed();
+
+    await this.probeSources();
+  }
+
+  /**
+   * Look at every source, not just the one being read.
+   *
+   * Swept on boot and after a source is attached, edited or forgotten, which is
+   * every moment the answer can have changed. Deliberately not on a timer: this
+   * lists each source's drafts, and a settings pane left open should not be a
+   * standing charge against someone's bucket.
+   *
+   * @returns {Promise<void>} when every source has been looked at
+   */
+  async probeSources() {
+    const sources = this.queries.allSources();
+    const health = {};
+    const names = {};
+    const counts = {};
+
+    await Promise.all(
+      sources.map(async (source) => {
+        const open = this.source && this.source.id === source.id;
+
+        if (source.adapter.type === "filesystem") {
+          names[source.id] = (await recallHandle(source.id).catch(() => null))?.name || "";
+        }
+
+        counts[source.id] = this.commands.sync
+          ? await this.commands.sync.unsynced(source).catch(() => 0)
+          : 0;
+
+        // The open source has already said what is wrong with it, and when it
+        // could not be built at all what is standing in for it is a reader that
+        // keeps nothing. Probing that would report an empty source rather than
+        // a broken one.
+        if (open && this.problems.source) {
+          health[source.id] = {
+            state: "broken",
+            reason: this.problems.source,
+            drafts: 0,
+            at: Date.now(),
+          };
+
+          return;
+        }
+
+        try {
+          // The open source already has a built reader, and building a second
+          // one would mean a second folder handle and a second seed fetch.
+          const adapter = open && this.adapter ? this.adapter : await this._readerFor(source);
+
+          health[source.id] = await probe(adapter);
+        } catch (error) {
+          // One source that cannot even be built is one broken row, not a
+          // sweep that reports nothing about the others.
+          health[source.id] = { state: "broken", reason: error.message, drafts: 0, at: Date.now() };
+        }
+      }),
+    );
+
+    this.health = health;
+    this.handleNames = names;
+    this.unsyncedCounts = counts;
+    this.changed();
+  }
+
+  /**
+   * How a source is doing, as of the last sweep.
+   *
+   * @param {object} source which source
+   * @returns {{state: string, reason: string, drafts: number, at: number}|null} the record, or null before it has been looked at
+   */
+  healthOf(source) {
+    return (source && this.health[source.id]) || null;
   }
 
   /**
@@ -172,6 +260,7 @@ export class App {
     remember(globalThis.localStorage);
 
     await this.switchSource(source);
+    await this.probeSources();
 
     return source;
   }
@@ -220,6 +309,8 @@ export class App {
     if (this.source && this.source.id === source.id) await this._openSource(source.id);
 
     this.changed();
+
+    await this.probeSources();
   }
 
   /**
@@ -243,6 +334,20 @@ export class App {
   }
 
   /**
+   * How many of the reader's decisions have not reached a source's storage.
+   *
+   * Here rather than on `queries`, which is synchronous and answers only from
+   * the event log. This is a fact about a write that did not land, kept beside
+   * the log rather than in it, which is the same shape as `secretsSetFor`.
+   *
+   * @param {object} source which source
+   * @returns {Promise<number>} how many are waiting, 0 when everything landed
+   */
+  unsyncedFor(source) {
+    return this.commands.sync.unsynced(source);
+  }
+
+  /**
    * Forget a source. Nothing is deleted from the customer's storage.
    *
    * @param {object} source which one
@@ -261,6 +366,8 @@ export class App {
     if (wasOpen) await this.switchSource(this.queries.allSources()[0] || null);
 
     this.changed();
+
+    await this.probeSources();
   }
 
   // ---- Destinations
@@ -572,12 +679,23 @@ export class App {
     if (typeof this._refresh.unref === "function") this._refresh.unref();
   }
 
+  /**
+   * A reader for a source, as configured.
+   *
+   * @param {object} source which source
+   * @returns {Promise<object>} the reader
+   * @throws {Error} if it cannot be built from what is stored
+   */
+  async _readerFor(source) {
+    const secret = await this.state.secret(source.id);
+    const handle = await recallHandle(source.id).catch(() => null);
+
+    return this._buildAdapterWith(source.adapter, secret, handle);
+  }
+
   async _buildAdapter(source) {
     try {
-      const secret = await this.state.secret(source.id);
-      const handle = await recallHandle(source.id).catch(() => null);
-
-      return this._buildAdapterWith(source.adapter, secret, handle);
+      return await this._readerFor(source);
     } catch (error) {
       this.problems.source = error.message;
 

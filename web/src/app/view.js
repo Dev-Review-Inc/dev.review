@@ -37,6 +37,9 @@ app.editingFinding = null;
 app.addingAt = null;
 app.setup = newSourceSetup();
 app.destinationSetup = newDestinationSetup();
+// Which item the settings panel's detail is showing: a source, a destination,
+// an add in progress, or nothing.
+app.settingsSelection = { kind: "", id: null };
 
 // Whether the first finished review has been opened for the reader. Opening
 // cold, that review is the obvious next action, so it is opened rather than

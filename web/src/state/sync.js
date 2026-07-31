@@ -36,18 +36,50 @@ export class Sync {
    * what is already there needs a read-modify-write, and this file is small
    * enough that rewriting it is cheaper than being clever about it.
    *
+   * A refused write is answered rather than thrown. A reader whose storage is
+   * unreachable keeps reading and keeps deciding; what they have decided since
+   * the last write that landed is what `unsynced` counts.
+   *
    * @param {object} source which source
-   * @returns {Promise<void>} when it is written
+   * @returns {Promise<boolean>} whether it reached the source
    */
   async push(source) {
     const adapter = this.adapterFor(source);
 
-    if (!adapter) return;
+    if (!adapter) return false;
 
     const events = this.state.allEvents(source.id);
     const body = events.map((event) => event.toLine()).join("\n");
 
-    await adapter.write(this._path(this.deviceId), new TextEncoder().encode(body));
+    try {
+      await adapter.write(this._path(this.deviceId), new TextEncoder().encode(body));
+    } catch {
+      // The mark stands where it was, which is the record of the failure: it
+      // is what makes the count right again after a reload.
+      return false;
+    }
+
+    // What went out, not what is held now. A decision made while the write was
+    // in flight is not in the bytes that left.
+    await this._record(source, events.length);
+
+    return true;
+  }
+
+  /**
+   * How many decisions are not known to have reached the source.
+   *
+   * A count rather than a position in the log. Absorbing a peer's older event
+   * lands it in the middle of `allEvents`, which is sorted by time, so an index
+   * or a timestamp would name the wrong events. Nothing is ever removed from a
+   * log and a key is only ever applied once, so the difference between what is
+   * held and what is known to have landed is exact however they interleave.
+   *
+   * @param {object} source which source
+   * @returns {Promise<number>} how many are waiting
+   */
+  async unsynced(source) {
+    return this.state.allEvents(source.id).length - (await this._known(source));
   }
 
   /**
@@ -127,7 +159,25 @@ export class Sync {
       }
     }
 
-    return this.state.absorb(source.id, events);
+    const taken = await this.state.absorb(source.id, events);
+
+    // What came out of the source is at the source. Counting a peer's decisions
+    // as this device's backlog would have the pane raise an alarm about work
+    // that is already safe.
+    if (taken.length) await this._record(source, (await this._known(source)) + taken.length);
+
+    return taken;
+  }
+
+  // The mark sits in preferences beside the device id rather than in the log:
+  // it describes this browser's relationship with the storage, and syncing it
+  // would tell every other device it had pushed what this one pushed.
+  _known(source) {
+    return this.state.preference(`synced:${source.id}`, 0);
+  }
+
+  _record(source, count) {
+    return this.state.setPreference(`synced:${source.id}`, count);
   }
 
   _path(deviceId) {
