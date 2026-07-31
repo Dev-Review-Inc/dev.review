@@ -173,9 +173,11 @@ agent's:
 
 That is the reader's own log: what they dropped, edited, posted and dismissed,
 one append-only file per device. It is deliberately separate from the draft.
-**The app never writes to a draft.** An agent is the only author of the file it
+**The app never edits a draft.** An agent is the only author of the file it
 wrote, so the two can never race for the same bytes, and an agent is free to
-rewrite its draft while the reader is part way through reading it.
+rewrite its draft while the reader is part way through reading it. The app can
+delete one — clearing a review removes `review.json`, which is how a reader asks
+for the pull request to be reviewed again — but it never writes bytes into it.
 
 This is why `dropped`, `drafted`, `posted`, `postedAt` and `postedUrl` are read
 from a draft but never written to one. A draft that carries them, because an

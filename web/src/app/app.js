@@ -549,6 +549,26 @@ export class App {
   }
 
   /**
+   * Throw away the draft on the pull request that is open, so it is reviewed
+   * again.
+   *
+   * Nothing is started by this. The agent claims work by looking for a pull
+   * request with no draft, so what the reader gets is a place in that queue,
+   * not a review beginning now.
+   *
+   * @returns {Promise<void>} when the draft is gone
+   * @throws {Error} carrying the reader's message when the storage refuses
+   */
+  async clearDraft() {
+    const pull = this.selected;
+
+    if (!pull || !this.drafts || !pull.draft) return;
+
+    await this.drafts.clear(pull, pull.key);
+    this.reselect();
+  }
+
+  /**
    * Look again at the pull request that is open.
    *
    * This is what a watcher calls when the storage moved underneath the reader.

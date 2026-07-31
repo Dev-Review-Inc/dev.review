@@ -20,6 +20,10 @@ export const TONE_RANK = ["critical", "warn", "accent", "ok", "neutral"];
 export const COPY_ICON =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 3.5v-1a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 2.5V8A1.5 1.5 0 0 0 4 9.5h-.5" transform="translate(0 1)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
+// A circling arrow: the draft goes, and one gets written again in its place.
+export const REDRAFT_ICON =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13.5 1.5v3.5H10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 export const COPIED_ICON =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -166,15 +170,25 @@ export function worstTone(findings) {
  * Irreversible actions get two clicks, and the arming lapses on its own so a
  * button left armed cannot be triggered by a stray tap minutes later.
  *
+ * A button that wears an icon rather than a word hands over how to put itself
+ * back, because the question is text and setting text would eat the icon.
+ *
  * @param {HTMLButtonElement} button the button to arm
  * @param {string} question what the armed button says
- * @param {string} settled what it says the rest of the time
+ * @param {string|(() => void)} settled what it says the rest of the time, or how to restore it
  * @returns {boolean} true when it was already armed and the caller should act
  */
 export function arm(button, question, settled) {
+  const settle =
+    typeof settled === "function"
+      ? settled
+      : () => {
+          button.textContent = settled;
+        };
+
   if (button.dataset.armed === "true") {
     button.dataset.armed = "false";
-    button.textContent = settled;
+    settle();
 
     return true;
   }
@@ -186,7 +200,7 @@ export function arm(button, question, settled) {
     if (!button.isConnected) return;
 
     button.dataset.armed = "false";
-    button.textContent = settled;
+    settle();
   }, 2500);
 
   return false;

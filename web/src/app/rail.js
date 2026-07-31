@@ -5,7 +5,19 @@
 // bare "Diff" row would only ever mean "all of it", which is the one thing
 // nobody wants to read.
 
-import { GLYPH, age, element, find, say, tabRow, worstTone, COPY_ICON, COPIED_ICON } from "./dom.js";
+import {
+  GLYPH,
+  age,
+  arm,
+  element,
+  find,
+  say,
+  tabRow,
+  worstTone,
+  COPY_ICON,
+  COPIED_ICON,
+  REDRAFT_ICON,
+} from "./dom.js";
 
 /**
  * Draw the whole left pane.
@@ -79,10 +91,57 @@ function drawBlurb(app) {
   const line = document.createElement("span");
   line.className = "pull-line";
   line.append(link, copy);
+
+  // Only where there is a document to throw away. With nothing written yet the
+  // pull request is already waiting to be picked up, and a button offering to
+  // ask for that again would be offering nothing.
+  if (pull.draft) line.append(redraftButton(app, pull));
+
   provenance.append(line);
 
   inner.append(provenance);
   blurb.append(inner);
+}
+
+/**
+ * Throw this review away and wait for another.
+ *
+ * Two clicks, because it is not undoable: the draft it deletes is the only copy
+ * and the one that replaces it is written from scratch. It sits beside the link
+ * and the copy button because those three are what the reader does with the
+ * pull request itself rather than with anything in it.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request being read
+ * @returns {HTMLElement} the button
+ */
+function redraftButton(app, pull) {
+  const again = document.createElement("button");
+
+  again.className = "clear-review";
+  again.title = "Delete this draft, so this pull request is reviewed again";
+  again.setAttribute("aria-label", "Review again");
+  again.innerHTML = REDRAFT_ICON;
+
+  const restore = () => {
+    again.innerHTML = REDRAFT_ICON;
+  };
+
+  again.addEventListener("click", async () => {
+    if (!arm(again, "Delete?", restore)) return;
+
+    try {
+      await app.clearDraft();
+      // Nothing is under way, so the words do not claim one is. The next sweep
+      // is what picks this up, and it is not this app's to start or to time.
+      say(`draft cleared - #${pull.number} goes back for review`, "ok");
+    } catch (failure) {
+      say(failure.message, "error");
+      restore();
+    }
+  });
+
+  return again;
 }
 
 function drawSections(app) {

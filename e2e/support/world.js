@@ -98,7 +98,9 @@
     if (method === "DELETE") {
       objects.delete(key);
 
-      return new Response("", { status: 204 });
+      // 204 carries no body, and constructing one that does is a TypeError -
+      // which the adapter would report as the bucket being unreachable.
+      return new Response(null, { status: 204 });
     }
 
     return new Response("", { status: 405 });

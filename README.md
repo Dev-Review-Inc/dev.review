@@ -71,9 +71,12 @@ been drafted yet.
 See [docs/draft-schema.md](docs/draft-schema.md) for the shape, which is
 authoritative and versioned.
 
-**The app never writes to a draft.** The agent is the only author of the file it
+**The app never edits a draft.** The agent is the only author of the file it
 wrote, so the two cannot race for the same bytes, and an agent is free to
-rewrite its draft while you are part way through reading it. What you decide,
+rewrite its draft while you are part way through reading it. The one thing the
+app does to a draft is delete it, whole: clearing the review beside the pull
+request link is how you ask for another one, because the sweep reviews whatever
+has no draft. What you decide,
 including dropped, edited, posted, dismissed and read, is kept in the app's own
 log at `.reviewer/events/<device>.jsonl`: one append-only file per device, so no
 two browsers write the same file either.

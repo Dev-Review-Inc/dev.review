@@ -209,6 +209,54 @@ describe("Clearing a review that is open", () => {
   });
 });
 
+describe("Asking for the review again", () => {
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+    await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+  });
+
+  after(() => page.close());
+
+  test("one click only asks, so a review cannot be lost to a stray tap", async () => {
+    await page.click(".clear-review");
+
+    assert.equal(await page.text(".clear-review"), "Delete?");
+    assert.equal(
+      await page.eval('globalThis.__world.objects.has("drafts/org--app-42/review.json")'),
+      true,
+    );
+  });
+
+  test("the second click takes the draft out of the storage itself", async () => {
+    await page.click(".clear-review");
+
+    await page.until(
+      '!globalThis.__world.objects.has("drafts/org--app-42/review.json")',
+      "the draft to be deleted from the storage",
+    );
+  });
+
+  test("and the pull request goes back to waiting, where the agent will find it", async () => {
+    await page.until(
+      'document.querySelector("#tab-summary .empty-title")?.textContent === "No review has started."',
+      "the pane to let the cleared review go",
+    );
+
+    assert.equal(await page.text("#queue .state"), "not started");
+    assert.equal(await page.text("#queue-foot"), "0 drafted · 1 waiting");
+
+    // Nothing left to throw away, so nothing offers to.
+    assert.equal(await page.count(".clear-review"), 0);
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
 describe("Posting the review", () => {
   let page;
 

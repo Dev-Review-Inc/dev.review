@@ -1,9 +1,13 @@
-// The agent's documents, read and never written.
+// The agent's documents, read and never edited.
 //
 // This is the one part of the app's state that is not event sourced, and that
 // is deliberate. A draft is external input: an agent wrote it, an agent will
 // rewrite it, and this app is a reader of it. Event sourcing it would mean
 // inventing a history for changes we did not make.
+//
+// A draft can be cleared, which is not authorship either: the file goes whole
+// and nothing takes its place. It is how a re-review is asked for, because the
+// sweep claims the pull requests whose drafts are missing.
 //
 // So it is a projection instead: read through the adapter, parsed, cached, and
 // re-read when the adapter says the bytes moved.
@@ -94,6 +98,22 @@ export class Drafts {
 
       return null;
     }
+  }
+
+  /**
+   * Delete the draft for a pull request, so a new one gets written.
+   *
+   * Forgotten here as well as removed there, rather than waiting for the watch
+   * to notice: the reader asked for this, so the pane owes them the answer now.
+   *
+   * @param {{owner: string, repo: string, number: number}} pull which pull request
+   * @param {string} key its identity
+   * @returns {Promise<void>} when it is gone
+   */
+  async clear(pull, key) {
+    await this.adapter.remove(draftPath(pull.owner, pull.repo, pull.number));
+
+    this._byKey.delete(key);
   }
 
   /**
