@@ -170,9 +170,24 @@ export async function openApp(browser, origin, world = {}) {
   );
 
   await page.go();
-  await page.until('document.querySelector("#source-name")', "the interface to draw");
+  await drawn(page);
 
   return page;
+}
+
+/**
+ * Wait for the interface to arrive.
+ *
+ * It arrives all at once, from behind a curtain, so the shell having been
+ * parsed says nothing about whether there is yet anything to drive. Waiting on
+ * a piece of that shell would hand back a page whose every click lands on the
+ * curtain instead.
+ *
+ * @param {object} page the page
+ * @returns {Promise<void>} when the curtain is down
+ */
+export async function drawn(page) {
+  await page.until('document.querySelector("#curtain").hidden', "the interface to arrive");
 }
 
 /**

@@ -7,6 +7,7 @@
 // disagree about what is being looked at.
 
 import { App } from "./app.js";
+import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
 import { find, say } from "./dom.js";
 import { dismissedWords, leaveWords } from "./words.js";
@@ -79,15 +80,26 @@ function drawTab() {
   find("tab-qa").hidden = app.tab !== "qa";
 }
 
+/**
+ * Open the first finished review, if one is waiting and none is open.
+ *
+ * Awaited on the way in, so the review the reader lands on is part of the one
+ * arrival rather than the thing that turns up after it. Later on it is called
+ * from a redraw and its promise dropped, because by then a review becoming
+ * ready is a change like any other.
+ *
+ * @returns {Promise<void>} when it is open
+ */
 function autoOpen() {
-  if (opened || app.selected) return;
+  if (opened || app.selected) return Promise.resolve();
 
   const ready = app.queue().find((entry) => entry.isReady);
 
-  if (!ready) return;
+  if (!ready) return Promise.resolve();
 
   opened = true;
-  open(ready);
+
+  return open(ready);
 }
 
 function keepPlace() {
@@ -229,11 +241,17 @@ window.addEventListener("focus", () => {
   app.loadQueue().catch((failure) => say(failure.message, "error"));
 });
 
-app.onChange(render);
+// Nothing redraws while the curtain is up: the interface is drawn once, whole,
+// underneath it. Only after it lifts does a change mean a redraw, so `render`
+// is subscribed then rather than now.
+startup({
+  boot: async () => {
+    await app.boot();
 
-app.boot()
-  .then(() => {
     if (app.problem) say(app.problem, "error");
-  })
-  .catch((failure) => say(failure.message, "error"))
-  .finally(render);
+  },
+  open: autoOpen,
+  render,
+  reveal: () => (find("curtain").hidden = true),
+  failed: (failure) => say(failure.message, "error"),
+}).then(() => app.onChange(render));

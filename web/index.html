@@ -1177,6 +1177,57 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* The curtain ----------------------------------------------------------
+     Up in the markup rather than raised by script, because the frame it
+     exists to cover is the first one - the shell underneath says "none" and
+     "nothing to review" in hardcoded text, and a reader who sees that while
+     the source and the queue are still being fetched has been told something
+     untrue. It comes down once, when the whole interface is behind it. */
+
+  #curtain {
+    position: fixed; inset: 0; z-index: 100;
+    display: grid; place-items: center;
+    background: var(--bg);
+  }
+
+  .curtain-inner { display: grid; gap: 14px; justify-items: center; }
+
+  .curtain-mark {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--panel2);
+    display: grid; place-items: center;
+    color: var(--dim2); font-family: var(--mono); font-size: 15px;
+  }
+
+  .curtain-word {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+
+  /* Indeterminate, because nothing here knows how far along it is. Claiming a
+     percentage would be the same lie the shell underneath used to tell. */
+  .curtain-bar {
+    width: 180px; height: 3px; border-radius: 2px;
+    background: var(--panel3); overflow: hidden;
+  }
+
+  .curtain-bar span {
+    display: block; width: 40%; height: 100%;
+    border-radius: 2px; background: var(--accent);
+    animation: sweep 1.15s ease-in-out infinite;
+  }
+
+  @keyframes sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+
+  /* Reduced motion gets the same bar, still, rather than no bar: it is the
+     thing on screen saying the app is working. */
+  @media (prefers-reduced-motion: reduce) {
+    .curtain-bar span { width: 100%; animation: none; opacity: .35; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     #confirm-post .spin { animation: none; border-top-color: var(--accentFg); opacity: .5; }
   }
@@ -1257,6 +1308,14 @@
 </style>
 </head>
 <body>
+
+<div id="curtain">
+  <div class="curtain-inner">
+    <div class="curtain-mark mono">&#9679;</div>
+    <div class="curtain-bar"><span></span></div>
+    <div class="curtain-word">loading</div>
+  </div>
+</div>
 
 <div id="shell">
   <header>

@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 
 import { openBrowser } from "./support/browser.js";
 import { serveSite } from "./support/site.js";
-import { aDraft, aPull, attachStorage, openApp, written } from "./support/harness.js";
+import { aDraft, aPull, attachStorage, drawn, openApp, written } from "./support/harness.js";
 
 let site;
 let browser;
@@ -61,6 +61,56 @@ describe("Arriving with nothing attached", () => {
   });
 
   test("nothing went wrong on the way in", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
+// Everything the interface needs comes from somewhere else, and each piece
+// used to be drawn the moment it landed: the queue, then the source's health,
+// then the review that opens by itself, then its diff. This watches a start up
+// with all of it configured and holds it to one arrival.
+describe("Arriving all at once", () => {
+  let page;
+  let arrival;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+
+    // The realistic start up: a browser coming back to a source, a destination
+    // and a queue it already has, rather than the first ever load.
+    await page.go();
+    await drawn(page);
+
+    // The first moment the reader can see anything, held for comparison.
+    arrival = await page.eval('document.querySelector("#shell").innerText');
+  });
+
+  after(() => page.close());
+
+  test("the whole interface is there the moment the curtain lifts", async () => {
+    assert.equal(await page.text("#source-name"), "Work");
+    assert.equal(await page.text("#queue-waiting"), "1 to review");
+    assert.equal(await page.text("#head-title"), "Re-root the errors onto a common base class");
+    assert.equal(await page.text("#staged"), "2 comments staged");
+
+    // The diff is the last thing to land, and the one the reader used to watch
+    // appear a beat after everything else.
+    assert.ok((await page.count("#diff .diff-file")) > 0);
+  });
+
+  // Redrawing is allowed - the app redraws whole, and a watcher or a refocus
+  // can ask for one at any time. What is not allowed is the redraw putting
+  // something on screen that was not there when the reader first looked.
+  test("nothing turns up after it", async () => {
+    // Long enough to cross a storage beat, so a quiet result means quiet
+    // rather than unobserved.
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    assert.equal(await page.eval('document.querySelector("#shell").innerText'), arrival);
+  });
+
+  test("nothing went wrong arriving", () => {
     assert.deepEqual(page.complaints, []);
   });
 });
@@ -144,6 +194,7 @@ describe("Reading a review the agent drafted", () => {
     );
 
     await page.go();
+    await drawn(page);
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
       "the reopened review to remember the drop",
@@ -392,6 +443,7 @@ describe("Dismissing your own pull request", () => {
 
   test("the dismissal outlives the browser being closed", async () => {
     await page.go();
+    await drawn(page);
     await page.until(
       'document.querySelector("#source-name").textContent === "Work"',
       "the interface to come back",
