@@ -21,6 +21,28 @@ export function postLabel(app) {
 }
 
 /**
+ * What the send on a single comment is called, and what it asks before sending.
+ *
+ * Two sends are on the screen at once, and they do different things: the footer
+ * sends the review, this one sends one comment on its own, ahead of it. So the
+ * button says which it is rather than leaving "Post" beside "Post review" for
+ * the reader to guess at. The confirmation names the destination only where the
+ * comment really lands there.
+ *
+ * @param {object} app the application
+ * @returns {{label: string, title: string, question: string}} what the button says
+ */
+export function commentWords(app) {
+  const destination = app.destination?.constructor;
+
+  return {
+    label: "Post this comment",
+    title: "Post this one comment now, ahead of the review",
+    question: destination?.sent ? `${destination.postLabel}?` : "Post it now?",
+  };
+}
+
+/**
  * What this destination can honestly say has happened so far.
  *
  * @param {object} app the application

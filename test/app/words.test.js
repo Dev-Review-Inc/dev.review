@@ -9,7 +9,14 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { postLabel, postNote, postedWords, leaveWords, dismissedWords } from "../../web/src/app/words.js";
+import {
+  commentWords,
+  postLabel,
+  postNote,
+  postedWords,
+  leaveWords,
+  dismissedWords,
+} from "../../web/src/app/words.js";
 import { GitHubDestination } from "../../web/src/destinations/github-destination.js";
 import { DemoDestination } from "../../web/src/destinations/demo.js";
 
@@ -31,6 +38,34 @@ describe("the words on the send", () => {
   test("says something neutral when there is no destination to ask", () => {
     assert.equal(postLabel({ destination: null }), "Post review");
     assert.equal(postNote({ destination: null }), "nothing has been sent yet");
+  });
+});
+
+// The send on a single comment, which sits beside Edit and Drop on the card and
+// used to read "Post". Beside a footer button reading "Post review", one word
+// leaves the reader guessing which of the two they are about to do, and the two
+// are not the same: this one sends one comment on its own, before the review.
+describe("the words on a single comment's send", () => {
+  test("say which of the two sends this is, and that it happens now", () => {
+    const words = commentWords({ destination: new GitHubDestination({ token: "x" }) });
+
+    assert.equal(words.label, "Post this comment");
+    assert.match(words.title, /one comment/i);
+    assert.match(words.title, /ahead of the review/i);
+  });
+
+  test("name the destination when confirming a send that really goes there", () => {
+    assert.equal(
+      commentWords({ destination: new GitHubDestination({ token: "x" }) }).question,
+      "Post to GitHub?",
+    );
+  });
+
+  test("promise the demo nowhere to send it, because it has nowhere", () => {
+    const question = commentWords({ destination: new DemoDestination({ seed: "/demo/queue.json" }) }).question;
+
+    assert.equal(question, "Post it now?");
+    assert.equal(commentWords({ destination: null }).question, "Post it now?");
   });
 });
 

@@ -142,6 +142,14 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(await page.text("#counts"), "1 blocking · 1 note");
   });
 
+  test("the two sends on the screen say which is which", async () => {
+    assert.equal(await page.text("#post"), "Post review");
+    assert.match(
+      await page.text("#tab-summary .finding:first-of-type .finding-actions"),
+      /Post this comment/,
+    );
+  });
+
   test("dropping a comment takes it out of what would be sent", async () => {
     await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
 

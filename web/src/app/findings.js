@@ -7,6 +7,7 @@
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
 import { arm, element, say } from "./dom.js";
+import { commentWords } from "./words.js";
 
 /**
  * The last few diff lines leading to an anchor, for a card shown away from the
@@ -243,12 +244,13 @@ function cardActions(app, pull, finding) {
     app.reselect();
   });
 
+  const words = commentWords(app);
   const send = document.createElement("button");
   send.className = "ghost";
-  send.textContent = "Post";
-  send.title = "Post just this comment to the destination now";
+  send.textContent = words.label;
+  send.title = words.title;
   send.addEventListener("click", async () => {
-    if (!arm(send, "Post to GitHub?", "Post")) return;
+    if (!arm(send, words.question, words.label)) return;
 
     send.disabled = true;
     send.textContent = "Posting…";
@@ -259,7 +261,7 @@ function cardActions(app, pull, finding) {
     } catch (failure) {
       say(failure.message, "error");
       send.disabled = false;
-      send.textContent = "Post";
+      send.textContent = words.label;
     }
   });
 

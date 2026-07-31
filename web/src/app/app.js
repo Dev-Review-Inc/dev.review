@@ -230,6 +230,11 @@ export class App {
    * @returns {Promise<void>} when its drafts are being read
    */
   async switchSource(source) {
+    // The settings panel's rows both show a source and read from it, and the
+    // row it opens on is the one already open. Clicking that is not a switch,
+    // and reopening it would close the pull request the reader is reading.
+    if (source && this.source && this.source.id === source.id) return;
+
     await this.state.setPreference("source", source ? source.id : null);
     await this._openSource(source ? source.id : null);
 
