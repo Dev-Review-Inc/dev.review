@@ -6,7 +6,7 @@
 // to stay quiet about a peer's decisions: those arrived from the storage, so
 // they are already there, and counting them would make the pane cry wolf.
 
-import { test, describe, beforeEach } from "node:test";
+import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { App } from "../../web/src/app/app.js";
@@ -40,6 +40,31 @@ function storageThatCanRefuse() {
   };
 
   return adapter;
+}
+
+// Local databases with room for everything except the mark that says what was
+// pushed, the way a browser that hits its quota part way through a session has.
+function databasesThatCannotMark() {
+  const databases = someDatabases();
+  const wrapped = new WeakSet();
+
+  return (name) => {
+    const db = databases(name);
+
+    if (wrapped.has(db)) return db;
+
+    wrapped.add(db);
+
+    const set = db.setItem.bind(db);
+
+    db.setItem = async (key, value) => {
+      if (key.startsWith("preference:synced:")) throw new Error("the disk is full");
+
+      return set(key, value);
+    };
+
+    return db;
+  };
 }
 
 function aDestination(pulls = [aPull()]) {
@@ -134,6 +159,52 @@ describe("Decisions that have not reached the source", () => {
     const again = await anAppOn(adapter, databases);
 
     assert.equal(await again.unsyncedFor(again.source), 0);
+  });
+});
+
+describe("A local store that cannot remember what reached the source", () => {
+  let app;
+  let adapter;
+  let rejections;
+  let note;
+
+  beforeEach(async () => {
+    rejections = [];
+    note = (reason) => rejections.push(reason);
+    process.on("unhandledRejection", note);
+
+    adapter = new MemoryAdapter();
+    await agentWrites(adapter, aDraft());
+    app = await anAppOn(adapter, databasesThatCannotMark());
+    await app.addDestination({ type: "github", label: "GitHub", secret: { token: "x" } });
+    await app.addSource({ name: "Work", adapter: { type: "memory" } });
+  });
+
+  afterEach(() => {
+    process.off("unhandledRejection", note);
+  });
+
+  test("a push whose mark cannot be written is answered, not thrown", async () => {
+    app.commands.dismissPull(app.source, app.queue()[0]);
+
+    assert.equal(await app.commands.sync.push(app.source), false);
+  });
+
+  test("a decision whose mark cannot be written is still counted as waiting", async () => {
+    app.commands.dismissPull(app.source, app.queue()[0]);
+    await app.commands.sync.push(app.source);
+
+    assert.equal(await app.unsyncedFor(app.source), 1);
+  });
+
+  // The debounced push is the one nobody holds, and it runs a second after the
+  // decision, so this waits it out rather than asserting before it could fire.
+  test("the debounced push does not reject into nobody's hands", async () => {
+    app.commands.dismissPull(app.source, app.queue()[0]);
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    assert.deepEqual(rejections, []);
   });
 });
 

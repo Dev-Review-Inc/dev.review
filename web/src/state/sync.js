@@ -41,7 +41,7 @@ export class Sync {
    * the last write that landed is what `unsynced` counts.
    *
    * @param {object} source which source
-   * @returns {Promise<boolean>} whether it reached the source
+   * @returns {Promise<boolean>} whether it is known to have reached the source
    */
   async push(source) {
     const adapter = this.adapterFor(source);
@@ -53,15 +53,18 @@ export class Sync {
 
     try {
       await adapter.write(this._path(this.deviceId), new TextEncoder().encode(body));
+
+      // What went out, not what is held now. A decision made while the write was
+      // in flight is not in the bytes that left.
+      await this._record(source, events.length);
     } catch {
       // The mark stands where it was, which is the record of the failure: it
-      // is what makes the count right again after a reload.
+      // is what makes the count right again after a reload. A mark that could
+      // not be written is a push that did not land as far as anyone can tell,
+      // and answering so keeps the count honest; the next push writes the whole
+      // log again, so repeating one costs nothing.
       return false;
     }
-
-    // What went out, not what is held now. A decision made while the write was
-    // in flight is not in the bytes that left.
-    await this._record(source, events.length);
 
     return true;
   }
