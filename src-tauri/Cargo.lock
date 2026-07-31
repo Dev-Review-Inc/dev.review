@@ -2421,7 +2421,7 @@ dependencies = [
 
 [[package]]
 name = "reviewer"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "serde",
  "tauri",
