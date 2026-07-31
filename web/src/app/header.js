@@ -17,7 +17,13 @@ import { age, arm, element, find, initials, say } from "./dom.js";
 import { leaveWords } from "./words.js";
 
 // What the detail header calls a backend, under the item's name.
-const TYPE_WORDS = { filesystem: "local folder", tauri: "this computer", s3: "s3" };
+const TYPE_WORDS = {
+  filesystem: "local folder",
+  tauri: "this computer",
+  s3: "s3",
+  github: "github repo",
+  git: "git repo",
+};
 
 /**
  * A blank source form.
@@ -462,10 +468,60 @@ export function resolvedSource(source, handleName) {
     return prefix ? `s3://${adapter.bucket}/${prefix}` : `s3://${adapter.bucket}`;
   }
 
+  if (adapter.type === "github" && adapter.owner && adapter.repo) {
+    return inRepository(`github.com/${adapter.owner}/${adapter.repo}`, adapter);
+  }
+
+  if (adapter.type === "git" && adapter.url) return inRepository(remoteName(adapter.url), adapter);
+
   if (adapter.type === "tauri") return adapter.root || "";
   if (adapter.type === "filesystem") return handleName ? `${handleName}/` : "folder on this computer";
 
   return adapter.type;
+}
+
+/**
+ * Which spot in a repository a source reads, as one line.
+ *
+ * The prefix reads as a path because that is what it is. The branch is only
+ * named when it is not the default, because a row that says "on main" about
+ * every repository has spent a line saying nothing.
+ *
+ * @param {string} repository the repository, already readable
+ * @param {{branch?: string, prefix?: string}} adapter the stored configuration
+ * @returns {string} where it points
+ */
+function inRepository(repository, adapter) {
+  const prefix = String(adapter.prefix || "").replace(/^\/+|\/+$/g, "");
+  const branch = adapter.branch || "main";
+  const where = prefix ? `${repository}/${prefix}` : repository;
+
+  return branch === "main" ? where : `${where}#${branch}`;
+}
+
+/**
+ * A remote as a person names it rather than as a url.
+ *
+ * The same repository can be written https, ssh or scp-style, and all three are
+ * one place, so all three reduce to one line. What is left out is what carries
+ * nothing: the port is how the connection is made rather than where the drafts
+ * are, and git@ is the user every ssh remote has. The credential is dropped
+ * rather than shortened, because a url can be pasted with one in it and this
+ * line is on screen whenever the panel is open.
+ *
+ * @param {string} url the remote url
+ * @returns {string} something like git.example.com/org/reviews
+ */
+function remoteName(url) {
+  return String(url)
+    .replace(/^[a-z+]+:\/\//i, "")
+    .replace(/^[^/]*@/, "")
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "")
+    .replace(/^([^/:]+):(\d+)(?=\/|$)/, "$1")
+    // What is left of a colon after the port has gone is scp-style, where the
+    // colon does the job a slash does everywhere else.
+    .replace(/^([^/:]+):/, "$1/");
 }
 
 /**
@@ -818,6 +874,23 @@ function folderInventory(work) {
   return list;
 }
 
+/**
+ * What a healthy status line says is being read.
+ *
+ * A backend that asks for its location in a form is one whose location is worth
+ * quoting back; storage that was picked is already named by the row above, and
+ * saying it twice would only make the line longer. That is the same distinction
+ * the form draws when it offers a folder button instead of fields, so no
+ * particular backend is named here.
+ *
+ * @param {object} source the stored source
+ * @param {object[]} fields what its backend declares
+ * @returns {string} the location, ending in the folder the drafts are in
+ */
+export function readsWhat(source, fields) {
+  return fields.length ? `${resolvedSource(source, "")}/drafts/` : "drafts/";
+}
+
 function sourceStatus(app, setup) {
   if (!setup.editing) {
     // A folder is chosen, not probed: nothing can be counted before it is
@@ -829,12 +902,10 @@ function sourceStatus(app, setup) {
     return { text: "", tone: "" };
   }
 
-  const reads =
-    setup.editing.adapter.type === "s3"
-      ? `${resolvedSource(setup.editing, "")}/drafts/`
-      : "drafts/";
-
-  return statusLine(app.healthOf(setup.editing), reads);
+  return statusLine(
+    app.healthOf(setup.editing),
+    readsWhat(setup.editing, fieldsForAdapter(setup.editing.adapter.type)),
+  );
 }
 
 /**

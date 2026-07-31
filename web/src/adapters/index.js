@@ -8,18 +8,52 @@
 import { MemoryAdapter } from "./memory.js";
 import { DemoAdapter } from "./demo.js";
 import { FilesystemAdapter, unavailability as filesystemUnavailability } from "./filesystem.js";
+import { GitAdapter } from "./git.js";
+import { GitHubAdapter } from "./github.js";
 import { S3Adapter } from "./s3.js";
-import { TauriAdapter, unavailability as tauriUnavailability } from "./tauri.js";
+import { TauriAdapter, inTauri, unavailability as tauriUnavailability } from "./tauri.js";
 
-const TYPES = [FilesystemAdapter, TauriAdapter, S3Adapter, MemoryAdapter, DemoAdapter];
+const TYPES = [
+  FilesystemAdapter,
+  TauriAdapter,
+  GitHubAdapter,
+  GitAdapter,
+  S3Adapter,
+  MemoryAdapter,
+  DemoAdapter,
+];
 
 const WORKS = () => ({ reason: "", hint: "" });
+
+/**
+ * Git works everywhere, but not the same way in both places, and the difference
+ * is one the reader has to act on before they can save.
+ *
+ * The desktop app drives the git already on the machine, so it inherits the
+ * credential helper and ssh agent the customer already set up and there is
+ * nothing to say. A browser has no git and no way to talk to one: no major host
+ * sends the CORS headers a tab needs, so the request is refused before it is
+ * sent unless a proxy is named. Finding that out from a failed save would be
+ * cruel when the form could have said it first.
+ *
+ * @returns {{reason: string, hint: string}} usable either way, with what a browser also needs
+ */
+function gitCaveat() {
+  if (inTauri()) return { reason: "", hint: "" };
+
+  return {
+    reason: "",
+    hint: "In a browser this needs a cors proxy, because no git host answers a tab directly.",
+  };
+}
 
 // Why a backend cannot be used in this browser, on this build. An empty reason
 // means it can.
 const AVAILABILITY = {
   [FilesystemAdapter.type]: filesystemUnavailability,
   [TauriAdapter.type]: tauriUnavailability,
+  [GitHubAdapter.type]: WORKS,
+  [GitAdapter.type]: gitCaveat,
   [S3Adapter.type]: WORKS,
   [MemoryAdapter.type]: WORKS,
   [DemoAdapter.type]: WORKS,
@@ -80,4 +114,12 @@ export function buildAdapter(config, secret = {}, handle = null) {
   return new Adapter({ ...config, ...secret });
 }
 
-export { MemoryAdapter, DemoAdapter, FilesystemAdapter, S3Adapter, TauriAdapter };
+export {
+  MemoryAdapter,
+  DemoAdapter,
+  FilesystemAdapter,
+  GitAdapter,
+  GitHubAdapter,
+  S3Adapter,
+  TauriAdapter,
+};

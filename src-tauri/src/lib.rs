@@ -4,6 +4,7 @@
 // in. Everything the app does is still in web/src; nothing here knows what a
 // review is.
 
+mod git;
 mod storage;
 
 /// Start the desktop app.
@@ -22,6 +23,16 @@ pub fn run() {
             storage::storage_read,
             storage::storage_write,
             storage::storage_remove,
+            git::git_root,
+            git::git_forget,
+            git::git_open,
+            git::git_tree,
+            git::git_read,
+            git::git_commit_file,
+            git::git_commit_removal,
+            git::git_pull,
+            git::git_push,
+            git::git_ready,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");

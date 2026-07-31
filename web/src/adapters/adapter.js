@@ -158,6 +158,22 @@ export class Adapter {
   }
 
   /**
+   * Let go of whatever this app kept on the machine for this source.
+   *
+   * Removing a source removes it from here, never from the customer's storage,
+   * and most backends keep nothing locally to remove. A backend that does is a
+   * different matter: a git source keeps a whole clone, and a customer who
+   * removes a source and is left with a copy of the repository on their disk
+   * has been given a delete that did not delete.
+   *
+   * Best effort by contract. It runs while a source is being removed, and a
+   * cache that cannot be cleared must not be what stops the removal.
+   *
+   * @returns {Promise<void>} when the local copy is gone
+   */
+  async forget() {}
+
+  /**
    * @returns {Promise<void>} when the adapter has let go of its resources
    */
   async teardown() {

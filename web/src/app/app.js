@@ -356,11 +356,18 @@ export class App {
   async removeSource(source) {
     const wasOpen = this.source && this.source.id === source.id;
 
-    // Clearing the stored folder handle is a courtesy, not a precondition. It
-    // is a cache, and it is kept somewhere that may not be reachable at all, so
-    // failing to clear it must not be what stops a source being removed. The
-    // read side already treats it this way.
+    // Clearing what was kept on this machine is a courtesy, not a precondition.
+    // It is all cache, and it is kept somewhere that may not be reachable at
+    // all, so failing to clear it must not be what stops a source being
+    // removed. The read side already treats it this way.
+    //
+    // The adapter's own copy matters more than the handle does. A git source
+    // holds a whole clone of the customer's repository, and removing the source
+    // while leaving that on disk would be a delete that deleted nothing.
     await forgetHandle(source.id).catch(() => {});
+    await this._readerFor(source)
+      .then((adapter) => adapter.forget())
+      .catch(() => {});
     await this.commands.removeSource(source);
 
     if (wasOpen) await this.switchSource(this.queries.allSources()[0] || null);

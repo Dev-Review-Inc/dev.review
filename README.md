@@ -28,6 +28,8 @@ A **source** is a name and the storage its drafts live in.
 | A folder on this computer | The File System Access API, with the folder handle remembered between sessions | Chromium browsers |
 | This computer | The desktop build's own filesystem access | Inside the Tauri app |
 | S3 bucket | Any S3-compatible endpoint: AWS, R2, MinIO | Anywhere, given bucket CORS |
+| A GitHub repository | The contents API, with a fine-grained token scoped to that repository | Anywhere: `api.github.com` answers a browser directly |
+| A git repository | Any host you push to. A write is a commit, so the history is the audit trail | The desktop app drives the git on your machine; a browser needs a CORS proxy |
 | In memory | Keeps nothing, for trying the interface out | Anywhere |
 
 Every one of them points at storage the customer already owns. There is no
@@ -162,8 +164,10 @@ pass rather than by a markdown library. The page carries a CSP that keeps script
 to its own origin.
 
 `test/adapters/conformance.js` is one suite that every source backend is run
-through. A backend either behaves like the others or fails out loud, which is
-what keeps adding a third one to an afternoon.
+through: GitHub against a fake of the API, and git once for each of its two
+transports, the browser one and the native one. A backend either behaves like
+the others or fails out loud, which is what keeps adding the next one to an
+afternoon.
 
 ## Contributing
 

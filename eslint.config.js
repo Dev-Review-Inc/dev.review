@@ -13,6 +13,17 @@
 
 export default [
   {
+    // Vendored third-party code, which is minified and is not ours to fix. It
+    // is checked by the thing that matters for a vendored file, which is that
+    // it still matches upstream, not by a linter with opinions about shadowed
+    // names in a webpack bundle. Linting it fails the pre-commit step with five
+    // thousand errors nobody can act on, which is the same as having no linter.
+    // src-tauri/target is cargo's build output. It holds the assets the desktop
+    // build embedded, so it appears the moment anyone compiles and it is not
+    // source at all.
+    ignores: ["web/vendor/**", "src-tauri/target/**"],
+  },
+  {
     // The service worker has its own globals and is not a page.
     files: ["web/sw.js"],
     languageOptions: {

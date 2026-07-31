@@ -272,4 +272,54 @@ describe("Seeing how every source is doing", () => {
 
     assert.equal(app.healthOf(source), null);
   });
+
+  // A git source keeps a whole clone of the customer's repository on this
+  // machine. Removing the source without removing that would be a delete that
+  // deleted nothing, and the copy left behind holds their source code.
+  test("removing a source deletes the copy it was keeping on this machine", async () => {
+    const app = anApp();
+    await app.boot();
+    const source = await app.addSource({ name: "Work", adapter: { type: "memory" } });
+    let forgotten = 0;
+    adapter.forget = async () => {
+      forgotten += 1;
+    };
+
+    await app.removeSource(source);
+
+    assert.equal(forgotten, 1);
+  });
+
+  test("a copy that cannot be deleted is not what stops a source being removed", async () => {
+    const app = anApp();
+    await app.boot();
+    const source = await app.addSource({ name: "Work", adapter: { type: "memory" } });
+    adapter.forget = async () => {
+      throw new Error("the disk is read only");
+    };
+
+    await app.removeSource(source);
+
+    assert.equal(app.healthOf(source), null);
+    assert.deepEqual(app.queries.allSources(), []);
+  });
+
+  test("a source whose reader cannot even be built is still removed", async () => {
+    const app = new App({
+      database: databases,
+      adapter: () => {
+        throw new Error("this build cannot read from that storage");
+      },
+      destination: () => aDestination(),
+    });
+    await app.boot();
+    const source = await app.commands.addSource({
+      name: "Work",
+      adapter: { type: "memory" },
+    });
+
+    await app.removeSource(source);
+
+    assert.deepEqual(app.queries.allSources(), []);
+  });
 });
