@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="reviewer">
+  <!-- The desktop cut of web/icon.svg. Same panel, same glyph, same palette;
+       what changes is the frame. macOS draws no rounding of its own and sizes
+       every Dock icon to a squircle of 824 in a 1024 canvas, so the panel is
+       inset by 100 on each side and the artwork is scaled 824/512 to match.
+       Regenerate the PNG beside it with:
+       rsvg-convert -w 1024 -h 1024 app-icon.svg -o app-icon.png -->
+  <rect x="100" y="100" width="824" height="824" rx="185.4" fill="#0e0f12"/>
+  <g transform="translate(100 100) scale(1.609375)"
+     stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M136 176h110M136 240h74" stroke="#3b4252" stroke-width="26"/>
+    <path d="M136 336h60" stroke="#3b4252" stroke-width="26"/>
+    <path d="M232 322l54 54 110-148" stroke="#6ea8fe" stroke-width="42"/>
+  </g>
+</svg>

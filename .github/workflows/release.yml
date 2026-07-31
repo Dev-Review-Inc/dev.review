@@ -1,0 +1,73 @@
+name: Release
+
+# Tags only. A release is a deliberate act, and the desktop build takes minutes
+# on a macOS runner that costs ten times a Linux one per minute, so nothing here
+# should run on a branch push or a pull request. Docker.yml already covers those.
+on:
+  push:
+    tags: ["v*"]
+
+# Read-only by default. The one job that needs to write does so by asking for it
+# itself, so nothing else in this file can be given a token that pushes.
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Before anything is built, because building first would spend ten minutes
+      # to produce an installer named after the wrong version. The tag is a
+      # third hand-typed copy of a number that already exists twice in
+      # src-tauri/, and `cargo tauri build` reads tauri.conf.json and never
+      # looks at the tag: tag v0.2.0 over a conf that still says 0.1.0 and the
+      # release page and the About box disagree, with nothing failing.
+      - run: node .github/version.mjs "$GITHUB_REF_NAME"
+
+      # macos-latest is Apple Silicon, so the default target would build an
+      # arm64-only app. Intel Macs are still in the hands of the people this is
+      # for, and a .dmg that refuses to open on one reads as a broken download
+      # rather than an unsupported machine. A universal binary is roughly twice
+      # the compile and twice the download, which is the right trade for a job
+      # that runs once per release.
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      # The CLI comes from crates.io rather than @tauri-apps/cli, because
+      # package.json has no dependencies and CONTRIBUTING.md says adding one
+      # needs an argument first. tauri-apps/tauri-action would do the install,
+      # the build and the upload in one step, but it would also be the first
+      # third-party action in this repository - everything here is actions/* or
+      # docker/*, both of which are as trusted as the runner itself - and it
+      # would take a write-scoped token with it. Three plain commands are worth
+      # more than the minutes saved.
+      #
+      # Uncached deliberately. Caching a compiled binary keyed on a version that
+      # never changes is a cache that only ever goes stale in ways nobody
+      # notices, and this job runs once per release, not once per push.
+      - run: cargo install tauri-cli --version "^2" --locked
+
+      # Unsigned, and therefore unnotarised: Gatekeeper will refuse the first
+      # open and the user has to right-click, Open. Signing needs an Apple
+      # Developer certificate in the repository secrets and is its own change.
+      # Note that adding the APPLE_* variables here ahead of the certificate
+      # would be worse than leaving them out - tauri branches on the variable
+      # being present, not on it being non-empty, so an absent secret expands to
+      # "" and the build fails trying to import an empty certificate.
+      - run: cargo tauri build --target universal-apple-darwin
+        working-directory: src-tauri
+
+      # `gh` is on the runner already, so the upload needs no action either. The
+      # release is created here rather than by hand so that the tag, the notes
+      # and the installer arrive together; a release drafted first and filled in
+      # later is one that eventually ships empty.
+      - name: Publish the installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --generate-notes \
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg

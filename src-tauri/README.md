@@ -19,7 +19,7 @@ desktop exists.
   Windows 11 and current Windows 10).
 - The Tauri CLI, installed through Cargo rather than npm:
 
-```
+```sh
 cargo install tauri-cli --version "^2" --locked
 ```
 
@@ -30,7 +30,7 @@ there.
 
 ## Running
 
-```
+```sh
 cargo tauri dev      # from this directory
 cargo tauri build    # produces the .app/.dmg or the .exe installer
 ```
@@ -40,10 +40,60 @@ nothing to build: `frontendDist` points at `../web`, which is already the
 shipped artifact - `index.html` plus vanilla ES modules, no bundler. Editing a
 file under `web/` and reloading the window is the whole development loop.
 
-`icons/icon.png` is a plain placeholder, committed because `generate_context!`
-refuses to compile without an icon. Replace it before shipping anything:
-`cargo tauri icon path/to/icon.png` writes the full platform set, and the paths
-it produces go in `bundle.icon` in `tauri.conf.json`.
+Run both from this directory rather than the repository root. `rust-toolchain.toml`
+lives here, so only here does the toolchain resolve to the stable this crate
+needs; from the root you get whatever the machine's default is, which on a
+machine pinned below 1.88 fails while naming a transitive crate. The same
+applies to installing the CLI, so `cargo install tauri-cli` wants running from
+here too.
+
+On macOS the DMG step shells out to `bundle_dmg.sh`, which drives Finder over
+AppleScript to lay the window out. A shell without permission to send Apple
+events to Finder gets `-1743` and the build fails after the `.app` is already
+written. Setting `CI=true` skips that step and produces a plain, functional DMG:
+
+```sh
+CI=true cargo tauri build
+```
+
+Continuous integration sets `CI` itself, so this is only ever typed by hand, and
+only on a machine that has not granted the automation permission.
+
+`bundle.targets` names `nsis` alongside `app` and `dmg`. The bundler filters the
+list by platform, so on macOS the Windows installer is passed over silently
+rather than warned about or attempted; the one list serves both platforms.
+
+`app-icon.svg` is the icon this app ships, and `app-icon.png` is it rendered at
+1024x1024 with an alpha channel, which is what the generator reads. It is the
+desktop cut of `web/icon.svg`: same panel, same glyph, same palette. What
+differs is the frame. The web icon is full bleed with its own 112 radius,
+because a browser and an Android launcher round or mask it themselves. macOS
+rounds nothing, and every icon beside it in the Dock is a squircle of 824 inside
+a canvas of 1024 with the rest transparent, so a full bleed square reads as too
+large with the wrong corner. The desktop source insets the panel by 100 a side
+and scales the glyph 824/512 to match. `web/icon-maskable.svg` is the wrong
+source for the same reason from the other direction: it is square to the edge
+with the glyph shrunk to survive a circular crop no desktop applies.
+
+To regenerate after editing the SVG:
+
+```sh
+rsvg-convert -w 1024 -h 1024 app-icon.svg -o app-icon.png
+cargo tauri icon app-icon.png
+```
+
+The generator also writes iOS, Android and Microsoft Store sets. Neither is a
+build target here, so `icons/` keeps only the files `bundle.icon` names and the
+rest are deleted after each run.
+
+The bundler derives `Reviewer.icns` from whatever `bundle.icon` lists. That list
+was one 512x512 PNG for a while, which produced an `.icns` holding a single
+entry with nothing at the sizes below it; it now holds ten, 16 through 1024, so
+the Finder and the Dock each get a rendering drawn for their size rather than
+one resampled from 512. At 16 the diff lines behind the check disappear and the
+check itself survives as a diagonal stroke: recognisable in a list beside the
+same icon at larger sizes, not legible on its own. That is the glyph's floor,
+not the ladder's.
 
 ## What the app is allowed to do
 
@@ -105,11 +155,25 @@ Verified:
 - The JavaScript adapter, by the full shared adapter conformance suite in
   `test/adapters/tauri.test.js`, run against a stand-in for `invoke` that
   refuses the same paths the Rust side refuses.
+- `cargo tauri build` on macOS, Apple silicon. It bundles both `Reviewer.app`
+  and `Reviewer_0.1.0_aarch64.dmg`, and the `.app` launches, stays up and opens
+  a top-level window with its menu bar. The window comes up at the configured
+  width; the height is whatever the display leaves once the menu bar and title
+  bar are taken, so on a short screen it is less than the 860 asked for.
+- The icon, by extracting `Reviewer.icns` back out of the built `.app` with
+  `iconutil` and rendering every entry at its own pixel size on a light and a
+  dark background. The Dock itself is still unphotographed: screen recording is
+  denied here, so the sizes were read out of the bundle rather than off a screen.
 
 Not verified:
 
-- A window that opens. Neither `cargo tauri dev` nor `cargo tauri build` has
-  been run, so the window size, the CSP as the webview finally applies it, and
-  the asset protocol streaming a real video are unproven. `cargo tauri dev`
-  also needs `web/index.html` to exist.
+- What the window contains. The build machine had no screen recording
+  permission, so the webview was confirmed to exist and be composited rather
+  than read pixel by pixel. The CSP as the webview finally applies it and the
+  asset protocol streaming a real video are still unproven.
+- The remote font stylesheet `web/index.html` links from `fonts.googleapis.com`.
+  `style-src` is `'self' 'unsafe-inline'`, which does not cover it, so inside the
+  shell the type falls back to `system-ui` where the browser build gets IBM Plex
+  Sans. Nothing breaks, and widening `style-src` to reach a third party to fix
+  cosmetics is the worse trade.
 - Anything on Windows or mobile.

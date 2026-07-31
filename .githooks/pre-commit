@@ -60,6 +60,23 @@ if has '^serve/.*\.go$'; then
   ok
 fi
 
+# Only the workflows. Every other yaml here is configuration for something else
+# and actionlint would reject it for not being a workflow, failing commits that
+# touched nothing to do with CI.
+#
+# actionlint is a Go binary, and this repository already needs the Go toolchain,
+# so `go run` at a pinned version is the same bargain as `npx -y` above: nothing
+# to install, nothing unpinned, and a hard failure rather than a silent skip
+# when the toolchain is missing. Nothing else checks these files - a workflow is
+# only ever proved wrong by pushing it - so a typo'd key would otherwise land
+# and be found by a release that did not run.
+if has '^\.github/workflows/.*\.ya?ml$'; then
+  step "actionlint"
+  go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 \
+    $(echo "$changed" | grep -E '^\.github/workflows/.*\.ya?ml$' | tr '\n' ' ')
+  ok
+fi
+
 if has '\.md$'; then
   step "markdownlint"
   npx -y markdownlint-cli@0.45 $(echo "$changed" | grep -E '\.md$' | tr '\n' ' ')
