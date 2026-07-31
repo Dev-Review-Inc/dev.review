@@ -11,10 +11,10 @@ import { postLabel, postNote, postedWords } from "./words.js";
 /**
  * Put the confirmation sheet back to a state it can be used from.
  *
- * Module scope on purpose: the sheet is closed by its own cancel button, by a
- * click on the backdrop and by Escape, and all three have to leave the button
- * usable. A settle that only existed inside the posting function meant Escape
- * threw instead of closing.
+ * Module scope on purpose: the sheet is closed by its own cancel button and by
+ * a click on the backdrop, and both have to leave the button usable. A settle
+ * that only existed inside the posting function meant the backdrop threw
+ * instead of closing.
  *
  * @param {object} app the application
  * @returns {void}

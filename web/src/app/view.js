@@ -134,54 +134,6 @@ function open(pull) {
   return app.select(pull).catch((failure) => say(failure.message, "error"));
 }
 
-// ---- Keyboard
-
-function onKey(event) {
-  if (event.key === "Escape") {
-    if (!find("celebrate").hidden) {
-      find("celebrate").hidden = true;
-
-      return;
-    }
-
-    if (!find("confirm").hidden) {
-      closeConfirm(app);
-
-      return;
-    }
-
-    closeQueue();
-    closeSetup();
-
-    return;
-  }
-
-  // Typing in a field is typing, not a shortcut.
-  if (event.target.matches("input, textarea, select")) return;
-  if (!find("confirm").hidden) return;
-
-  // The queue as it is actually shown: sorted, filtered, dismissals gone.
-  // Walking the raw list could land on an entry that is not on screen.
-  const queue = app.queue();
-  const at = queue.findIndex((entry) => entry.key === app.selected?.key);
-
-  if (event.key === "j" && at < queue.length - 1) open(queue[at + 1]);
-  if (event.key === "k" && at > 0) open(queue[at - 1]);
-  if (event.key === "e") toggleEditor(app);
-  if (event.key === "d") dismiss();
-}
-
-function dismiss() {
-  const pull = app.selected;
-
-  if (!pull || !app.source) return;
-
-  if (pull.dismissedAt) app.commands.restorePull(app.source, pull);
-  else app.commands.dismissPull(app.source, pull);
-
-  app.reselect();
-}
-
 // ---- Wiring
 
 find("source-button").addEventListener("click", () => toggleSetup(app));
@@ -201,10 +153,8 @@ find("edit").addEventListener("click", () => toggleEditor(app));
 find("post").addEventListener("click", () => {
   if (!app.dismissing) return openConfirm(app);
 
-  // The same command the d shortcut writes, so a dismissal is one event with
-  // one meaning however the reader reached it. There is no sheet to confirm
-  // because there is nothing to send: the decision is local, and the way back
-  // is the same shortcut.
+  // There is no sheet to confirm because there is nothing to send: the
+  // decision is local, and the way back is the restore the queue offers.
   const pull = app.selected;
 
   app.commands.dismissPull(app.source, pull);
@@ -272,8 +222,6 @@ find("signout").addEventListener("click", async () => {
     say(failure.message, "error");
   }
 });
-
-document.addEventListener("keydown", onKey);
 
 // A window coming back to the front is the cheapest moment to notice that the
 // queue moved while it was away.
