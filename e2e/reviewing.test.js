@@ -541,3 +541,74 @@ describe("Dismissing your own pull request", () => {
     assert.deepEqual(page.complaints, []);
   });
 });
+
+// A long review is read by scrolling, and every row in the rail is a different
+// thing to read. Landing part way down the new one, wherever the last one
+// happened to be left, is the reader's place being kept where they never put it.
+describe("Moving between lenses in a long review", () => {
+  let page;
+
+  // Enough findings, in two sections, that the pane is taller than the window
+  // and there is a second lens to move to.
+  const tall = aDraft({
+    sections: [
+      { key: "correctness", label: "Correctness", color: "warn" },
+      { key: "ux", label: "UX & visual", color: "neutral" },
+    ],
+    findings: Array.from({ length: 14 }, (_, index) => ({
+      id: `finding-${index}`,
+      section: index % 2 ? "ux" : "correctness",
+      path: "lib/error.rb",
+      line: index + 1,
+      kind: "bug",
+      body: `Something worth saying about line ${index + 1}, at enough length to fill a card.`,
+    })),
+  });
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(tall) });
+    await attachStorage(page);
+    await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+  });
+
+  after(() => page.close());
+
+  test("the reader can scroll the review, which is what the rest of this is about", async () => {
+    await page.eval('document.querySelector("#comment").scrollTop = 800');
+
+    assert.equal(await page.eval('document.querySelector("#comment").scrollTop'), 800);
+  });
+
+  test("opening another lens starts it at the top", async () => {
+    await page.clickWhere(
+      '[...document.querySelectorAll("#analysis .lens")].find((lens) => lens.querySelector(".name").textContent === "UX & visual")',
+      "the UX & visual lens",
+    );
+
+    await page.until(
+      '[...document.querySelectorAll("#analysis .lens")].find((lens) => lens.querySelector(".name").textContent === "UX & visual").getAttribute("aria-pressed") === "true"',
+      "the UX lens to open",
+    );
+
+    assert.equal(await page.eval('document.querySelector("#comment").scrollTop'), 0);
+  });
+
+  test("a redraw that leaves the lens alone keeps the reader's place", async () => {
+    await page.eval('document.querySelector("#comment").scrollTop = 400');
+    assert.equal(await page.eval('document.querySelector("#comment").scrollTop'), 400);
+
+    // A redraw of the same view, asked for from the rail rather than from the
+    // pane, so nothing scrolls the pane on the way.
+    await page.click("#files-flagged");
+    await page.until(
+      'document.querySelectorAll("#files .file").length === 1',
+      "the file list to trim to what is flagged",
+    );
+
+    assert.equal(await page.eval('document.querySelector("#comment").scrollTop'), 400);
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});

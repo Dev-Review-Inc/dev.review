@@ -47,6 +47,23 @@ app.settingsSelection = { kind: "", id: null };
 // pointed at - but only ever once, and never over an open one.
 let opened = false;
 
+// The view the last redraw drew. A scroll offset belongs to the view it was
+// made in, so when this moves there is no place to keep.
+let drawn = "";
+
+/**
+ * What is being read, as one value.
+ *
+ * The tab alone is not it: picking a section keeps the summary tab and moves
+ * only the filter, and that is as much a different thing to read as a
+ * different tab is.
+ *
+ * @returns {string} a key for the open view
+ */
+function viewKey() {
+  return [app.tab, app.filter.section, app.filter.kind, app.filter.path].join("|");
+}
+
 /**
  * Draw everything.
  *
@@ -117,8 +134,15 @@ function keepPlace() {
 function restorePlace(places) {
   const pane = document.querySelector(".pane");
 
+  // The rail keeps its place whatever happened: the row that was just clicked
+  // is under the reader's cursor, and yanking it away is the one thing a click
+  // must not do.
   if (pane) pane.scrollTop = places.pane;
-  find("comment").scrollTop = places.comment;
+
+  const key = viewKey();
+
+  find("comment").scrollTop = key === drawn ? places.comment : 0;
+  drawn = key;
 
   if (!places.focusKey) return;
 
