@@ -133,11 +133,17 @@ export async function anApp({ adapter = new MemoryAdapter(), deviceId = "device-
  * @param {object} [options] what to build it against
  * @param {object} [options.adapter] a reader to share with another app
  * @param {object[]} [options.pulls] what the destination says is waiting
+ * @param {(name: string) => object} [options.database] local storage, for a test
+ *   that cares when a write lands
  * @returns {Promise<object>} the app, booted, with a destination and a source
  */
-export async function theApp({ adapter = new MemoryAdapter(), pulls = [aPull()] } = {}) {
+export async function theApp({
+  adapter = new MemoryAdapter(),
+  pulls = [aPull()],
+  database = () => new MemoryKeyValueStore(),
+} = {}) {
   const app = new App({
-    database: () => new MemoryKeyValueStore(),
+    database,
     adapter: () => adapter,
     destination: () => ({
       identify: async () => ({ login: "reader" }),

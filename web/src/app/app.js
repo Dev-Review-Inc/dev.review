@@ -576,17 +576,25 @@ export class App {
   /**
    * Look again at the pull request that is open.
    *
-   * This is what a watcher calls when the storage moved underneath the reader.
-   * The recompute is only possible when something is open, but the redraw is
-   * owed either way, because the queue is drawn from that same storage: a draft
+   * This is what a watcher calls when the storage moved underneath the reader,
+   * and what every decision taken while reading calls once it is recorded. The
+   * recompute is only possible when something is open, but the redraw is owed
+   * either way, because the queue is drawn from that same storage: a draft
    * landing while nothing is open is exactly the moment the queue has to say so.
    *
-   * @returns {void}
+   * The redraw waits for the log's outstanding writes. It is the redraw that
+   * tells the reader a decision was taken, so a reader who reads that and
+   * closes the tab has to find it still true. The recompute does not wait,
+   * because reading back what was just decided never has to.
+   *
+   * @returns {Promise<void>} when the interface has been told
    */
-  reselect() {
+  async reselect() {
     if (this.selected && this.source) {
       this.selected = this.queries.pullState(this.source, this.selected);
     }
+
+    await this.state.settled();
 
     this.changed();
   }

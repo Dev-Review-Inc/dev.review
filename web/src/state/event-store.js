@@ -76,10 +76,14 @@ export class EventStore {
    * to read back what it just did. What it answers is the narrower question of
    * whether the decision would survive this browser going away.
    *
+   * A write that failed counts as settled. What waits on this is waiting to
+   * draw, and storage that has given up should leave the reader an interface
+   * that still moves rather than one frozen on a write that will never land.
+   *
    * @returns {Promise<void>} when nothing is outstanding
    */
   async settled() {
-    await Promise.all([...this._writing]);
+    await Promise.allSettled([...this._writing]);
   }
 
   /**

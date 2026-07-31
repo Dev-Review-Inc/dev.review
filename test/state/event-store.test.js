@@ -139,6 +139,18 @@ describe("EventStore", () => {
     assert.equal(written, true);
   });
 
+  // Whatever waits on this is waiting to draw. A write that failed is not going
+  // to land, and a redraw that never comes is a frozen interface.
+  test("settles on a write that failed, because a failed write is no longer outstanding", async () => {
+    const db = new MemoryKeyValueStore();
+    db.setItem = () => Promise.reject(new Error("the disk is full"));
+    const state = store(db);
+
+    state.track("notes", "abc", "create", { body: "hi" });
+
+    await state.settled();
+  });
+
   test("hands over every event it holds, in time order", () => {
     const state = store();
     state.track("notes", "abc", "create", { body: "hi" }, 2000);
