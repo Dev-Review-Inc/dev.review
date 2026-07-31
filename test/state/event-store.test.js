@@ -121,6 +121,24 @@ describe("EventStore", () => {
     assert.equal(state.findAll("notes").length, 1);
   });
 
+  test("settles only once the write has actually landed", async () => {
+    let land;
+    const db = new MemoryKeyValueStore();
+    db.setItem = () => new Promise((resolve) => (land = resolve));
+    const state = store(db);
+
+    state.track("notes", "abc", "create", { body: "hi" });
+
+    let written = false;
+    const settled = state.settled().then(() => (written = true));
+    await Promise.resolve();
+    assert.equal(written, false, "settled before the store had it");
+
+    land();
+    await settled;
+    assert.equal(written, true);
+  });
+
   test("hands over every event it holds, in time order", () => {
     const state = store();
     state.track("notes", "abc", "create", { body: "hi" }, 2000);

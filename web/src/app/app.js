@@ -626,7 +626,9 @@ export class App {
     const pull = this.selected;
     const posted = await this.destination.review(pull, payload);
 
-    this.commands.recordPostedReview(this.source, pull, {
+    // Waited for: a review that went out and was not recorded as sent comes
+    // back on the queue looking unposted, and the reader posts it twice.
+    await this.commands.recordPostedReview(this.source, pull, {
       url: posted.url,
       event: payload.event,
     });

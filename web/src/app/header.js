@@ -256,8 +256,8 @@ function drawDismissed(app) {
     restore.className = "ghost setup-edit";
     restore.textContent = "Restore";
     restore.title = "Put this pull request back on the queue";
-    restore.addEventListener("click", () => {
-      app.commands.restorePull(app.source, entry);
+    restore.addEventListener("click", async () => {
+      await app.commands.restorePull(app.source, entry);
       app.changed();
     });
 

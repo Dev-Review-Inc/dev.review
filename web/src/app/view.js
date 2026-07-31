@@ -206,14 +206,17 @@ find("editor").addEventListener("blur", () => {
   afterClick(() => closeEditor(app));
 });
 
-find("post").addEventListener("click", () => {
+find("post").addEventListener("click", async () => {
   if (!app.dismissing) return openConfirm(app);
 
   // There is no sheet to confirm because there is nothing to send: the
   // decision is local, and the way back is the restore the queue offers.
   const pull = app.selected;
 
-  app.commands.dismissPull(app.source, pull);
+  // Waited for rather than fired off, so the queue never shows a pull request
+  // gone before the reason it is gone has been written down. Closing the tab
+  // on that screen would otherwise bring it back.
+  await app.commands.dismissPull(app.source, pull);
   app.dismissing = false;
   // Answering "nothing" leaves nothing to look at, so the review is closed
   // rather than left open under a footer offering to post it after all.

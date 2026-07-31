@@ -147,12 +147,17 @@ export class Commands {
   /**
    * Take a pull request off the queue.
    *
+   * Answers when the dismissal is written down, not when it is decided, so a
+   * caller about to show the queue without it can wait for that to be true.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
-   * @returns {void}
+   * @returns {Promise<void>} when it is in local storage
    */
   dismissPull(source, pull) {
     this.track(source, "pulls", pull.key, "dismiss");
+
+    return this.state.settled();
   }
 
   /**
@@ -160,10 +165,12 @@ export class Commands {
    *
    * @param {object} source the source being read
    * @param {object} pull which pull request
-   * @returns {void}
+   * @returns {Promise<void>} when it is in local storage
    */
   restorePull(source, pull) {
     this.track(source, "pulls", pull.key, "restore");
+
+    return this.state.settled();
   }
 
   /**
@@ -203,13 +210,15 @@ export class Commands {
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {{url: string, event: string}} review what was sent, and where it landed
-   * @returns {void}
+   * @returns {Promise<void>} when it is in local storage
    */
   recordPostedReview(source, pull, review) {
     this.track(source, "pulls", pull.key, "post", review);
     // A sent review is done with, so it leaves the queue without the reader
     // having to say so twice.
     this.track(source, "pulls", pull.key, "dismiss");
+
+    return this.state.settled();
   }
 
   // ---- Findings

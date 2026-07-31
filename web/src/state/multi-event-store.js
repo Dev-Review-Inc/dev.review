@@ -80,6 +80,15 @@ export class MultiEventStore {
   }
 
   /**
+   * Wait for every log's outstanding writes to be in storage.
+   *
+   * @returns {Promise<void>} when nothing anywhere is outstanding
+   */
+  async settled() {
+    await Promise.all([this._root, ...Object.values(this._dbs)].map((db) => db.settled()));
+  }
+
+  /**
    * Read a collection.
    *
    * @param {string|null|undefined} id a source, null for the app's own log,

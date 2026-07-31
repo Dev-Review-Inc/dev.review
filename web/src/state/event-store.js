@@ -33,6 +33,7 @@ export class EventStore {
     this._state = {};
     this._keys = new Set();
     this._events = [];
+    this._writing = new Set();
 
     // A collection exists because a runner names it. Declaring them anywhere
     // else would let a typo in a runner key create a silent second collection.
@@ -51,6 +52,7 @@ export class EventStore {
    * @param {*} [data] the payload
    * @param {number} [time] when, for replaying a log from elsewhere
    * @returns {EventStoreEvent} the event, carrying the id if one was generated
+   * @see settled to wait for it to reach storage
    */
   track(collection, objectId, action, data, time) {
     const event = new EventStoreEvent(
@@ -62,9 +64,22 @@ export class EventStore {
     );
 
     this._apply(event);
-    this._db.setItem(event.key, event.toLocal());
+    this._write(event);
 
     return event;
+  }
+
+  /**
+   * Wait for every write started here to be in storage.
+   *
+   * State is applied the moment it is tracked, so nothing has to wait on this
+   * to read back what it just did. What it answers is the narrower question of
+   * whether the decision would survive this browser going away.
+   *
+   * @returns {Promise<void>} when nothing is outstanding
+   */
+  async settled() {
+    await Promise.all([...this._writing]);
   }
 
   /**
@@ -138,6 +153,16 @@ export class EventStore {
    */
   async teardown() {
     return this._db.teardown();
+  }
+
+  _write(event) {
+    const write = this._db.setItem(event.key, event.toLocal());
+    const forget = () => this._writing.delete(write);
+
+    this._writing.add(write);
+    // Both arms, so a write nobody happens to be waiting on cannot surface as
+    // an unhandled rejection.
+    write.then(forget, forget);
   }
 
   _apply(event) {

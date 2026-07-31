@@ -55,6 +55,7 @@ export class IndexedDBKeyValueStore {
   constructor(name) {
     this.name = name;
     this._opening = null;
+    this._database = null;
   }
 
   _open() {
@@ -69,16 +70,30 @@ export class IndexedDBKeyValueStore {
         }
       };
 
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        // Kept so later calls can start a transaction without waiting on a
+        // promise first. Even an already resolved one resumes a turn later,
+        // and a document being torn down takes the transaction that has not
+        // been created yet with it.
+        this._database = request.result;
+        resolve(this._database);
+      };
       request.onerror = () => reject(request.error);
     });
 
     return this._opening;
   }
 
-  async _transact(mode, run) {
-    const db = await this._open();
+  // Deliberately not async: an async function would defer the transaction by a
+  // turn even when the database is already open, which is the thing being
+  // avoided.
+  _transact(mode, run) {
+    if (this._database) return this._run(this._database, mode, run);
 
+    return this._open().then((db) => this._run(db, mode, run));
+  }
+
+  _run(db, mode, run) {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE, mode);
       const request = run(transaction.objectStore(STORE));
@@ -133,6 +148,7 @@ export class IndexedDBKeyValueStore {
     const db = await this._open();
     db.close();
     this._opening = null;
+    this._database = null;
 
     return new Promise((resolve, reject) => {
       const request = indexedDB.deleteDatabase(this.name);
