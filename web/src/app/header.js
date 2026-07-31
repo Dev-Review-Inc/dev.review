@@ -221,8 +221,8 @@ function drawQueue(app) {
  *
  * Below the queue rather than among them, because these are not waiting on the
  * reader and listing them together would undo the thing dismissing is for. It
- * is absent entirely when nothing has been dismissed, so the common case is not
- * asked to carry a heading about a decision nobody made.
+ * is absent entirely when nothing has been dismissed lately, so the common case
+ * is not asked to carry a heading about a decision nobody made.
  *
  * @param {object} app the running app
  * @returns {void}

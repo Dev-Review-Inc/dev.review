@@ -16,6 +16,11 @@ const SORT_BY_NAME = (a, b) => String(a.name || "").localeCompare(String(b.name 
 // Worst first, for picking the tone of a chip that stands for several findings.
 const TONES = ["critical", "warn", "accent", "ok", "neutral"];
 
+// How far back the dismissed list reaches. A mis-hit is noticed within days, so
+// a week is long enough to undo one and short enough that the list stays a list
+// of recent mistakes rather than every pull request ever resolved this way.
+const DISMISSED_WINDOW = 7 * 24 * 60 * 60 * 1000;
+
 // There is one of these per source, so it needs a name rather than an id.
 export const READING = "reading";
 
@@ -82,24 +87,35 @@ export class Queries {
   }
 
   /**
-   * The pull requests the reader took off the queue.
+   * The pull requests the reader recently took off the queue.
    *
-   * The other half of what queue leaves out, so the interface can offer a way
-   * back. Dismissing is the only resolution for a pull request there is nothing
-   * to say about, so it is used often and mis-hit sometimes, and a row that
-   * simply vanishes leaves a reader with nothing to undo.
+   * The way back from what queue leaves out. Dismissing is the only resolution
+   * for a pull request there is nothing to say about, so it is used often and
+   * mis-hit sometimes, and a row that simply vanishes leaves a reader with
+   * nothing to undo.
    *
    * Newest first: the one to put back is almost always the one just dismissed.
    *
+   * Only the last week of them. A dismissal older than that is a decision the
+   * reader has lived with, not a slip to undo, and listing every one forever
+   * turns the way back into an archive.
+   *
+   * The window is over this listing and nothing else. Dropping off it does not
+   * expire the dismissal: the event stays in the log, still syncs, and still
+   * keeps its pull request out of {@link queue} for good.
+   *
    * @param {object} source the source being read
    * @param {object[]} pulls what the destination said is waiting
-   * @returns {object[]} the dismissed ones, each carrying its reading state
+   * @param {number} [now] the moment to measure the week back from
+   * @returns {object[]} the recently dismissed ones, each carrying its state
    */
-  dismissed(source, pulls) {
+  dismissed(source, pulls, now = Date.now()) {
+    const since = now - DISMISSED_WINDOW;
+
     return pulls
       .map((pull) => this.pullState(source, pull))
-      .filter((entry) => entry.dismissedAt)
-      .sort((a, b) => String(b.dismissedAt).localeCompare(String(a.dismissedAt)));
+      .filter((entry) => entry.dismissedAt && entry.dismissedAt > since)
+      .sort((a, b) => b.dismissedAt - a.dismissedAt);
   }
 
   /**
