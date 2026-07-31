@@ -44,6 +44,44 @@
 
     --shadow:rgba(0,0,0,.42);
     --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+
+    /* Sizing is one decision, not two: nothing below differs between light and
+       dark, so none of it is repeated in the light block. */
+
+    /* Three heights, because a control is doing one of three jobs. Icon is a
+       square around a 13px glyph and carries no label, so it is not a step on
+       the same scale as the other two. Compact is the dense chrome - the
+       settings panel, a setup line, the header - where 24, 26, 30 and 32 all
+       appear today and 30 is the one most of those rules already set. Standard
+       is the height this sheet already claimed for every button, and what
+       .ghost, #cheer-next and .chip already are; #post at 38 and the verdict
+       rail at 34 sit either side of it by 2px, which reads as misalignment
+       rather than as importance. */
+    --ctlIcon:20px; --ctlCompact:30px; --ctlStandard:36px;
+
+    /* Five steps covering eighteen sizes. Every text size in use lands within
+       a pixel of one: 10.5, 11 and 12 fold into 11.5, 12.5 and 13.5 into 13,
+       14 and 16 into 15. The 8px and 9px marks are glyphs inside dots rather
+       than text, and belong to those components. */
+    --textMicro:10px; --textSmall:11.5px; --textBody:13px;
+    --textLead:15px; --textDisplay:19px;
+
+    /* Button-likes carry five radii today. 6 is by far the most used; 5 and 7
+       are lone rules a pixel away from it; 4 is the icon button, where 6 on a
+       20px square starts to read as a pill. Panels sit at 8 to 12 and collapse
+       to 10. */
+    --radiusTight:4px; --radius:6px; --radiusPanel:10px;
+
+    /* The gaps and paddings actually in the sheet. 6 earns its place as the
+       most common gap of all; without it every dense row rounds to 4 or 8. */
+    --space1:4px; --space2:6px; --space3:8px;
+    --space4:12px; --space5:16px; --space6:24px;
+
+    /* Not one control rule in this sheet sets a line height, which is why the
+       controls with no height at all size themselves from whatever font
+       arrived. */
+    --leadControl:1; --leadBody:1.6;
 
     /* The settings panel's own surfaces, scoped so they cannot drift into the
        app-wide roles above. */
