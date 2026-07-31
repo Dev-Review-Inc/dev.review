@@ -133,7 +133,7 @@ Evidence from running the change. None of it is posted — it is here so the rea
 | Field | Required | Meaning |
 |---|---|---|
 | `note` | no | One paragraph: what was actually driven. For a change with nothing observable to drive, say that and what was read instead — never that QA was skipped because nobody was watching. A draft with no scenarios and no note reads as though nobody thought about it. |
-| `scenarios` | no | One entry per scenario run. |
+| `scenarios` | no | One entry per run, each with its own recording. |
 
 Each scenario:
 
@@ -146,6 +146,8 @@ Each scenario:
 | `video` | no | Path to the recording, relative to the drafts directory. |
 | `frames` | no | How many frames were captured. |
 | `durationMs` | no | How long the run took. |
+
+**A scenario is a run, not a checkpoint.** One run of the QA runner is one entry: one scenario file, one recording, one verdict — however many things it checked along the way. Splitting one run's checkpoints into several entries is what makes the app play the same video three times over, so no two entries ever share a `video`. Several entries mean several runs, and each run's recording is copied into the draft directory under its own name — the runner always writes `qa.mp4`, so a second run left at that name overwrites the first.
 
 `video` is **relative to the drafts directory and must stay inside it**. An absolute path, or one climbing out with `..`, is refused: the app reads video from that directory and nowhere else, so a draft cannot make it open an arbitrary file.
 

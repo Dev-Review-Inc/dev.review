@@ -100,5 +100,6 @@ The parts that are easy to get wrong:
 - `color` — on sections and findings alike — is a named token: `neutral`, `ok`, `warn`, `critical` or `accent`. The app maps names onto its own palette; an unrecognised name degrades to `neutral`.
 - `progress.percent` is 0–100 and optional; `progress` as a whole is ignored once `finishedAt` is set.
 - `video` is stored in `org--app-42/` and must stay inside it. A path that climbs out is refused.
+- **One scenario entry per QA run — one scenario file, one recording.** A run that checks five things is still one entry; listing its checkpoints as separate scenarios makes the app play the same video once per entry. No two entries share a `video`. Several entries mean several runs, each recording copied in under its own name: the runner always writes `qa.mp4`, so a second run left at that name overwrites the first.
 - A scenario with no `verdict` counts as `skip`. Silence is not a pass.
 - `comment` is the body of the review, not the whole review. Keep the findings out of it. If something is related to a diff, use `findings`. Otherwise, use the main `comment`.
