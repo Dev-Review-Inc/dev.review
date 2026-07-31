@@ -84,8 +84,45 @@ test("flattens a review request into what the queue needs", async () => {
       url: "https://github.com/org/app/pull/42",
       updatedAt: "2026-07-29T15:00:00Z",
       createdAt: "2026-07-27T09:00:00Z",
+      isRequested: true,
     },
   ]);
+});
+
+// Which search a pull request came out of is the difference between a review
+// someone is waiting on and the reader's own work, and the merge is the only
+// place that still knows.
+test("says which pull requests the reader's review is actually requested of", async () => {
+  const entry = (number) => ({
+    repository_url: "https://api.github.com/repos/org/app",
+    number,
+    title: `#${number}`,
+    user: { login: "me" },
+    html_url: `https://github.com/org/app/pull/${number}`,
+    updated_at: "2026-07-29T15:00:00Z",
+    created_at: "2026-07-29T09:00:00Z",
+  });
+
+  // 1 is asked of the reader, 2 is asked of them on their own pull request,
+  // and 3 is only theirs.
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      items: String(url).includes("review-requested") ? [entry(1), entry(2)] : [entry(2), entry(3)],
+    }),
+  });
+
+  const queue = await reviewQueue("t");
+
+  assert.deepStrictEqual(
+    queue.map((pull) => [pull.number, pull.isRequested]),
+    [
+      [1, true],
+      [2, true],
+      [3, false],
+    ],
+  );
 });
 
 test("posts one comment on its own line", async () => {

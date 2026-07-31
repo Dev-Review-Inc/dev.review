@@ -671,3 +671,55 @@ describe("Moving between lenses in a long review", () => {
     assert.deepEqual(page.complaints, []);
   });
 });
+
+describe("A review request that comes back", () => {
+  // Posting a review takes the pull request off the queue, so a reader's
+  // dismissed list is everything they have ever reviewed. Someone asking for
+  // another look has to be able to get through that.
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+    await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+
+    await page.click("#post");
+    await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
+    await page.click("#confirm-post");
+    await page.until('!document.querySelector("#celebrate").hidden', "the review to land");
+    await page.click("#cheer-close");
+    await page.until(
+      'document.querySelector("#queue-waiting").textContent === "nothing to review"',
+      "the queue to let the posted review go",
+    );
+  });
+
+  after(() => page.close());
+
+  test("what was reviewed stays gone while nothing new has happened to it", async () => {
+    // The reader coming back to the tab, which is when this app asks GitHub
+    // what is waiting.
+    await page.eval('window.dispatchEvent(new Event("focus"))');
+
+    assert.equal(await page.text("#queue-waiting"), "nothing to review");
+    assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), false);
+  });
+
+  test("a push after the review puts it back on the queue", async () => {
+    // GitHub still has the review requested of the reader, and now the branch
+    // has moved: a re-request, as this app can see one.
+    await page.eval("globalThis.__seed.pulls[0].updated_at = new Date().toISOString()");
+    await page.eval('window.dispatchEvent(new Event("focus"))');
+
+    await page.until(
+      'document.querySelector("#queue-waiting").textContent === "1 to review"',
+      "the re-request to reach the queue",
+    );
+
+    assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), true);
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});

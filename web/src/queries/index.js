@@ -138,10 +138,41 @@ export class Queries {
       // unfinished one still shows its progress, but is not what "ready" means.
       isReady: Boolean(draft && draft.finishedAt),
       isDrafting: Boolean(draft && !draft.finishedAt),
-      dismissedAt: decision.dismissedAt || null,
+      dismissedAt: this._dismissal(pull, decision),
       postedAt: decision.postedAt || null,
       postedUrl: decision.postedUrl || "",
     };
+  }
+
+  /**
+   * When the reader dismissed this pull request, unless that is spent.
+   *
+   * A dismissal answers one question, and posting a review records one too, so
+   * every pull request the reader has ever reviewed carries one for ever. Being
+   * asked to look again is a new question, and it has to be able to reach them.
+   *
+   * It takes both halves. A review requested with nothing new behind it is the
+   * request the dismissal already answered, and work that moved without a
+   * request is the reader's own pull request, which they took off the queue
+   * knowing they would go on pushing to it.
+   *
+   * Deciding it here is what keeps the queue and the dismissed list from
+   * disagreeing: they are one decision read twice.
+   *
+   * @param {object} pull one entry from the destination's queue
+   * @param {object} decision what the reader decided about it
+   * @returns {number|null} when it was dismissed, or null once that is spent
+   */
+  _dismissal(pull, decision) {
+    const dismissedAt = decision.dismissedAt || null;
+
+    if (!dismissedAt || !pull.isRequested) return dismissedAt;
+
+    // The destination reports an ISO 8601 string; a dismissal is this app's own
+    // clock, in milliseconds. Neither is comparable until one of them moves.
+    const movedAt = Date.parse(pull.updatedAt || "");
+
+    return movedAt > dismissedAt ? null : dismissedAt;
   }
 
   /**

@@ -89,23 +89,34 @@ export async function reviewQueue(token) {
   const seen = new Set();
   const queue = [];
 
-  for (const item of [...(requested.items || []), ...(mine.items || [])]) {
-    const { owner, repo } = parseRepository(item.repository_url);
-    const key = `${owner}/${repo}#${item.number}`;
+  // Which search an entry came out of is the one thing the merge would lose,
+  // and it is what says a review is being waited on. Requested is walked first
+  // so a pull request answering both keeps that.
+  const searches = [
+    { items: requested.items || [], isRequested: true },
+    { items: mine.items || [], isRequested: false },
+  ];
 
-    if (seen.has(key)) continue;
+  for (const search of searches) {
+    for (const item of search.items) {
+      const { owner, repo } = parseRepository(item.repository_url);
+      const key = `${owner}/${repo}#${item.number}`;
 
-    seen.add(key);
-    queue.push({
-      owner,
-      repo,
-      number: item.number,
-      title: item.title,
-      author: item.user?.login || "",
-      url: item.html_url,
-      updatedAt: item.updated_at,
-      createdAt: item.created_at,
-    });
+      if (seen.has(key)) continue;
+
+      seen.add(key);
+      queue.push({
+        owner,
+        repo,
+        number: item.number,
+        title: item.title,
+        author: item.user?.login || "",
+        url: item.html_url,
+        updatedAt: item.updated_at,
+        createdAt: item.created_at,
+        isRequested: search.isRequested,
+      });
+    }
   }
 
   return queue;
