@@ -17,44 +17,21 @@ permissions:
   contents: read
 
 jobs:
-  # The name matters: branch protection requires this check by it.
+  # The suite itself is in test.yml so release.yml can wait on it too. It is
+  # called rather than duplicated: two copies of a suite drift, and the copy
+  # that drifts is the one nobody is watching.
+  #
+  # The check name changed with this. A called workflow reports its jobs as
+  # "<calling job> / <called job>", so what used to appear as `test` now
+  # appears as `test / test`. GitHub offers no way to flatten it.
+  #
+  # Nothing requires either name today: branch protection and rulesets both
+  # need Pro or a public repository, and this one is private on neither. The
+  # name is written down here because the moment protection is switched on,
+  # `test / test` is the string it has to ask for, and a rule that names a
+  # check nobody reports blocks every pull request while looking correct.
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: serve/go.mod
-          # serve/ has no dependencies and therefore no go.sum, so there is
-          # nothing for the module cache to key on. Asking for it would only
-          # produce a warning about a file that will never exist.
-          cache: false
-
-      - run: go vet ./...
-        working-directory: serve
-
-      - run: go test ./...
-        working-directory: serve
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      # The end to end suite drives real headless Chrome over the DevTools
-      # protocol, taking whatever the machine already has: e2e/support/browser.js
-      # honours CHROME_PATH and otherwise searches known paths, /usr/bin/google-chrome
-      # among them. The ubuntu-latest image ships Chrome today, so nothing is
-      # installed here, but "ships it today" is exactly the assumption worth
-      # asserting: name the binary out loud so a runner-image change that
-      # dropped it fails on this line, with that as the message, rather than
-      # somewhere inside a browser test.
-      - run: google-chrome --version
-
-      # No install step: package.json has no dependencies. `npm test` runs the
-      # unit suite and then the end to end one, which boots serve/ with `go run`
-      # on a free port, so the Go toolchain set up above is needed here too.
-      - run: npm test
+    uses: ./.github/workflows/test.yml
 
   build:
     needs: test

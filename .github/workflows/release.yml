@@ -13,7 +13,21 @@ permissions:
   contents: read
 
 jobs:
+  # The gate. The suite already ran on a tag push, because docker.yml is
+  # triggered by tags too, but it ran in a workflow this one could not wait on:
+  # two workflows fired by the same push run alongside each other, and neither
+  # can block the other. v0.5.0 and v0.5.1 were both signed, notarised and
+  # published off commits whose suite was failing, and nothing stopped either.
+  #
+  # It runs on ubuntu-latest, inside test.yml, and that is the point rather than
+  # an incidental detail: the cheap runner is the one that decides whether the
+  # expensive one starts, so a red suite costs Linux minutes instead of macOS
+  # ones.
+  test:
+    uses: ./.github/workflows/test.yml
+
   release:
+    needs: test
     runs-on: macos-latest
     permissions:
       contents: write

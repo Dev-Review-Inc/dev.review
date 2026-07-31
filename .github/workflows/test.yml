@@ -1,0 +1,59 @@
+name: Test
+
+# The suite lives here, on its own, because two workflows need to wait on it.
+# It used to sit inline in docker.yml, which meant a tag push ran it, but
+# release.yml had no way to depend on a job in another file: the two workflows
+# start together and neither can block the other. v0.5.0 and v0.5.1 were both
+# published off commits whose suite was failing, and the failure was sitting
+# right there in a green-adjacent Docker run nobody was gated on.
+#
+# workflow_call is the only mechanism that makes one workflow wait for another
+# without a third-party polling action, and CONTRIBUTING.md's no-new-dependency
+# rule applies to actions as much as to packages. Everything in this repository
+# is actions/* or docker/*.
+on:
+  workflow_call:
+
+# Nothing here writes. Callers cannot hand this workflow more than it asks for,
+# so declaring it once here is what keeps a release token out of the suite.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: serve/go.mod
+          # serve/ has no dependencies and therefore no go.sum, so there is
+          # nothing for the module cache to key on. Asking for it would only
+          # produce a warning about a file that will never exist.
+          cache: false
+
+      - run: go vet ./...
+        working-directory: serve
+
+      - run: go test ./...
+        working-directory: serve
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The end to end suite drives real headless Chrome over the DevTools
+      # protocol, taking whatever the machine already has: e2e/support/browser.js
+      # honours CHROME_PATH and otherwise searches known paths, /usr/bin/google-chrome
+      # among them. The ubuntu-latest image ships Chrome today, so nothing is
+      # installed here, but "ships it today" is exactly the assumption worth
+      # asserting: name the binary out loud so a runner-image change that
+      # dropped it fails on this line, with that as the message, rather than
+      # somewhere inside a browser test.
+      - run: google-chrome --version
+
+      # No install step: package.json has no dependencies. `npm test` runs the
+      # unit suite and then the end to end one, which boots serve/ with `go run`
+      # on a free port, so the Go toolchain set up above is needed here too.
+      - run: npm test
