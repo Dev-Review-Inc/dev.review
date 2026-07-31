@@ -60,6 +60,11 @@ CI=true cargo tauri build
 Continuous integration sets `CI` itself, so this is only ever typed by hand, and
 only on a machine that has not granted the automation permission.
 
+A build made here is unsigned, which is fine for a local run and not for a
+download: macOS refuses an unsigned app on first open. Releases are built,
+signed and notarised by the release workflow instead, off a tag. See
+[docs/releasing.md](../docs/releasing.md).
+
 `bundle.targets` names `nsis` alongside `app` and `dmg`. The bundler filters the
 list by platform, so on macOS the Windows installer is passed over silently
 rather than warned about or attempted; the one list serves both platforms.
@@ -195,6 +200,12 @@ Verified:
   a top-level window with its menu bar. The window comes up at the configured
   width; the height is whatever the display leaves once the menu bar and title
   bar are taken, so on a short screen it is less than the 860 asked for.
+- Signing and notarisation, by building the release locally with the Developer
+  ID certificate and the App Store Connect key the workflow uses. Apple accepted
+  both submissions; `spctl` answers `Notarized Developer ID` for the `.dmg` on
+  mount and for the `.app` on launch, and the binary carries both architectures.
+  That build is what found that tauri leaves the `.dmg` unnotarised, which no
+  amount of checking the `.app` would have shown.
 - The icon, by extracting `Reviewer.icns` back out of the built `.app` with
   `iconutil` and rendering every entry at its own pixel size on a light and a
   dark background. The Dock itself is still unphotographed: screen recording is

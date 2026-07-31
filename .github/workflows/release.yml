@@ -34,7 +34,17 @@ jobs:
       # rather than an unsupported machine. A universal binary is roughly twice
       # the compile and twice the download, which is the right trade for a job
       # that runs once per release.
+      #
+      # From src-tauri, because rust-toolchain.toml is there and a pin only
+      # applies where it can be seen. Run at the root, this adds the targets to
+      # whatever the machine's default toolchain is, and the build - which does
+      # run in src-tauri - then asks the pinned one for a target nobody gave it,
+      # failing after the compile and naming the target rather than the
+      # directory. The runner's default happens to be the same stable the pin
+      # resolves to, so this worked on a coincidence about an image nobody here
+      # controls.
       - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        working-directory: src-tauri
 
       # The CLI comes from crates.io rather than @tauri-apps/cli, because
       # package.json has no dependencies and CONTRIBUTING.md says adding one
@@ -49,16 +59,106 @@ jobs:
       # never changes is a cache that only ever goes stale in ways nobody
       # notices, and this job runs once per release, not once per push.
       - run: cargo install tauri-cli --version "^2" --locked
+        working-directory: src-tauri
 
-      # Unsigned, and therefore unnotarised: Gatekeeper will refuse the first
-      # open and the user has to right-click, Open. Signing needs an Apple
-      # Developer certificate in the repository secrets and is its own change.
-      # Note that adding the APPLE_* variables here ahead of the certificate
-      # would be worse than leaving them out - tauri branches on the variable
-      # being present, not on it being non-empty, so an absent secret expands to
-      # "" and the build fails trying to import an empty certificate.
+      # Before the ten minutes, not after them. tauri branches on each of these
+      # being present rather than on it being non-empty, so a secret nobody set
+      # expands to "" and the build spends the whole compile before failing on
+      # an empty certificate - a message that reads like a broken certificate
+      # rather than a missing one. Named here, the same mistake costs a second
+      # and says which secret. docs/releasing.md is where they come from.
+      - name: Check the signing secrets are set
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          missing=
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8; do
+            eval "value=\$$name"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "This release cannot be signed. Unset secrets:$missing" >&2
+            echo "See docs/releasing.md." >&2
+            exit 1
+          fi
+
+      # APPLE_API_KEY_PATH is a path, and a .p8 is a file: a secret can hold the
+      # key but tauri will only read it off disk. RUNNER_TEMP is wiped with the
+      # runner, which is the whole life of this job, so the key never outlives
+      # the build that used it.
+      - name: Lay down the notarisation key
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notarisation.p8"
+          chmod 600 "$RUNNER_TEMP/notarisation.p8"
+
+      # Signed with the Developer ID certificate and then handed to Apple to
+      # notarise, which is the half that matters: a signature alone still gets
+      # the malware warning, because Gatekeeper wants Apple's countersignature
+      # and not ours. tauri does both, staples the result to the .app so an
+      # offline first launch still passes, and only then builds the .dmg.
+      #
+      # The certificate arrives base64'd because a .p12 is binary; tauri imports
+      # it into a throwaway keychain of its own for the length of the build.
       - run: cargo tauri build --target universal-apple-darwin
         working-directory: src-tauri
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/notarisation.p8
+
+      # tauri notarises and staples the .app and then wraps it in a disk image
+      # that it signs and never submits, so the bundle it hands back holds a
+      # notarised app inside an unnotarised container. Nobody downloads the
+      # .app. The .dmg is what is published, it arrives from a browser carrying
+      # a quarantine flag, and Gatekeeper assesses it on mount: unnotarised, it
+      # is refused there, before the stapled app inside is ever reached.
+      #
+      # --wait blocks until Apple has ruled rather than returning a submission
+      # id nobody reads, so a rejection fails this job instead of publishing.
+      # Stapling then writes the ticket into the file, which is what lets a Mac
+      # with no network open it.
+      - name: Notarise the installer
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          dmg=$(echo src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          xcrun notarytool submit "$dmg" \
+            --key "$RUNNER_TEMP/notarisation.p8" \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$dmg"
+
+      # Asking macOS rather than trusting the build. Notarisation is the step
+      # most able to fail softly - a rejected submission, a certificate that
+      # expired last month, a future tauri that treats an unset variable as
+      # permission to skip - and every one of those still produces a .dmg that
+      # uploads cleanly and warns the first person to open it. These are the
+      # commands that person's Mac runs, run here instead, against both the file
+      # that is published and the app it carries.
+      - name: Check what is published is signed and notarised
+        run: |
+          app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Reviewer.app
+          dmg=$(echo src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          xcrun stapler validate "$dmg"
+          # `--type open` is the assessment a mount performs; `--type execute`
+          # is the one a launch performs. A release has to pass both, and they
+          # are separate verdicts, so both are asked for by name.
+          spctl --assess --type open --context context:primary-signature -v "$dmg"
+          spctl --assess --type execute --verbose=4 "$app"
 
       # `gh` is on the runner already, so the upload needs no action either. The
       # release is created here rather than by hand so that the tag, the notes
