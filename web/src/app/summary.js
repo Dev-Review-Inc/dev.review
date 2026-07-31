@@ -27,27 +27,52 @@ export function reviewText(app) {
 }
 
 /**
- * Switch between the rendered comment and the editor, keeping any edit.
+ * Put the cursor in the summary, which is how writing one begins.
  *
  * @param {object} app the application
  * @returns {void}
  */
-export function toggleEditor(app) {
+export function openEditor(app) {
   const pull = app.selected;
 
-  if (!pull || !pull.draft) return;
+  if (!pull || !pull.draft || app.editing) return;
 
-  if (app.editing) {
-    app.commands.editComment(app.source, pull, find("editor").value);
-    app.editing = false;
-    app.reselect();
+  const editor = find("editor");
+
+  editor.value = app.queries.commentFor(app.source, pull);
+  app.editing = true;
+  app.changed();
+
+  queueMicrotask(() => {
+    editor.focus();
+    editor.setSelectionRange(editor.value.length, editor.value.length);
+  });
+}
+
+/**
+ * Keep what was written and go back to reading it.
+ *
+ * Leaving the box is the whole gesture: there is no save button to press, so
+ * an edit is never sitting in an editor the reader has walked away from.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+export function closeEditor(app) {
+  if (!app.editing) return;
+
+  const pull = app.selected;
+
+  app.editing = false;
+
+  if (!pull || !pull.draft) {
+    app.changed();
 
     return;
   }
 
-  find("editor").value = app.queries.commentFor(app.source, pull);
-  app.editing = true;
-  app.changed();
+  app.commands.editComment(app.source, pull, find("editor").value);
+  app.reselect();
 }
 
 /**
@@ -57,18 +82,19 @@ export function toggleEditor(app) {
  * @returns {void}
  */
 export function drawSummary(app) {
+  const notes = find("comment-notes");
   const body = find("comment-body");
   const cards = find("comment-cards");
   const extra = find("comment-extra");
   const editor = find("editor");
 
+  notes.replaceChildren();
   body.replaceChildren();
   cards.replaceChildren();
   extra.replaceChildren();
 
   body.hidden = app.editing;
   editor.hidden = !app.editing;
-  find("edit").hidden = true;
 
   const nothing = blankState(app);
 
@@ -89,10 +115,16 @@ export function drawSummary(app) {
   const unfinished = !draft.finishedAt;
   const filtered = Boolean(app.filter.section || app.filter.kind);
 
-  // The comment is editable once it is real, on the unfiltered summary - and no
-  // longer once it has been sent.
-  find("edit").hidden = filtered || unfinished || posted;
-  find("edit").textContent = app.editing ? "Done" : "Edit";
+  // The comment is writable once it is real, on the unfiltered summary - and no
+  // longer once it has been sent. An editor open over words that just became
+  // unwritable would be editing something this app can no longer change.
+  const writable = !filtered && !unfinished && !posted;
+
+  if (!writable && app.editing) {
+    app.editing = false;
+    body.hidden = false;
+    editor.hidden = true;
+  }
 
   // A posted review reads as the record it now is, in the destination's own
   // words: one that sent nothing must not leave a standing claim that it did,
@@ -113,55 +145,104 @@ export function drawSummary(app) {
       element("span", "", "✓"),
       element("span", "", words.record.replace("{age}", age(pull.postedAt))),
     );
-    cards.append(note);
+    notes.append(note);
   }
 
   // Unfinished but readable: say so above the prose, with the agent's own note
   // on where it has got to.
-  if (unfinished && !filtered) cards.append(progressBanner(draft));
+  if (unfinished && !filtered) notes.append(progressBanner(draft));
 
   // A filtered view reads like the summary it replaces: the lens's or theme's
-  // own written analysis as plain prose, then its cards.
+  // own written analysis as plain prose in the summary's place, then its cards.
   const filterBody = app.filter.section
     ? draft.sections.find((candidate) => candidate.key === app.filter.section)?.body
     : app.filter.kind
       ? draft.kinds.find((candidate) => candidate.key === app.filter.kind)?.body
       : "";
 
-  if (filtered && filterBody) {
-    const note = document.createElement("div");
-    note.innerHTML = renderBody(filterBody);
-    cards.append(note);
+  if (filtered) {
+    if (filterBody) {
+      const note = document.createElement("div");
+      note.innerHTML = renderBody(filterBody);
+      body.append(note);
+    }
+  } else {
+    // The summary leads: it is what the review says, and the comments below
+    // are its particulars.
+    body.append(summaryBox(app, reviewText(app), writable));
   }
 
-  // The comments lead, each on the code it is about - the very same cards the
-  // diff renders, Edit/Post/Drop and all.
+  // The comments, each on the code it is about - the very same cards the diff
+  // renders, Edit/Post/Drop and all.
   for (const finding of app.queries.findingsMatching(app.source, pull, app.filter)) {
     cards.append(findingCard(app, pull, finding, { snippet: true, actions: !posted }));
   }
 
   if (filtered) return;
 
-  // The summary reads after the particulars - Edit sits right beside it - then
-  // the recordings close as the proof.
-  const text = reviewText(app);
+  // The recordings close as the proof.
+  extra.append(...qaContent(app, { report: false }));
+}
 
-  if (text.trim()) {
-    body.innerHTML = renderBody(text);
-  } else {
-    // No summary is a fine review - the comments carry it - but the space says
-    // so rather than just ending, and is itself the way to write one.
-    const slate = document.createElement("button");
-    slate.className = "blank-summary";
+/**
+ * The summary as a box, which is also the way into writing one.
+ *
+ * There is no edit button and no save button: clicking the box puts a cursor
+ * in it, and leaving it keeps what was typed.
+ *
+ * @param {object} app the application
+ * @param {string} text the review body as it stands
+ * @param {boolean} writable whether these words can still be changed
+ * @returns {HTMLElement} the box
+ */
+function summaryBox(app, text, writable) {
+  // No summary is a fine review - the comments carry it - but the space says
+  // so rather than just ending, and is itself the way to write one.
+  if (!text.trim()) {
+    const slate = document.createElement(writable ? "button" : "div");
+
+    slate.className = "summary-box is-blank";
     slate.append(
       element("div", "title", "No summary."),
-      element("div", "text", "The comments above carry this review. Click to write one anyway."),
+      element(
+        "div",
+        "text",
+        writable
+          ? "The comments below carry this review. Click to write one anyway."
+          : "The comments below carry this review.",
+      ),
     );
-    slate.addEventListener("click", () => toggleEditor(app));
-    body.append(slate);
+
+    if (writable) slate.addEventListener("click", () => openEditor(app));
+
+    return slate;
   }
 
-  extra.append(...qaContent(app, { report: false }));
+  const box = document.createElement("div");
+
+  box.className = "summary-box";
+  box.innerHTML = renderBody(text);
+
+  if (!writable) return box;
+
+  box.role = "button";
+  box.tabIndex = 0;
+  box.title = "Click to write in the summary";
+  box.addEventListener("click", (event) => {
+    // A link in the summary goes where it points; only the prose around it
+    // opens the editor.
+    if (event.target.closest("a")) return;
+
+    openEditor(app);
+  });
+  box.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    event.preventDefault();
+    openEditor(app);
+  });
+
+  return box;
 }
 
 /**

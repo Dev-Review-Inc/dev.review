@@ -9,7 +9,7 @@
 import { App } from "./app.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
-import { find, say } from "./dom.js";
+import { afterClick, find, say } from "./dom.js";
 import { dismissedWords, leaveWords } from "./words.js";
 import { celebrate, closeConfirm, openConfirm, post } from "./confirm.js";
 import {
@@ -25,7 +25,7 @@ import { drawDiff } from "./diff-pane.js";
 import { DISMISS, drawFooter } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail } from "./rail.js";
-import { drawSummary, toggleEditor } from "./summary.js";
+import { closeEditor, drawSummary } from "./summary.js";
 
 // A page that asked for the demo gets sample data attached on its first load.
 // Every other page gets an app with nothing in it, as before.
@@ -160,7 +160,27 @@ find("files-flagged").addEventListener("click", () => {
   app.changed();
 });
 
-find("edit").addEventListener("click", () => toggleEditor(app));
+// Leaving the summary is what keeps it. Nothing else ends the edit, so an
+// editor the reader has clicked away from cannot be holding unsaved words.
+//
+// When a click is what took the focus, the edit is kept once that click has
+// been delivered: keeping it first would redraw the page out from under the
+// pointer, and a click aimed at a comment's button would be spent closing the
+// box instead of dropping the comment.
+let pressing = false;
+
+document.addEventListener("pointerdown", () => (pressing = true), true);
+document.addEventListener("pointerup", () => (pressing = false), true);
+
+find("editor").addEventListener("blur", () => {
+  if (!pressing) {
+    closeEditor(app);
+
+    return;
+  }
+
+  afterClick(() => closeEditor(app));
+});
 
 find("post").addEventListener("click", () => {
   if (!app.dismissing) return openConfirm(app);

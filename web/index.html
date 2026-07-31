@@ -628,9 +628,8 @@
   /* Editing sits in flow beside the prose it edits - nothing can cover
      it, and it takes no space at all while hidden. */
   #tab-summary { position: relative; }
-  .edit-toggle { display: block; margin: 12px 14px -4px auto; }
 
-  #comment-cards:empty, #comment-extra:empty { display: none; }
+  #comment-notes:empty, #comment-cards:empty, #comment-extra:empty { display: none; }
 
   .posted-note {
     display: flex; align-items: center; gap: 8px;
@@ -642,16 +641,32 @@
 
   .posted-note:hover { text-decoration: underline; }
 
-  .blank-summary {
-    display: grid; gap: 4px; width: 100%;
-    padding: 18px; border: 1px dashed var(--border); border-radius: 8px;
-    text-align: center;
+  /* The summary is its own box, and the box is the way into writing it:
+     there is no edit button, so the border and its hover are what say the
+     words can be changed. A box nobody may change loses the invitation. */
+  .summary-box {
+    display: block; width: 100%; text-align: left;
+    padding: 16px 18px; border: 1px solid var(--border); border-radius: 8px;
+    color: inherit; font: inherit;
   }
 
-  .blank-summary .title { font-weight: 600; color: var(--dim); }
-  .blank-summary .text { font-size: 12px; color: var(--faint); }
-  .blank-summary:hover { border-color: var(--accent); background: var(--panel2); }
-  .blank-summary:hover .title { color: var(--accent); }
+  .summary-box.is-blank {
+    display: grid; gap: 4px;
+    border-style: dashed; text-align: center;
+  }
+
+  .summary-box .title { font-weight: 600; color: var(--dim); }
+  .summary-box .text { font-size: 12px; color: var(--faint); }
+
+  .summary-box[role="button"], button.summary-box { cursor: text; }
+
+  .summary-box[role="button"]:hover, button.summary-box:hover {
+    border-color: var(--accent); background: var(--panel2);
+  }
+
+  button.summary-box:hover .title { color: var(--accent); }
+
+  #comment-notes { padding-bottom: 0; }
   #comment-cards { padding-bottom: 0; }
   #comment-extra { padding-top: 0; }
 
@@ -1374,10 +1389,10 @@
 
     <section id="comment">
       <div id="tab-summary">
-        <div class="prose" id="comment-cards"></div>
-        <button class="ghost edit-toggle" id="edit" hidden>Edit</button>
+        <div class="prose" id="comment-notes"></div>
         <div class="prose" id="comment-body"></div>
         <textarea id="editor" hidden spellcheck="false"></textarea>
+        <div class="prose" id="comment-cards"></div>
         <div class="prose" id="comment-extra"></div>
       </div>
 

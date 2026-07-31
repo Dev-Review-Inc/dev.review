@@ -100,6 +100,42 @@ export function say(message, tone = "") {
 }
 
 /**
+ * Do this once the click now under way has been delivered.
+ *
+ * A mouse takes the focus on the way down and clicks on the way up. Anything
+ * that redraws in between moves the page under the pointer, and the click
+ * lands on whatever took its target's place, or on nothing at all - so the
+ * reader's one click would only tidy up after the last thing they did, and
+ * they would have to make it again.
+ *
+ * @param {() => void} run what to do once the click has landed
+ * @returns {void}
+ */
+export function afterClick(run) {
+  let done = false;
+
+  const finish = () => {
+    if (done) return;
+
+    done = true;
+    document.removeEventListener("click", onClick, true);
+    document.removeEventListener("pointerup", onUp, true);
+    run();
+  };
+
+  // Capture reaches this before the handlers the click is for; a microtask
+  // holds the work until the whole of that click has been dealt with.
+  const onClick = () => queueMicrotask(finish);
+
+  // A press let go where no click follows - outside the window, on a
+  // scrollbar - still has to release the work waiting on it.
+  const onUp = () => setTimeout(finish, 100);
+
+  document.addEventListener("click", onClick, true);
+  document.addEventListener("pointerup", onUp, true);
+}
+
+/**
  * A composed empty state, so an absence reads as a state rather than a gap.
  *
  * @param {string} mark a glyph

@@ -222,6 +222,83 @@ describe("Reading a review the agent drafted", () => {
   });
 });
 
+describe("Writing the review's summary", () => {
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+    await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+  });
+
+  after(() => page.close());
+
+  test("the summary reads first, above the comments it introduces", async () => {
+    assert.deepEqual(
+      await page.eval('[...document.querySelector("#tab-summary").children].map((el) => el.id)'),
+      ["comment-notes", "comment-body", "editor", "comment-cards", "comment-extra"],
+    );
+    assert.match(await page.text("#comment-body"), /Two things worth a look/);
+  });
+
+  test("the summary is a box you click to write in, and no button says so", async () => {
+    assert.equal(await page.count("#tab-summary button#edit"), 0);
+
+    await page.click("#comment-body .summary-box");
+    await page.until('!document.querySelector("#editor").hidden', "the editor to open");
+
+    assert.equal(await page.eval("document.activeElement.id"), "editor");
+    assert.equal(
+      await page.eval('document.querySelector("#editor").value'),
+      "Two things worth a look before this goes in.",
+    );
+  });
+
+  test("clicking away keeps what was written, with nothing to save", async () => {
+    await page.fill("#editor", " Read the second one twice.");
+    await page.click("#blurb");
+
+    await page.until('document.querySelector("#editor").hidden', "the editor to close");
+
+    assert.match(await page.text("#comment-body"), /Read the second one twice\./);
+    assert.equal(
+      await page.eval("globalThis.__world.sent.length"),
+      0,
+      "editing must not send anything",
+    );
+  });
+
+  test("one click both keeps the writing and does what it was aimed at", async () => {
+    await page.click("#comment-body .summary-box");
+    await page.until('!document.querySelector("#editor").hidden', "the editor to open");
+    await page.fill("#editor", " And the first one is the worse.");
+
+    // The click that closes the editor is a click on something: it has to
+    // arrive, rather than being spent on closing the box.
+    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+
+    await page.until(
+      'document.querySelector("#staged").textContent === "1 comment staged"',
+      "the drop to land on the same click that closed the editor",
+    );
+    assert.match(await page.text("#comment-body"), /And the first one is the worse\./);
+  });
+
+  test("the writing survives the browser being closed", async () => {
+    await page.go();
+    await page.until(
+      'document.querySelector("#comment-body .summary-box")',
+      "the reopened review to draw its summary",
+    );
+
+    assert.match(await page.text("#comment-body"), /Read the second one twice\./);
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
 describe("Clearing a review that is open", () => {
   let page;
 
