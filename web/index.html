@@ -268,7 +268,7 @@
     position: fixed; z-index: 70;
     top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: 900px; height: 424px;
-    display: grid; grid-template-columns: 268px 1fr;
+    display: grid; grid-template-columns: 268px 1fr; grid-template-rows: 1fr auto;
     border: 1px solid var(--setBorder); border-radius: 10px;
     background: var(--setPanel); overflow: hidden;
     box-shadow: 0 30px 70px var(--shadow);
@@ -1195,7 +1195,7 @@
 
   .sheet {
     width: min(720px, 100%); max-height: 84vh;
-    display: grid; grid-template-rows: auto 1fr auto;
+    display: grid; grid-template-rows: auto 1fr auto auto;
     border: 1px solid var(--border); border-radius: 10px;
     background: var(--panel); overflow: hidden;
     box-shadow: 0 30px 70px var(--shadow);
@@ -1298,6 +1298,36 @@
   #status.error { color: var(--red); }
   #status.ok { color: var(--green); }
 
+  /* Saying it where it can be seen ---------------------------------------
+     The footer line above is behind every overlay this app raises: three
+     scrims grey it out, and the start up curtain is opaque. So each overlay
+     carries the same report, in front of itself, and takes up no room until
+     there is something to report. */
+  #curtain-say, #celebrate-say, #confirm-say, #setup-say {
+    font-family: var(--mono); font-size: 11px; line-height: 1.55;
+    color: var(--faint); text-align: center;
+  }
+
+  #curtain-say.error, #celebrate-say.error, #confirm-say.error, #setup-say.error { color: var(--red); }
+  #curtain-say.ok, #celebrate-say.ok, #confirm-say.ok, #setup-say.ok { color: var(--green); }
+
+  #curtain-say:empty, #celebrate-say:empty, #confirm-say:empty, #setup-say:empty { display: none; }
+
+  #curtain-say, #celebrate-say { max-width: 44ch; }
+
+  #confirm-say {
+    padding: 9px 18px; text-align: left;
+    border-top: 1px solid var(--border2);
+  }
+
+  /* Across both columns, along the bottom of the panel, where the buttons
+     that raise these failures already are. */
+  #setup-say {
+    grid-column: 1 / -1;
+    padding: 9px 18px; text-align: left;
+    border-top: 1px solid var(--setDiv); background: var(--setNav);
+  }
+
   /* Scrolling ------------------------------------------------------------
      Every scroller in here keeps its scrolling to itself. This app is
      embedded in a page it does not own, and reaching the bottom of the rail
@@ -1348,7 +1378,7 @@
     .settings {
       width: min(900px, calc(100vw - 24px));
       height: auto; max-height: 90vh;
-      grid-template-columns: 1fr; grid-template-rows: auto 1fr;
+      grid-template-columns: 1fr; grid-template-rows: auto 1fr auto;
       overflow-y: auto;
     }
 
@@ -1368,6 +1398,9 @@
     <div class="curtain-mark mono">&#9679;</div>
     <div class="curtain-bar"><span></span></div>
     <div class="curtain-word">loading</div>
+    <!-- Start up carries on past a failure, so the word above stays true and
+         this says what went wrong underneath it. -->
+    <div id="curtain-say" aria-hidden="true"></div>
   </div>
 </div>
 
@@ -1450,7 +1483,10 @@
       <span id="staged"></span>
       <span id="counts"></span>
     </div>
-    <span id="status"></span>
+    <!-- The one report a screen reader is told about. The copies inside the
+         overlays carry the same words for the eye and are hidden from it, so
+         a failure is announced once wherever it was raised. -->
+    <span id="status" role="status" aria-live="polite"></span>
     <span class="fdivider"></span>
     <div class="verdicts" id="verdicts">
       <button data-event="APPROVE" aria-pressed="false"><span class="dot"></span>Approve</button>
@@ -1479,6 +1515,7 @@
       <button class="ghost" id="cheer-close">Back to the queue</button>
       <button id="cheer-next" hidden>Next ready review &#8594;</button>
     </div>
+    <div id="celebrate-say" aria-hidden="true"></div>
   </div>
 </div>
 
@@ -1501,6 +1538,7 @@
     <form class="settings-form" id="source-form" hidden></form>
     <form class="settings-form" id="destination-form" hidden></form>
   </div>
+  <div id="setup-say" aria-hidden="true"></div>
 </div>
 
 <div id="confirm" hidden>
@@ -1518,6 +1556,8 @@
     <div class="sheet-body">
       <div class="prose" id="confirm-preview"></div>
     </div>
+
+    <div id="confirm-say" aria-hidden="true"></div>
 
     <div class="sheet-foot">
       <span class="mono" id="confirm-note">nothing has been sent yet</span>

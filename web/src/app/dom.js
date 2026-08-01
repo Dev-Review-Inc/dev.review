@@ -82,21 +82,65 @@ export function initials(login) {
   return (parts.length > 1 ? parts[0][0] + parts[1][0] : String(login).slice(0, 2)).toUpperCase();
 }
 
+// Everywhere a report can be read. The footer is where it rests, and the rest
+// are inside the overlays this app puts over its own footer: a start up
+// curtain that is opaque by design, and three scrims that grey out everything
+// behind them. Saying it in every one that is up, rather than working out
+// which is in front, keeps this list from having to agree with the z-indexes
+// in the stylesheet. An element this page does not have is passed over.
+const PLACES = ["status", "curtain-say", "celebrate-say", "confirm-say", "setup-say"];
+
+// A failure thrown as something other than an Error reaches `say` as
+// `undefined`, because the call site asked it for a `.message` it never had.
+// Saying nothing would let the failure pass for success, and the browser's own
+// answer, the word "undefined", tells the reader less than nothing.
+const NAMELESS = "something went wrong";
+
 /**
- * Report progress or failure in the footer.
+ * Report progress or failure.
  *
- * Every failure the interface meets ends up here. Nothing is allowed to fail
- * quietly and let the panes redraw as though it had worked.
+ * Every failure the interface meets ends up here, and lands in front of
+ * whatever is on screen when it is raised rather than only in the footer
+ * behind it. Nothing is allowed to fail quietly and let the panes redraw as
+ * though it had worked.
  *
- * @param {string} message what to say
+ * @param {*} message what to say, or a missing message to report as a failure
  * @param {string} [tone] "", "ok" or "error"
  * @returns {void}
  */
 export function say(message, tone = "") {
-  const status = find("status");
+  const words = typeof message === "string" ? message : "";
+  const text = words || (tone === "error" ? NAMELESS : "");
 
-  status.textContent = message;
-  status.className = tone;
+  for (const id of PLACES) {
+    const place = find(id);
+
+    if (!place) continue;
+
+    // A place nobody can see is emptied rather than written to, so an overlay
+    // raised later opens on its own news instead of the last overlay's.
+    const showing = onScreen(place);
+
+    place.textContent = showing ? text : "";
+    place.className = showing ? tone : "";
+  }
+}
+
+/**
+ * Whether an element is somewhere a reader could see it.
+ *
+ * The overlays are put away with the `hidden` attribute, on the overlay rather
+ * than on the report inside it, so the answer is up the ancestors.
+ *
+ * @param {HTMLElement} node the element
+ * @returns {boolean} true when nothing has it put away
+ */
+function onScreen(node) {
+  for (let at = node; at; at = at.parentElement) {
+    if (at.hidden) return false;
+  }
+
+  return true;
 }
 
 /**

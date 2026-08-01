@@ -723,3 +723,93 @@ describe("A review request that comes back", () => {
     assert.deepEqual(page.complaints, []);
   });
 });
+
+// A failure raised inside the settings panel used to be reported into the
+// footer, which the panel's own scrim covers. The reader asked for storage to
+// be attached, was told why it could not be, and never saw it: the words were
+// behind the thing they were looking at. This drives that exact moment and
+// asks the browser what is actually painted where.
+describe("Being told why the storage would not attach", () => {
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+
+    await page.click("#source-button");
+    await page.until('!document.querySelector("#setup-popover").hidden', "the settings panel");
+    await page.click("#settings-add");
+    await page.until('!document.querySelector("#source-form").hidden', "the source form");
+
+    await page.choose("#source-form select", "s3");
+    await page.fill('[data-focus-key="source:name"]', "Nowhere");
+    await page.fill('[data-focus-key="source:bucket"]', "reviews");
+    await page.fill('[data-focus-key="source:region"]', "us-east-1");
+
+    // An endpoint the world refuses, which is a bucket that cannot be reached
+    // rather than a form filled in wrongly.
+    await page.fill('[data-focus-key="source:endpoint"]', "https://gone.test.invalid");
+    await page.fill('[data-focus-key="source:accessKeyId"]', "test-access-key");
+    await page.fill('[data-focus-key="source:secretAccessKey"]', "test-secret-key");
+    await page.click("#source-form button[type=submit]");
+
+    await page.until(
+      'document.querySelector("#status").textContent !== ""',
+      "the interface to say what went wrong",
+    );
+  });
+
+  after(() => page.close());
+
+  test("the panel says the same thing the footer does", async () => {
+    const said = await page.text("#status");
+
+    assert.notEqual(said, "");
+    assert.notEqual(said, "undefined");
+    assert.equal(await page.text("#setup-say"), said);
+  });
+
+  test("the overlays that were not up carry none of it", async () => {
+    // Otherwise the confirmation sheet would open later, about something else
+    // entirely, wearing this failure across the top of it.
+    assert.equal(await page.text("#confirm-say"), "");
+    assert.equal(await page.text("#celebrate-say"), "");
+  });
+
+  test("the panel is still open, so the footer is the covered place", async () => {
+    assert.equal(await page.eval('document.querySelector("#setup-popover").hidden'), false);
+
+    // What the browser paints at the middle of the footer's report. Not the
+    // report: the settings panel's scrim, which is the whole bug.
+    assert.equal(await page.eval(painted("#status")), "setup-backdrop");
+  });
+
+  test("the panel's report is what the reader's eye actually lands on", async () => {
+    assert.equal(await page.eval(painted("#setup-say")), "setup-say");
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
+/**
+ * An expression answering with the id of whatever is painted over an element.
+ *
+ * Computed styles would say the report is there and coloured; only asking what
+ * is topmost at the point it occupies says whether it can be read.
+ *
+ * @param {string} selector the element to look through
+ * @returns {string} javascript answering with an id, or "" for an unnamed hit
+ */
+function painted(selector) {
+  return `(() => {
+    const node = document.querySelector("${selector}");
+    const box = node.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+
+    if (!hit) return "nothing";
+
+    return (node.contains(hit) ? node : hit).id;
+  })()`;
+}
