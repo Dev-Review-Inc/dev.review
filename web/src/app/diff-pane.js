@@ -2,7 +2,7 @@
 
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
-import { element, find } from "./dom.js";
+import { element, emptyState, find } from "./dom.js";
 import { addBox, findingCard } from "./findings.js";
 
 /**
@@ -18,6 +18,12 @@ export function drawDiff(app) {
   diff.replaceChildren();
 
   if (!pull) return;
+
+  // A diff that could not be fetched draws exactly like a pull request that
+  // changed no files, so it has to say which it is. First, and above whatever
+  // did arrive rather than instead of it: the head commit can fail on its own,
+  // and then the diff below this is real and worth reading.
+  if (app.diffProblem) diff.append(fetchFailed(app));
 
   const draft = pull.draft;
   const filter = app.filter;
@@ -69,6 +75,26 @@ export function drawDiff(app) {
 
     diff.append(fileBlock(app, pull, file, findings, readOnly));
   }
+}
+
+// Which of the two was refused is read off what arrived rather than recorded
+// twice. Files in hand means the diff is real and it was the commit that was
+// refused, which is the failure the reader would otherwise meet at the moment
+// they press post, because that is where it is fetched again.
+function fetchFailed(app) {
+  if (app.files.length) {
+    return emptyState(
+      "⚠",
+      "The commit this review is against could not be fetched.",
+      `${app.diffProblem}. The diff below is real, but a comment cannot be posted until this clears.`,
+    );
+  }
+
+  return emptyState(
+    "⚠",
+    "This diff could not be fetched.",
+    `${app.diffProblem}. What the agent drafted is still readable; the lines it is anchored to are not here.`,
+  );
 }
 
 function fileBlock(app, pull, file, findings, readOnly) {

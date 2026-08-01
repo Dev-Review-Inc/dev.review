@@ -16,6 +16,7 @@ import {
   sourceDirty,
   statusLine,
   storageOptions,
+  syncWord,
   folderWork,
 } from "../../web/src/app/header.js";
 
@@ -460,5 +461,32 @@ describe("what the app does inside a source's folder", () => {
   // forgotten leaves nothing to quote, so it says nothing.
   test("says nothing when the location cannot be named", () => {
     assert.equal(folderWork(source, "", "ab12"), null);
+  });
+});
+
+// The word under a saved source's form is the only place the app ever says a
+// reader's decisions are written. It is drawn from a count that is itself a
+// read of storage, so it has three answers to give and not two: none waiting,
+// some waiting, and no idea. Collapsing the third into the first is how "three
+// decisions are only on this laptop" gets shown as "saved".
+describe("what the settings foot says about decisions waiting to sync", () => {
+  test("says everything landed when nothing is waiting", () => {
+    assert.equal(syncWord(0).text, "saved");
+    assert.equal(syncWord(0).tone, "");
+  });
+
+  test("counts what is waiting, in the reader's number", () => {
+    assert.equal(syncWord(1).text, "1 decision waiting to sync");
+    assert.equal(syncWord(3).text, "3 decisions waiting to sync");
+    assert.equal(syncWord(3).tone, "bad");
+  });
+
+  test("does not say saved when the count could not be read", () => {
+    assert.notEqual(syncWord(null).text, "saved");
+  });
+
+  test("says the count is what could not be read, and wears the warning", () => {
+    assert.match(syncWord(null).text, /could not be checked/);
+    assert.equal(syncWord(null).tone, "bad");
   });
 });

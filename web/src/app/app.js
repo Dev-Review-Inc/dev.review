@@ -71,7 +71,9 @@ export class App {
     // Two more observations the sweep gathers, so the settings pane can draw
     // synchronously: the remembered folder's name for each browser-folder
     // source (the handle API hides the path), and how many of this reader's
-    // decisions have not yet landed in each source's storage.
+    // decisions have not yet landed in each source's storage. That count is
+    // null for a source whose count could not be read, which is a third answer
+    // and not a quiet zero.
     this.handleNames = {};
     this.unsyncedCounts = {};
 
@@ -87,6 +89,12 @@ export class App {
     this.selected = null;
     this.files = [];
     this.headCommit = "";
+
+    // Why the diff or the head commit is missing, when they were asked for and
+    // did not come. Kept apart from `problems` because it belongs to the pull
+    // request that is open rather than to the source or the destination, and is
+    // dropped the moment a different one is.
+    this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
 
@@ -162,8 +170,14 @@ export class App {
           names[source.id] = (await this._handles.recall(source.id).catch(() => null))?.name || "";
         }
 
+        // Null is "could not be counted", and it is deliberately not zero. This
+        // count is the only durable record that a push did not land: a push
+        // that fails answers false and leaves the mark where it was precisely
+        // so this stays honest. Answering zero because the read of it failed
+        // takes decisions that exist nowhere but this browser and reports them
+        // to the reader as saved.
         counts[source.id] = this.commands.sync
-          ? await this.commands.sync.unsynced(source).catch(() => 0)
+          ? await this.commands.sync.unsynced(source).catch(() => null)
           : 0;
 
         // The open source has already said what is wrong with it, and when it
@@ -595,6 +609,7 @@ export class App {
     this.selected = pull;
     this.files = [];
     this.headCommit = "";
+    this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
     this.dismissing = false;
@@ -617,6 +632,18 @@ export class App {
 
     if (files.status === "fulfilled") this.files = files.value;
     if (commit.status === "fulfilled") this.headCommit = commit.value;
+
+    // Not thrown, for the reason above, but not swallowed either. A diff that
+    // could not be fetched draws exactly like a pull request that changed no
+    // files, so silence here reads as a fact about the pull request rather than
+    // about the connection. The head commit is worth saying even when the diff
+    // arrived: posting a finding fetches it again, and the reader should not
+    // first learn the destination is refusing at the moment they press post.
+    const refused = [files, commit].find((answer) => answer.status === "rejected");
+
+    this.diffProblem = refused
+      ? refused.reason?.message || "the destination did not say why"
+      : "";
 
     this.changed();
   }

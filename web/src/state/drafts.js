@@ -188,7 +188,21 @@ export class Drafts {
 
       if (!key) continue;
 
-      const bytes = await this.adapter.read(path).catch(() => null);
+      let bytes;
+
+      try {
+        bytes = await this.adapter.read(path);
+      } catch (error) {
+        // Answered exactly the way `load` answers it, because which of the two
+        // ran is only an accident of whether the reader had this pull request
+        // open when the storage faltered. A read that failed is not a draft
+        // that was deleted: forgetting it here takes the ready mark off the
+        // queue row, which reports the storage's outage as the agent having
+        // nothing waiting.
+        this._byKey.set(key, { draft: null, problem: `could not be read: ${error.message}` });
+        changed.push(key);
+        continue;
+      }
 
       if (!bytes) {
         this._byKey.delete(key);

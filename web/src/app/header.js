@@ -1044,6 +1044,31 @@ function kindControl(app, active) {
   return control;
 }
 
+/**
+ * What a saved source's form says about decisions waiting to reach its storage.
+ *
+ * The only place this app ever tells a reader their decisions are written, so
+ * it has to have three things to say and not two. The count behind it is
+ * itself a read of storage, and a read that failed answers null: saying "saved"
+ * on the strength of a question that could not be asked is how work sitting
+ * only in this browser gets reported as safe.
+ *
+ * @param {number|null} waiting how many are waiting, or null when unknown
+ * @returns {{text: string, tone: string}} the word and the tone to wear
+ */
+export function syncWord(waiting) {
+  if (waiting === null || waiting === undefined) {
+    return { text: "could not be checked for unsynced decisions", tone: "bad" };
+  }
+
+  if (!waiting) return { text: "saved", tone: "" };
+
+  return {
+    text: `${waiting} decision${waiting === 1 ? "" : "s"} waiting to sync`,
+    tone: "bad",
+  };
+}
+
 function footWord(text, tone) {
   return element("span", `mono settings-word${tone ? ` is-${tone}` : ""}`, text);
 }
@@ -1182,14 +1207,11 @@ function drawSourceForm(app) {
     );
     foot.append(footButton("Save", "fill"));
   } else {
-    const waiting = app.unsyncedCounts?.[setup.editing.id] || 0;
+    // Undefined until the first sweep has answered, which reads the same way a
+    // failed read does: nothing is known yet, so nothing is claimed.
+    const { text, tone } = syncWord(app.unsyncedCounts?.[setup.editing.id] ?? null);
 
-    foot.append(
-      waiting
-        ? footWord(`${waiting} decision${waiting === 1 ? "" : "s"} waiting to sync`, "bad")
-        : footWord("saved", ""),
-      element("span", "spacer", ""),
-    );
+    foot.append(footWord(text, tone), element("span", "spacer", ""));
     foot.append(footButton("Done", ""));
   }
 
