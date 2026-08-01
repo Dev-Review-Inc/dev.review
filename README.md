@@ -285,9 +285,6 @@ yet and nothing here should be read as a promise about what comes next. GitLab
 is not supported. There is no text search and there are no keyboard shortcuts.
 The desktop build is macOS only.
 
-[POSITIONING.md](POSITIONING.md) says what this is for, who it is for, and what
-is deliberately out of scope.
-
 ## Licence
 
 [Apache-2.0](LICENSE). Use it, fork it, ship it, sell it. The patent grant is
