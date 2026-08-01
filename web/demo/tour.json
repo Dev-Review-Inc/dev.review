@@ -1,82 +1,206 @@
 {
   "label": "Take the tour",
   "drafts": {
-    "drafts/dev-review--dev.review-39/review.json": {
+    "drafts/harbourline--storefront-128/review.json": {
       "schema": 3,
-      "owner": "dev-review",
-      "repo": "dev.review",
-      "number": 39,
-      "title": "Forget a draft the reader has cleared",
-      "url": "https://github.com/dev-review/dev.review/pull/39",
-      "reviewedAt": "e7a6cd5",
-      "draftedAt": "2026-07-30T09:12:04Z",
-      "finishedAt": "2026-07-30T09:16:41Z",
-      "verdict": "COMMENT",
-      "summary": "The listing is now the whole truth about what is held, and a read failure still is not.",
-      "comment": "**Start here.** This is the interface, running, with a real review loaded into it. Nothing on this page is a picture.\n\nThe pane on the left is the agent's verdict. Every lens it looked through is listed, including the ones that came back clean, each with a line on what was actually checked. Click one and the review filters to it. Click **Two authors** to see what a clean lens is for.\n\nThe pane you are reading is the review body. Below it sit the findings, each anchored to a line of the diff. Open the **Diff** tab and the same cards hang under the lines they are about.\n\nDrop a finding you disagree with and it stops being part of the review. Reload this page and it is still dropped, because your decisions are an append-only log and not a page of state. **Post review**, bottom right, is where a real review would leave. Here it goes nowhere and says so.",
+      "owner": "harbourline",
+      "repo": "storefront",
+      "number": 128,
+      "title": "Paginate the orders endpoint",
+      "url": "https://github.com/harbourline/storefront/pull/128",
+      "reviewedAt": "9d41c0e",
+      "draftedAt": "2026-07-30T10:58:12Z",
+      "finishedAt": "2026-07-30T11:04:22Z",
+      "verdict": "REQUEST_CHANGES",
+      "summary": "Page one starts at the twenty sixth order, and the query stopped asking whose orders these are.",
+      "comment": "**Start here.** This is the interface, running, with a review loaded into it. Nothing on this page is a picture.\n\nOn the left is everything the agent looked through, the lenses that came back clean included. Click one and the review filters to it. Open **Query cost** to see what a clean lens is for. The **Diff** tab hangs these same cards under the lines they are about, and the **QA** tab plays the run that failed.\n\nDrop a finding you disagree with and it stops being part of the review. Reload the page and it is still dropped, because your decisions are an append-only log rather than a page of state. **Post review**, bottom right, is where a real review would leave. Here it goes nowhere and says so.\n\n**Request changes.** Paging this endpoint is overdue and the shape of the change is right. Two lines of it are not.\n\nThe `where` clause went missing in the rewrite, so the query now returns the newest orders in the shop rather than the newest orders belonging to whoever asked. That is every customer's address, basket and total, served to anybody with an account.\n\nThe offset is one page out. `page * limit` on page one skips the first twenty five orders, so a customer who has just checked out cannot find the order they placed a minute ago. The test that ships with the change passes either way.",
       "sections": [
+        {
+          "key": "access",
+          "label": "Who sees what",
+          "color": "critical",
+          "body": "The query is the only thing that decides whose orders come back. `requireCustomer` above it proves somebody is signed in and says nothing about which rows they may read."
+        },
         {
           "key": "correctness",
           "label": "Correctness",
           "color": "critical",
-          "body": "The change makes `loadAll` authoritative about what the source holds. That is the right call, and it puts weight on a path underneath it that was never load bearing before."
+          "body": "The paging arithmetic, and what a caller actually gets for the page they asked for."
         },
         {
-          "key": "contracts",
-          "label": "Contracts",
+          "key": "limits",
+          "label": "Limits",
           "color": "warn",
-          "body": "What a function promises its callers, and whether the code still keeps that promise after the change."
+          "body": "What one request can ask this endpoint to do, and what stops it."
         },
         {
-          "key": "tests-conventions",
+          "key": "tests",
           "label": "Tests",
           "color": "warn",
-          "body": "The commit ships a test with it, which is the house rule. What that test pins down, and what it leaves loose, is the question."
+          "body": "The change ships a test with it, which is the rule here. What that test pins down is the question."
         },
         {
-          "key": "two-authors",
-          "label": "Two authors",
+          "key": "response-shape",
+          "label": "The response",
+          "color": "accent",
+          "body": "What the client is handed, and what it is left to work out for itself."
+        },
+        {
+          "key": "queries",
+          "label": "Query cost",
           "color": "ok",
-          "body": "Clean, and worth showing rather than hiding.\n\nThe rule this repository is built on is that the app never writes to a draft: the agent is the only author of the file it wrote, so the two can never race for the same bytes. A change that starts deleting things is exactly where that rule gets broken by accident.\n\nChecked: `loadAll` deletes only from `this._byKey`, which is this app's in-memory projection. The only `adapter.remove` in the diff is in the test, driving the adapter directly to stand in for an agent clearing its own file. Nothing here writes to or deletes a draft.\n\n**A lens with nothing in it is the point.** Hiding it would make this review look shorter and make its thoroughness unprovable. Checked and clean, and not looked at, are different answers."
+          "body": "Clean, and worth showing rather than hiding.\n\nWorth checking because paging is where one query usually becomes one query per row: the page comes back and then something gets looked up for each item on it.\n\nChecked: `summarise` reads `total`, `placedAt` and `state` off the row it is handed and touches no relation, so it issues nothing. `findMany` is called once. `placedAt` is the sort column and carries an index, so `skip` and `take` walk a range rather than sorting the table to find the page.\n\n**A lens with nothing flagged is the most useful thing on the page.** Leaving it out would make this review look shorter and make its thoroughness unprovable. Checked and clean, and not looked at, are different answers."
         }
       ],
       "findings": [
         {
-          "id": "read-failure-reads-as-cleared",
-          "section": "correctness",
-          "path": "web/src/state/drafts.js",
-          "line": 120,
-          "kind": "failure-as-answer",
+          "id": "every-customers-orders",
+          "section": "access",
+          "path": "src/api/orders.js",
+          "line": 45,
+          "kind": "dropped-scope",
           "color": "critical",
           "blocking": true,
-          "body": "This makes the listing authoritative about what has been cleared, but the read underneath it is still not.\n\n`_absorb` does `await this.adapter.read(path).catch(() => null)` and then deletes the key. So a bucket that answers one GET with a 500 clears the review from the queue, with the same marks removed and the same row reset that a real clearing produces. The reader cannot tell the two apart.\n\nEverything else on this path is careful about exactly this. `Adapter.poll` skips a round rather than report that everything vanished, and says why: a backend that is briefly unreachable is not a change. `Drafts.load` records `could not be read: ...` as a problem and keeps the last good draft. `_absorb` is the one reader of the three that treats a failed read as an answer.\n\nThis commit is what makes it matter. Before it, a spurious delete from `_absorb` was papered over on the next refresh, because the refresh only ever added. Now the refresh removes too, so the wrong answer sticks.",
-          "suggestion": "      let bytes;\n\n      try {\n        bytes = await this.adapter.read(path);\n      } catch (error) {\n        // Unreachable is not empty. Keeping the entry means a flaky bucket\n        // costs a refresh rather than the reader's place in the queue.\n        continue;\n      }\n"
+          "body": "The `where` clause did not move in the rewrite. It is gone.\n\n`findMany` now filters on nothing, so this returns the twenty five newest orders in the shop. `requireCustomer` only proves somebody is signed in. Any account can now read any other customer's order: the delivery address, the line items and the total, all of which `summarise` returns.\n\nThe old query had one condition and that condition carried the whole rule. Nothing else in the request path applies it, which is why taking it out breaks no existing test.\n\nFix this one first. The offset below is wrong in a way a customer notices. This one is wrong in a way they do not.",
+          "suggestion": "    where: { customerId: request.customer.id },\n    orderBy: { placedAt: \"desc\" },\n"
         },
         {
-          "id": "returns-everything-calls-it-moved",
-          "section": "contracts",
-          "path": "web/src/state/drafts.js",
-          "line": 111,
-          "kind": "contract-drift",
-          "color": "warn",
-          "blocking": false,
-          "body": "The return was documented as the keys that were read, and is now documented as the keys that moved. The code did not change to match: `_absorb` returns every key it managed to read, and `loadAll` hands it every path in the listing, so the array is still every draft in the source plus the ones that went.\n\nBoth callers ignore the value. `app.js` awaits `loadAll()` twice and uses neither result, so nothing is wrong today, and that is the problem: a promise nobody checks, describing precision the function does not have. The next caller to believe it will redraw every row on every refresh and it will look like a render bug.\n\nEither compare against the previous marks so the word is true, or drop the return and the sentence together. The second is smaller."
+          "id": "page-one-starts-at-twenty-six",
+          "section": "correctness",
+          "path": "src/api/orders.js",
+          "line": 46,
+          "kind": "off-by-one",
+          "color": "critical",
+          "blocking": true,
+          "body": "`page` is one based on the line above: the default is `1`, and the response echoes it back. The offset treats it as zero based.\n\nSo `?page=1` skips twenty five orders and answers with the twenty sixth onwards. The newest order on the account cannot be reached through this endpoint at all, except by asking for `?page=0`, which nothing tells a client to do.\n\nThe customer who meets this is the one who has just checked out and gone looking for their order.",
+          "suggestion": "    skip: (page - 1) * limit,\n"
         },
         {
-          "id": "test-pins-the-easy-half",
-          "section": "tests-conventions",
-          "path": "test/use-cases/reading-a-review.test.js",
-          "line": 45,
-          "kind": "untested-boundary",
+          "id": "limit-is-whatever-is-asked-for",
+          "section": "limits",
+          "path": "src/api/orders.js",
+          "line": 42,
+          "kind": "unbounded-input",
           "color": "warn",
           "blocking": false,
-          "body": "This proves the case the commit message opens with, and it is the right test to have written.\n\nIt does not pin the boundary the change introduces. `loadAll` now has two ways to conclude a draft is gone: absent from the listing, which is what this covers, and a read that failed inside `_absorb`, which is not covered anywhere and now has a permanent consequence. A second test that makes the adapter throw on `read` and asserts the entry survives would fail today, which is the useful kind of test to be missing.\n\nThe `MemoryAdapter` is already imported in this file, so standing one up that rejects a read is a few lines."
+          "body": "`limit` comes off the query string and goes into `take` unread. `?limit=1000000` reads the table and serialises it, and any signed in account can send that.\n\n`Number` is the only thing between the two, so `?limit=abc` reaches the driver as `NaN` and `?limit=-1` reaches it as a negative `take`. What those two do is worth knowing before this ships rather than after.\n\nA ceiling is the whole fix, and it belongs on this line rather than in the query.",
+          "suggestion": "  const limit = Math.min(Number(request.query.limit ?? 25) || 25, 100);\n"
+        },
+        {
+          "id": "test-passes-either-way",
+          "section": "tests",
+          "path": "test/api/orders.test.js",
+          "line": 20,
+          "kind": "test-cannot-fail",
+          "color": "warn",
+          "blocking": false,
+          "body": "Sixty orders, page one, twenty five back. That is true with the offset as written and true with the offset fixed, because both return a full page. It is also true when the rows belong to somebody else, because it counts them and never looks at them.\n\nThe test that would have caught both findings is the same size as this one: seed the orders, ask for page one, assert the first entry is the newest order by id. It fails today.\n\nThe other boundary is worth a line too. Sixty orders in pages of twenty five means the last page holds ten, and nothing here says what happens past it."
+        },
+        {
+          "id": "no-way-to-know-the-last-page",
+          "section": "response-shape",
+          "path": "src/api/orders.js",
+          "line": 50,
+          "kind": "open-question",
+          "color": "accent",
+          "blocking": false,
+          "body": "A question rather than a blocker.\n\nThe response carries the page it served and the rows on it. It does not carry how many rows there are, so a client cannot say \"page 3 of 7\", cannot grey out a next button, and finds the end by asking for a page and getting an empty one.\n\nThat may be exactly what you want. A count is a second query on every request, and a screen that scrolls never needs one. But if the account page is getting numbered pages, it needs the count, and adding it once clients have been written against this shape is the awkward version of the change.\n\nWhich is it? Nothing to do here if the answer is scrolling."
         }
       ],
       "qa": {
-        "note": "Nothing was driven. The change is in a projection with no rendering of its own, and the observable difference is a queue row that keeps its ready dot after a draft is cleared, which needs a source, a cleared draft and a backgrounded tab to reproduce honestly. Read instead: `Adapter.poll` and `Drafts.load` for how the other two readers of the same listing handle an unreachable backend, and both `loadAll` call sites in `app.js` to check what the return value is used for."
+        "note": "Driven against a local shop seeded with sixty orders on one account and eleven on another. The run below is the failing one, and it is the point of this review: the first page of the account's orders does not contain the order that was just placed.\n\nThe access finding was not driven. It needs two signed in browsers to show, and it is provable from the diff without them, because the query has no condition left on it. Read instead: `requireCustomer`, which sets `request.customer` and asserts nothing about rows, and `summarise`, which returns the delivery address.",
+        "scenarios": [
+          {
+            "id": "orders-first-page",
+            "url": "/account/orders",
+            "what": "the first page holds the order just placed",
+            "verdict": "fail",
+            "video": "harbourline--storefront-128/orders-first-page.mp4",
+            "frames": 8,
+            "durationMs": 6400
+          }
+        ]
+      }
+    },
+    "drafts/harbourline--storefront-131/review.json": {
+      "schema": 3,
+      "owner": "harbourline",
+      "repo": "storefront",
+      "number": 131,
+      "title": "Round the order total once, at the end",
+      "url": "https://github.com/harbourline/storefront/pull/131",
+      "reviewedAt": "b73ea52",
+      "draftedAt": "2026-07-30T14:06:31Z",
+      "finishedAt": "2026-07-30T14:12:09Z",
+      "verdict": "APPROVE",
+      "summary": "Rounds once and the arithmetic holds. Orders already placed keep the old penny, which matters to refunds.",
+      "comment": "**Approve.** Rounding every line and then adding them up is how a total ends up a penny above the invoice, and this is the fix: add the lines, apply the rate, round once.\n\nOne thing to carry away rather than to change here. Every order already in the database was totalled the old way, so recomputing one now can come out a penny from what the customer was actually charged. `refunds.js` recomputes. That is a separate pull request and it is worth writing.",
+      "sections": [
+        {
+          "key": "arithmetic",
+          "label": "Arithmetic",
+          "color": "ok",
+          "body": "Clean.\n\nChecked: `Math.round` is half up on positives, and every price in this shop is positive, so the boundary rounds the way the invoice template rounds. The multiplication happens before the division, so what gets rounded is a whole number of pence and there is no second rounding hiding inside it. Nothing compares the result to another float with `===`: the only caller is `charge.js`, which sends it to the gateway as pence."
+        },
+        {
+          "key": "stored-totals",
+          "label": "Orders already placed",
+          "color": "warn",
+          "body": "A change to how a total is computed is a change to every total anybody recomputes, including the ones that were charged under the old arithmetic."
+        },
+        {
+          "key": "invoices",
+          "label": "The invoice",
+          "color": "accent",
+          "body": "What the customer is shown, and whether it still agrees with what this function returns."
+        },
+        {
+          "key": "tests",
+          "label": "Tests",
+          "color": "ok",
+          "body": "The added test fails on the old code and passes on the new one, which is what makes it a test of this change rather than a description of it. Two lines at seven pence with tax at 8.25 per cent come to fifteen pence added together and sixteen rounded a line at a time."
+        }
+      ],
+      "findings": [
+        {
+          "id": "old-orders-keep-the-old-penny",
+          "section": "stored-totals",
+          "path": "src/checkout/total.js",
+          "line": 5,
+          "kind": "historic-drift",
+          "color": "warn",
+          "blocking": false,
+          "body": "Not a reason to hold this up. It is the thing to know about it.\n\nEvery order placed before this deploys was totalled a line at a time, and some of those totals are a penny above what this function now returns for the same basket. The number the customer was charged is the old one.\n\nSo anything that recomputes a total for an old order disagrees with what happened. `refunds.js` does exactly that: it calls `orderTotal(order.lines, order.taxRate)` rather than reading `order.total`, and a refund a penny short is a support ticket rather than a rounding detail.\n\nReading the stored total is the fix, and it is the right thing to do whether or not this lands. It belongs in its own pull request rather than growing this one."
+        },
+        {
+          "id": "one-rate-for-the-order",
+          "section": "invoices",
+          "path": "src/checkout/total.js",
+          "line": 2,
+          "kind": "open-question",
+          "color": "accent",
+          "blocking": false,
+          "body": "A question, not a blocker.\n\n`taxRate` was one number for the whole order before this change too, so the assumption is not new. What is new is that the rate is applied once to the sum, which makes the assumption load bearing in a way it was not when every line carried its own multiplication.\n\nThe invoice template prints a tax column per line. If a basket can ever mix rates, books at zero beside a bookmark at twenty, then the invoice and the total already disagree, and this shape makes that harder to unpick later.\n\nIf a basket is always one rate, say so in the signature and this is settled."
+        }
+      ],
+      "qa": {
+        "note": "Driven against a local shop with the basket from the bug report: two items at seven pence, tax at 8.25 per cent. The run below walks the basket, the checkout page and the confirmation, and all three say fifteen pence. On the old code the checkout page said sixteen and the gateway was sent fifteen.",
+        "scenarios": [
+          {
+            "id": "checkout-total",
+            "url": "/checkout",
+            "what": "the total on the page is the amount charged",
+            "verdict": "pass",
+            "video": "harbourline--storefront-131/checkout-total.mp4",
+            "frames": 6,
+            "durationMs": 4800
+          }
+        ]
       }
     }
   },
-  "media": {}
+  "media": {
+    "drafts/harbourline--storefront-128/orders-first-page.mp4": "demo/orders-first-page.mp4",
+    "drafts/harbourline--storefront-131/checkout-total.mp4": "demo/checkout-total.mp4"
+  }
 }

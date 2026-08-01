@@ -2,14 +2,24 @@
   "login": "you",
   "pulls": [
     {
-      "owner": "dev-review",
-      "repo": "dev.review",
-      "number": 39,
-      "title": "Forget a draft the reader has cleared",
-      "author": "maintainer",
-      "url": "https://github.com/dev-review/dev.review/pull/39",
-      "updatedAt": "2026-07-30T09:16:41Z",
-      "createdAt": "2026-07-30T08:41:00Z"
+      "owner": "harbourline",
+      "repo": "storefront",
+      "number": 128,
+      "title": "Paginate the orders endpoint",
+      "author": "priya",
+      "url": "https://github.com/harbourline/storefront/pull/128",
+      "updatedAt": "2026-07-30T11:04:22Z",
+      "createdAt": "2026-07-30T09:50:00Z"
+    },
+    {
+      "owner": "harbourline",
+      "repo": "storefront",
+      "number": 131,
+      "title": "Round the order total once, at the end",
+      "author": "tomas",
+      "url": "https://github.com/harbourline/storefront/pull/131",
+      "updatedAt": "2026-07-30T14:12:09Z",
+      "createdAt": "2026-07-30T13:41:00Z"
     },
     {
       "owner": "dev-review",
@@ -23,6 +33,38 @@
     }
   ],
   "files": {
+    "harbourline/storefront#128": [
+      {
+        "filename": "src/api/orders.js",
+        "status": "modified",
+        "additions": 10,
+        "deletions": 6,
+        "patch": "@@ -38,10 +38,14 @@ import { summarise } from \"./summary.js\";\n \n // Every customer sees their own orders and nobody else's, newest first.\n router.get(\"/orders\", requireCustomer, async (request, response) => {\n-  const orders = await db.orders.findMany({\n-    where: { customerId: request.customer.id },\n-    orderBy: { placedAt: \"desc\" },\n-  });\n-\n-  response.json({ orders: orders.map(summarise) });\n+  const page = Number(request.query.page ?? 1);\n+  const limit = Number(request.query.limit ?? 25);\n+\n+  const orders = await db.orders.findMany({\n+    orderBy: { placedAt: \"desc\" },\n+    skip: page * limit,\n+    take: limit,\n+  });\n+\n+  response.json({ page, orders: orders.map(summarise) });\n });"
+      },
+      {
+        "filename": "test/api/orders.test.js",
+        "status": "modified",
+        "additions": 8,
+        "deletions": 0,
+        "patch": "@@ -12,6 +12,14 @@ describe(\"GET /orders\", () => {\n     assert.equal(body.orders.length, 3);\n   });\n \n+  it(\"returns one page at a time\", async () => {\n+    await seedOrders(customer, 60);\n+\n+    const { body } = await get(\"/orders?page=1&limit=25\");\n+\n+    assert.equal(body.orders.length, 25);\n+  });\n+\n   it(\"rejects a signed out visitor\", async () => {\n     const { status } = await get(\"/orders\", { as: null });\n "
+      }
+    ],
+    "harbourline/storefront#131": [
+      {
+        "filename": "src/checkout/total.js",
+        "status": "modified",
+        "additions": 3,
+        "deletions": 5,
+        "patch": "@@ -1,8 +1,6 @@\n // The order total, in the shop's currency, rounded the way the invoice rounds.\n export function orderTotal(lines, taxRate) {\n-  return lines.reduce((sum, line) => {\n-    const gross = line.price * line.quantity * (1 + taxRate);\n-\n-    return sum + Math.round(gross * 100) / 100;\n-  }, 0);\n+  const net = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);\n+\n+  return Math.round(net * (1 + taxRate) * 100) / 100;\n }"
+      },
+      {
+        "filename": "test/checkout/total.test.js",
+        "status": "modified",
+        "additions": 6,
+        "deletions": 0,
+        "patch": "@@ -3,6 +3,12 @@ import { orderTotal } from \"../../src/checkout/total.js\";\n \n describe(\"orderTotal\", () => {\n   it(\"adds tax to the line prices\", () => {\n     assert.equal(orderTotal([{ price: 10, quantity: 2 }], 0.2), 24);\n   });\n+\n+  it(\"rounds once rather than once per line\", () => {\n+    const lines = [{ price: 0.07, quantity: 1 }, { price: 0.07, quantity: 1 }];\n+\n+    assert.equal(orderTotal(lines, 0.0825), 0.15);\n+  });\n });"
+      }
+    ],
     "dev-review/dev.review#41": [
       {
         "filename": "web/src/adapters/filesystem.js",
@@ -73,26 +115,11 @@
         "deletions": 3,
         "patch": "@@ -36,10 +36,11 @@ describe(\"Choosing where drafts come from\", () => {\n     assert.equal(offered.includes(\"memory\"), false);\n   });\n \n-  test(\"the native reader is not offered outside the desktop build\", () => {\n-    const offered = adapterTypes().map((entry) => entry.type);\n+  test(\"the native reader is listed but unusable outside the desktop build\", () => {\n+    const tauri = adapterTypes().find((entry) => entry.type === \"tauri\");\n \n-    assert.equal(offered.includes(\"tauri\"), false);\n+    assert.ok(tauri, \"dropping it would leave the reader nothing to look at\");\n+    assert.match(tauri.reason, /desktop app/i);\n   });\n \n   test(\"each backend says what it needs asking for, so no form knows a backend\", () => {"
       }
-    ],
-    "dev-review/dev.review#39": [
-      {
-        "filename": "test/use-cases/reading-a-review.test.js",
-        "status": "modified",
-        "additions": 12,
-        "deletions": 0,
-        "patch": "@@ -42,6 +42,18 @@ describe(\"Reading a review the agent drafted\", () => {\n     assert.equal(entry.isReady, false);\n   });\n \n+  test(\"clearing a review puts the pull request back to nothing drafted\", async () => {\n+    await app.adapter.remove(\"drafts/org--app-42/review.json\");\n+    // The refresh a reader gets on coming back to the tab, which is what has to\n+    // notice: it is the queue in the header that keeps the marks of a review.\n+    await app.drafts.loadAll();\n+\n+    const [entry] = app.queries.queue(app.source, [aPull()]);\n+\n+    assert.equal(entry.draft, null);\n+    assert.equal(entry.isReady, false);\n+  });\n+\n   test(\"a draft the app cannot act on says so rather than reading as absent\", async () => {\n     await agentWrites(app.adapter, aDraft({ schema: 99 }));\n     await app.drafts.loadAll();"
-      },
-      {
-        "filename": "web/src/state/drafts.js",
-        "status": "modified",
-        "additions": 15,
-        "deletions": 5,
-        "patch": "@@ -99,15 +99,25 @@ export class Drafts {\n   /**\n    * Read whatever drafts the reader currently holds.\n    *\n-   * Used on attaching a source, so the queue can say which pull requests\n-   * have something waiting before any of them is opened.\n+   * Used on attaching a source, and on every queue refresh, so the queue can\n+   * say which pull requests have something waiting before any is opened.\n    *\n-   * @returns {Promise<string[]>} the keys that were read\n+   * A listing is the whole truth about what the agent holds, so a draft that is\n+   * no longer in one has been cleared and is forgotten here. Without that this\n+   * is only ever additive, and a review cleared while the tab was in the\n+   * background keeps its marks in the queue on the reader's return: the watch\n+   * is throttled to a background tab, this refresh is not.\n+   *\n+   * @returns {Promise<string[]>} the keys that moved\n    */\n   async loadAll() {\n-    const entries = await this.adapter.list(ROOT);\n+    const paths = (await this.adapter.list(ROOT)).map((entry) => entry.path);\n+    const held = new Set(paths.map(keyOf).filter(Boolean));\n+    const gone = [...this._byKey.keys()].filter((key) => !held.has(key));\n+\n+    for (const key of gone) this._byKey.delete(key);\n \n-    return this._absorb(entries.map((entry) => entry.path));\n+    return [...(await this._absorb(paths)), ...gone];\n   }\n \n   /**"
-      }
     ]
   },
   "commits": {
-    "dev-review/dev.review#41": "2f27fbb34c79b2e01aa100b327612d3ee31bcb77",
-    "dev-review/dev.review#39": "e7a6cd5"
+    "harbourline/storefront#128": "9d41c0e",
+    "harbourline/storefront#131": "b73ea52",
+    "dev-review/dev.review#41": "2f27fbb34c79b2e01aa100b327612d3ee31bcb77"
   }
 }
