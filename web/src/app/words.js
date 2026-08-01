@@ -10,6 +10,35 @@
 // They live in their own module so that both the sheet and the summary can ask,
 // without the two importing each other.
 
+import { UNREAD } from "../state/drafts.js";
+
+/**
+ * What the screen says about a draft it has not got.
+ *
+ * The storage refusing a read and the agent writing something unparseable both
+ * end at the same empty state, and they are not the same news. One is an outage
+ * that mends itself and is nobody's mistake; the other is a file that will stay
+ * broken until it is written again. The cause comes from the projection rather
+ * than from reading the sentence, because a sentence that has to be sniffed is
+ * a sentence that will be sniffed wrong.
+ *
+ * @param {{cause: string, detail: string}} problem what the projection found
+ * @returns {{title: string, note: string}} what the empty state says
+ */
+export function draftProblemWords(problem) {
+  if (problem.cause === UNREAD) {
+    return {
+      title: "That draft could not be fetched.",
+      note: `The storage would not hand it over: ${problem.detail}. The review itself is fine, and this app keeps asking, so it appears again as soon as the storage answers.`,
+    };
+  }
+
+  return {
+    title: "That draft cannot be read.",
+    note: `The agent wrote something this app cannot act on: ${problem.detail}. Waiting will not mend it - the draft has to be written again.`,
+  };
+}
+
 /**
  * What this destination calls the send, in its own words.
  *

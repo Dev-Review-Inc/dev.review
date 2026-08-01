@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { anApp, agentWrites, aDraft, aPull } from "./helper.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
 import { reviewPayload } from "../../web/src/domain/review.js";
+import { UNPARSED } from "../../web/src/state/drafts.js";
 
 describe("Reading a review the agent drafted", () => {
   let app;
@@ -58,7 +59,10 @@ describe("Reading a review the agent drafted", () => {
     await agentWrites(app.adapter, aDraft({ schema: 99 }));
     await app.drafts.loadAll();
 
-    assert.match(app.drafts.problem("org/app#42"), /schema 99/);
+    const problem = app.drafts.problem("org/app#42");
+
+    assert.equal(problem.cause, UNPARSED);
+    assert.match(problem.detail, /schema 99/);
   });
 });
 

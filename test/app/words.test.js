@@ -11,12 +11,14 @@ import assert from "node:assert/strict";
 
 import {
   commentWords,
+  draftProblemWords,
   postLabel,
   postNote,
   postedWords,
   leaveWords,
   dismissedWords,
 } from "../../web/src/app/words.js";
+import { UNREAD, UNPARSED } from "../../web/src/state/drafts.js";
 import { GitHubDestination } from "../../web/src/destinations/github-destination.js";
 import { DemoDestination } from "../../web/src/destinations/demo.js";
 
@@ -163,5 +165,35 @@ describe("the words on a dismissal", () => {
 
     assert.equal(real.cheer, true);
     assert.equal(demo.cheer, false);
+  });
+});
+
+// A draft nobody could read and a draft nobody could understand arrive at the
+// same empty state, and used to leave it wearing the same sentence: "the agent
+// wrote something this app cannot act on". That is true of one of them. A
+// bucket refusing a connection is the storage's fault, fixes itself, and had
+// the reader hunting an agent that did nothing wrong.
+describe("the words on a draft that did not arrive", () => {
+  test("blame the storage, and say it is coming back, when the read failed", () => {
+    const words = draftProblemWords({ cause: UNREAD, detail: "that bucket refused the connection" });
+
+    assert.match(words.note, /that bucket refused the connection/);
+    assert.doesNotMatch(words.title, /agent/i);
+    assert.doesNotMatch(words.note, /the agent wrote/i);
+  });
+
+  test("blame the draft, and say waiting will not help, when it did not parse", () => {
+    const words = draftProblemWords({ cause: UNPARSED, detail: "unknown schema 99" });
+
+    assert.match(words.note, /unknown schema 99/);
+    assert.match(words.note, /the agent wrote/i);
+  });
+
+  test("do not put one failure's sentence on the other", () => {
+    const unread = draftProblemWords({ cause: UNREAD, detail: "that bucket refused the connection" });
+    const unparsed = draftProblemWords({ cause: UNPARSED, detail: "unknown schema 99" });
+
+    assert.notEqual(unread.title, unparsed.title);
+    assert.notEqual(unread.note, unparsed.note);
   });
 });

@@ -19,6 +19,13 @@ import { parseDraft } from "../domain/draft.js";
 // the schema documents so an existing drafts directory can be attached as-is.
 export const ROOT = "drafts/";
 
+// Why a draft is not here. The storage would not hand it over, or the agent
+// wrote something this app cannot parse. They are carried apart because they
+// are two different faults with two different remedies: the first is the
+// storage's and mends itself, the second is the agent's and does not.
+export const UNREAD = "unread";
+export const UNPARSED = "unparsed";
+
 export class Drafts {
   /**
    * @param {object} options what to read through
@@ -42,17 +49,19 @@ export class Drafts {
   }
 
   /**
-   * Why a draft could not be read, if it could not.
+   * What is wrong with a draft, if anything is.
    *
    * A draft that does not parse is shown as unreadable rather than as absent,
    * because "the agent has not got to it" and "the agent wrote something this
-   * app cannot act on" are different problems with different fixes.
+   * app cannot act on" are different problems with different fixes. For the
+   * same reason the cause travels with the reason: a bare sentence leaves the
+   * screen unable to tell a storage outage from a bad draft.
    *
    * @param {string} key e.g. "org/app#42"
-   * @returns {string} the reason, or an empty string
+   * @returns {{cause: string, detail: string}|null} what went wrong, or null
    */
   problem(key) {
-    return this._byKey.get(key)?.problem || "";
+    return this._byKey.get(key)?.problem || null;
   }
 
   /**
@@ -70,7 +79,7 @@ export class Drafts {
     try {
       bytes = await this.adapter.read(path);
     } catch (error) {
-      this._byKey.set(key, { draft: null, problem: `could not be read: ${error.message}` });
+      this._byKey.set(key, { draft: null, problem: { cause: UNREAD, detail: error.message } });
 
       return null;
     }
@@ -84,7 +93,7 @@ export class Drafts {
     try {
       const draft = parseDraft(JSON.parse(new TextDecoder().decode(bytes)));
 
-      this._byKey.set(key, { draft, problem: "" });
+      this._byKey.set(key, { draft, problem: null });
 
       return draft;
     } catch (error) {
@@ -93,7 +102,7 @@ export class Drafts {
       // an agent is mid-write.
       this._byKey.set(key, {
         draft: this._byKey.get(key)?.draft || null,
-        problem: error.message,
+        problem: { cause: UNPARSED, detail: error.message },
       });
 
       return null;
@@ -199,7 +208,7 @@ export class Drafts {
         // that was deleted: forgetting it here takes the ready mark off the
         // queue row, which reports the storage's outage as the agent having
         // nothing waiting.
-        this._byKey.set(key, { draft: null, problem: `could not be read: ${error.message}` });
+        this._byKey.set(key, { draft: null, problem: { cause: UNREAD, detail: error.message } });
         changed.push(key);
         continue;
       }
@@ -213,12 +222,12 @@ export class Drafts {
       try {
         this._byKey.set(key, {
           draft: parseDraft(JSON.parse(new TextDecoder().decode(bytes))),
-          problem: "",
+          problem: null,
         });
       } catch (error) {
         this._byKey.set(key, {
           draft: this._byKey.get(key)?.draft || null,
-          problem: error.message,
+          problem: { cause: UNPARSED, detail: error.message },
         });
       }
 

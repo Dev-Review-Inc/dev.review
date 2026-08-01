@@ -11,7 +11,7 @@ import { age, element, emptyState, find, say } from "./dom.js";
 import { findingCard } from "./findings.js";
 import { qaContent } from "./qa.js";
 import { editSource, openSetup } from "./header.js";
-import { postedWords } from "./words.js";
+import { draftProblemWords, postedWords } from "./words.js";
 
 /**
  * The review body as it would be posted, including an edit still in the editor.
@@ -333,15 +333,13 @@ function blankState(app) {
   }
 
   const pull = app.selected;
-  const problem = app.drafts ? app.drafts.problem(pull.key) : "";
+  const problem = app.drafts ? app.drafts.problem(pull.key) : null;
 
   if (!pull.draft) {
     if (problem) {
-      return emptyState(
-        "⚠",
-        "That draft cannot be read.",
-        `The agent wrote something this app cannot act on: ${problem}`,
-      );
+      const words = draftProblemWords(problem);
+
+      return emptyState("⚠", words.title, words.note);
     }
 
     return emptyState(

@@ -13,7 +13,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { Drafts } from "../../web/src/state/drafts.js";
+import { Drafts, UNREAD, UNPARSED } from "../../web/src/state/drafts.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
 import { aDraft, agentWrites } from "../use-cases/helper.js";
 
@@ -49,7 +49,7 @@ describe("a draft the storage would not hand over", () => {
     adapter.refusing = true;
     await drafts.load(PULL, KEY);
 
-    assert.match(drafts.problem(KEY), /could not be read/);
+    assert.equal(drafts.problem(KEY).cause, UNREAD);
   });
 
   test("is not reported as a draft that was never written, when the watch reads it", async () => {
@@ -59,7 +59,7 @@ describe("a draft the storage would not hand over", () => {
     adapter.refusing = true;
     await drafts.loadAll();
 
-    assert.match(drafts.problem(KEY), /could not be read/);
+    assert.equal(drafts.problem(KEY).cause, UNREAD);
   });
 
   // The two ways in cannot disagree. Whichever one runs is an accident of
@@ -74,7 +74,7 @@ describe("a draft the storage would not hand over", () => {
     await opened.load(PULL, KEY);
     await watched.loadAll();
 
-    assert.equal(watched.problem(KEY), opened.problem(KEY));
+    assert.deepEqual(watched.problem(KEY), opened.problem(KEY));
     assert.equal(watched.find(KEY), opened.find(KEY));
   });
 
@@ -91,7 +91,31 @@ describe("a draft the storage would not hand over", () => {
     adapter.refusing = true;
     await drafts.loadAll();
 
-    assert.notEqual(drafts.problem(KEY), "");
+    assert.equal(drafts.problem(KEY).cause, UNREAD);
+  });
+});
+
+// The screen has to say which of the two happened, and the only place that
+// knows is here. A reason that is only a sentence leaves the drawing guessing
+// from the words in it.
+describe("the two ways a draft goes missing", () => {
+  test("are carried apart, not left for the screen to read out of the message", async () => {
+    const adapter = await storageThatCanRefuseReads();
+    const drafts = new Drafts({ adapter });
+
+    adapter.refusing = true;
+    await drafts.loadAll();
+    const unread = drafts.problem(KEY);
+
+    adapter.refusing = false;
+    await adapter.write(PATH, new TextEncoder().encode(JSON.stringify({ schema: 99 })));
+    await drafts.loadAll();
+    const unparsed = drafts.problem(KEY);
+
+    assert.equal(unread.cause, UNREAD);
+    assert.equal(unparsed.cause, UNPARSED);
+    assert.match(unread.detail, /refused the connection/);
+    assert.match(unparsed.detail, /99/);
   });
 });
 
@@ -105,6 +129,6 @@ describe("a draft that really was deleted", () => {
     await drafts.loadAll();
 
     assert.equal(drafts.find(KEY), null);
-    assert.equal(drafts.problem(KEY), "");
+    assert.equal(drafts.problem(KEY), null);
   });
 });
