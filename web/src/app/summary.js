@@ -236,6 +236,14 @@ function summaryBox(app, text, writable) {
   box.role = "button";
   box.tabIndex = 0;
   box.title = "Click to write in the summary";
+  // The title says the same thing, but a native tooltip needs a hover and a
+  // wait. A blank summary already says how to write one; a written one should
+  // say just as plainly that it can be changed. Hidden from a screen reader:
+  // the title on the box already names what this decorates.
+  const hint = element("div", "summary-edit-hint", "click to edit");
+
+  hint.setAttribute("aria-hidden", "true");
+  box.append(hint);
   box.addEventListener("click", (event) => {
     // A link in the summary goes where it points; only the prose around it
     // opens the editor.

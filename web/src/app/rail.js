@@ -255,6 +255,11 @@ function drawSections(app) {
         }),
       );
     }
+  } else if (pull) {
+    // Mirrors the word the queue popover already uses for the same absence
+    // (stateOf, header.js): nothing has started, which is not what isDrafting
+    // means and not what an empty pane would otherwise say by saying nothing.
+    rows.append(element("div", "rail-waiting", "not started"));
   }
 
   analysis.append(rows);
