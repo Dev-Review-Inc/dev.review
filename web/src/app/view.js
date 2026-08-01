@@ -35,7 +35,10 @@ backstop(window, say);
 
 // A page that asked for the demo gets sample data attached on its first load.
 // Every other page gets an app with nothing in it, as before.
-const app = new App({ install: demoWanted(location.search) ? installDemo : null });
+const app = new App({
+  install: demoWanted(location.search) ? installDemo : null,
+  report: say,
+});
 
 // View-only state, kept on the app beside the rest of what is being looked at
 // rather than in a second state object the panes would have to keep in step.

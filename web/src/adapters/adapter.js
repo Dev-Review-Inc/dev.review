@@ -64,6 +64,15 @@ export class Adapter {
   // How often a watch re-lists, matching what the old directory watch did.
   static BEAT = 2000;
 
+  // How many listings in a row have to fail before the reader is told the
+  // source has gone quiet. At `BEAT` that is thirty seconds, which is longer
+  // than a laptop waking, a token being refreshed or a network handing over,
+  // and short enough that nobody reviews for long against a queue that stopped
+  // being current. Well inside the five minutes the queue takes to refresh
+  // itself, so the reader hears about the silence before anything else could
+  // have hinted at it.
+  static QUIET = 15;
+
   // Whether a listing can tell two same-length writes apart. False means the
   // backend offers only time and size, so a same-size rewrite inside one
   // millisecond goes unnoticed until the next real change.
@@ -76,6 +85,18 @@ export class Adapter {
   constructor() {
     this._watches = new Set();
     this._timer = null;
+    this._troubled = false;
+
+    /**
+     * Told when this reader stops answering, and again when it starts.
+     *
+     * Storage knows nothing about the interface, so this says only what
+     * `ready()` says and leaves the wording to whoever wired it. Optional: an
+     * adapter nobody wired counts the failures and keeps them to itself.
+     *
+     * @type {((trouble: {ok: boolean, reason: string}) => void)|null}
+     */
+    this.onTrouble = null;
   }
 
   /**
@@ -86,7 +107,7 @@ export class Adapter {
    * @returns {() => void} stop watching
    */
   watch(prefix, onChange) {
-    const watch = { prefix, onChange, marks: null };
+    const watch = { prefix, onChange, marks: null, failures: 0, trouble: "" };
 
     this._watches.add(watch);
     this._start();
@@ -111,11 +132,19 @@ export class Adapter {
 
       try {
         entries = await this.list(watch.prefix);
-      } catch {
+      } catch (error) {
         // A backend that is briefly unreachable is not a change. Saying
-        // "everything vanished" would throw away the reader's view of it.
+        // "everything vanished" would throw away the reader's view of it, so
+        // the entries are left alone however long this lasts. What is counted
+        // is how long: one failed round is a blip, and the only difference
+        // between a blip and an outage is that an outage keeps happening.
+        watch.failures += 1;
+        watch.trouble = error.message;
         continue;
       }
+
+      watch.failures = 0;
+      watch.trouble = "";
 
       const marks = new Map(entries.map((entry) => [entry.path, mark(entry)]));
       const previous = watch.marks;
@@ -141,6 +170,29 @@ export class Adapter {
 
       if (changed.length) watch.onChange(changed.sort());
     }
+
+    this._tell();
+  }
+
+  /**
+   * Say that this reader has gone quiet, or that it is back.
+   *
+   * Once per episode, and once for the reader rather than once per watch: a
+   * source is watched twice, for the agent's drafts and for the other devices'
+   * decisions, and both go quiet together. Two messages about one outage would
+   * be the interface talking about its own plumbing.
+   *
+   * @returns {void}
+   */
+  _tell() {
+    const failing = [...this._watches].find((watch) => watch.failures >= Adapter.QUIET);
+    const troubled = Boolean(failing);
+
+    if (troubled === this._troubled) return;
+
+    this._troubled = troubled;
+
+    if (this.onTrouble) this.onTrouble({ ok: !troubled, reason: failing ? failing.trouble : "" });
   }
 
   /**

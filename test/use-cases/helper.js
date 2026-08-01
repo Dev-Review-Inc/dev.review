@@ -135,15 +135,19 @@ export async function anApp({ adapter = new MemoryAdapter(), deviceId = "device-
  * @param {object[]} [options.pulls] what the destination says is waiting
  * @param {(name: string) => object} [options.database] local storage, for a test
  *   that cares when a write lands
+ * @param {(message: string, tone: string) => void} [options.report] how the app
+ *   tells the reader something, standing in for the footer
  * @returns {Promise<object>} the app, booted, with a destination and a source
  */
 export async function theApp({
   adapter = new MemoryAdapter(),
   pulls = [aPull()],
   database = () => new MemoryKeyValueStore(),
+  report,
 } = {}) {
   const app = new App({
     database,
+    report,
     adapter: () => adapter,
     destination: () => ({
       identify: async () => ({ login: "reader" }),

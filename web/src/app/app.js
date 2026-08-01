@@ -33,11 +33,18 @@ export class App {
    * @param {(destination: object, secret: object) => object} [options.destination] makes a destination
    * @param {(app: App) => Promise<void>} [options.install] attaches something on a browser that has nothing
    * @param {{remember: Function, recall: Function, forget: Function}} [options.handles] where directory handles are kept
+   * @param {(message: string, tone: string) => void} [options.report] tells the reader something
    */
-  constructor({ database, adapter, destination, install, handles } = {}) {
+  constructor({ database, adapter, destination, install, handles, report } = {}) {
     this._buildAdapterWith = adapter || buildAdapter;
     this._buildDestinationWith = destination || buildDestination;
     this._install = install || null;
+
+    // Almost everything the reader is told is told by the view, which is
+    // watching. This is for the one thing the view cannot see: a source that
+    // has quietly stopped answering, which arrives from the watch rather than
+    // from anything the reader did.
+    this._report = report || (() => {});
 
     // The handle store is its own database, apart from the event log, so it
     // fails on its own terms and a test has to be able to break it on its own.
@@ -763,6 +770,16 @@ export class App {
     if (this.problems.source) return;
 
     await this.drafts.loadAll();
+
+    // Once a source is open, the watch below is the only thing still asking it
+    // anything: health is swept on boot and deliberately never on a timer. So a
+    // source that stops answering after it opened is noticed here or nowhere,
+    // and a reader nobody tells goes on reviewing a queue that stopped moving.
+    this.adapter.onTrouble = ({ ok, reason }) =>
+      this._report(
+        ok ? "this source is answering again" : `this source has stopped answering: ${reason}`,
+        ok ? "ok" : "error",
+      );
 
     // The reader watches its own storage for both things it holds: the agent's
     // drafts, and the decisions this reader's other devices have made. Either
