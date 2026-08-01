@@ -7,11 +7,20 @@
 
 import { MemoryAdapter } from "./memory.js";
 import { DemoAdapter } from "./demo.js";
-import { FilesystemAdapter, unavailability as filesystemUnavailability } from "./filesystem.js";
+import {
+  FilesystemAdapter,
+  pickDirectory,
+  unavailability as filesystemUnavailability,
+} from "./filesystem.js";
 import { GitAdapter } from "./git.js";
 import { GitHubAdapter } from "./github.js";
 import { S3Adapter } from "./s3.js";
-import { TauriAdapter, inTauri, unavailability as tauriUnavailability } from "./tauri.js";
+import {
+  TauriAdapter,
+  chooseRoot,
+  inTauri,
+  unavailability as tauriUnavailability,
+} from "./tauri.js";
 
 const TYPES = [
   FilesystemAdapter,
@@ -91,6 +100,52 @@ export function adapterTypes() {
     fields: Adapter.fields || [],
     ...AVAILABILITY[Adapter.type](),
   }));
+}
+
+/**
+ * Which dialog opens for a backend whose storage is chosen rather than typed.
+ *
+ * The backend the reader picked decides, not the shell: a folder reached
+ * through the desktop app is a path on the machine, and a folder reached
+ * through a browser is a handle that browser granted. Asking the shell instead
+ * would offer the desktop dialog to a browser build that has nowhere to put
+ * what it returns.
+ *
+ * @param {string} type the backend the form has selected
+ * @returns {string} "native" for the desktop app's own dialog, "browser" otherwise
+ */
+export function folderChooser(type) {
+  return type === TauriAdapter.type ? "native" : "browser";
+}
+
+/**
+ * Ask the reviewer for a folder, with whichever dialog that backend uses.
+ *
+ * The two answer differently and the caller keeps both apart: the desktop app
+ * answers with a path it can store, and a browser answers with a handle it
+ * cannot. Being dismissed is not a failure in either, so both say so the same
+ * way rather than making the caller know one throws and one does not.
+ *
+ * Must be called from a user gesture; the browser picker will not open
+ * otherwise.
+ *
+ * @param {string} type the backend the form has selected
+ * @returns {Promise<{root: string}|{handle: object}|null>} what was chosen, or null if dismissed
+ */
+export async function chooseFolder(type) {
+  if (folderChooser(type) === "native") {
+    const root = await chooseRoot();
+
+    return root ? { root } : null;
+  }
+
+  try {
+    return { handle: await pickDirectory() };
+  } catch (failure) {
+    if (failure.name === "AbortError") return null;
+
+    throw failure;
+  }
 }
 
 /**

@@ -10,8 +10,7 @@
 // forms only appear for the item being looked at, and nothing saves until the
 // footer says so.
 
-import { adapterTypes } from "../adapters/index.js";
-import { pickDirectory } from "../adapters/filesystem.js";
+import { adapterTypes, chooseFolder } from "../adapters/index.js";
 import { destinationTypes } from "../destinations/index.js";
 import { age, arm, element, find, initials, say } from "./dom.js";
 import { leaveWords } from "./words.js";
@@ -37,9 +36,67 @@ export function newSourceSetup() {
     type: "",
     values: {},
     handle: null,
+    root: "",
     secretsSet: {},
     problem: "",
   };
+}
+
+/**
+ * Whether a folder has been chosen for this form.
+ *
+ * @param {object} setup the form's state
+ * @returns {boolean} true once either kind of chooser has answered
+ */
+export function folderChosen(setup) {
+  return Boolean(setup.handle || setup.root);
+}
+
+/**
+ * The folder the form is holding, written the way that backend can write it.
+ *
+ * A browser handle carries no path, only the name the browser granted, so the
+ * name is all there is to show. The desktop app has the real path and showing
+ * less of it would hide which of two folders with the same name was chosen.
+ *
+ * @param {object} setup the form's state
+ * @returns {string} the folder, without a trailing separator, "" when none
+ */
+export function folderPath(setup) {
+  if (setup.handle) return setup.handle.name;
+
+  return String(setup.root || "").replace(/[/\\]+$/, "");
+}
+
+/**
+ * What to call a source whose name the reader has not typed.
+ *
+ * @param {object} setup the form's state
+ * @returns {string} the folder's own name, "" when none is chosen
+ */
+export function folderName(setup) {
+  return folderPath(setup).split(/[/\\]/).pop() || "";
+}
+
+/**
+ * What a chosen folder adds to the adapter's stored configuration.
+ *
+ * A path is configuration and is written down. A directory handle is a live
+ * object that no log can hold, so it goes to the handle store instead and
+ * nothing about it is written here.
+ *
+ * Editing a source without touching its folder keeps the folder it has, so a
+ * rename does not quietly unpoint it. Switching it to another backend does not:
+ * that path means nothing to whatever was chosen instead.
+ *
+ * @param {object} setup the form's state
+ * @param {object} [stored] the adapter as it is saved, when one is being edited
+ * @returns {object} the configuration to merge, empty when there is nothing to store
+ */
+export function folderConfig(setup, stored = {}) {
+  const root = setup.root || (stored.type === setup.type ? stored.root : "") || "";
+
+  return root ? { root } : {};
 }
 
 /**
@@ -380,6 +437,7 @@ async function focusSource(app, source) {
         .map((field) => [field.key, source.adapter[field.key] || ""]),
     ),
     handle: null,
+    root: "",
     secretsSet: await app.secretsSetFor(source),
     problem: "",
   };
@@ -780,7 +838,7 @@ export function sourceDirty(setup, fields) {
   if (!setup.editing) return false;
   if (setup.name !== setup.editing.name) return true;
   if (setup.type !== setup.editing.adapter.type) return true;
-  if (setup.handle) return true;
+  if (folderChosen(setup)) return true;
 
   return fields.some((field) => {
     const value = setup.values[field.key] || "";
@@ -895,8 +953,8 @@ function sourceStatus(app, setup) {
   if (!setup.editing) {
     // A folder is chosen, not probed: nothing can be counted before it is
     // attached, so nothing is invented.
-    if (setup.type === "filesystem" && setup.handle) {
-      return { text: `will read ${setup.handle.name}/drafts/`, tone: "" };
+    if (folderChosen(setup)) {
+      return { text: `will read ${folderPath(setup)}/drafts/`, tone: "" };
     }
 
     return { text: "", tone: "" };
@@ -1147,17 +1205,26 @@ function folderRow(app, setup, editing) {
   // how a folder whose permission has lapsed is granted again.
   choose.addEventListener("click", async () => {
     try {
-      setup.handle = await pickDirectory();
+      const picked = await chooseFolder(setup.type);
+
+      if (!picked) return;
+
+      setup.handle = picked.handle || null;
+      setup.root = picked.root || "";
       setup.problem = "";
-      if (!setup.name) setup.name = setup.handle.name;
-      app.changed();
+      if (!setup.name) setup.name = folderName(setup);
     } catch (failure) {
-      if (failure.name !== "AbortError") say(failure.message, "error");
+      // The button is inside the panel and the footer is not, so the failure is
+      // put where the reader is looking as well as in the status line.
+      setup.problem = failure.message;
+      say(failure.message, "error");
     }
+
+    app.changed();
   });
 
-  const name = setup.handle
-    ? `${setup.handle.name}/`
+  const name = folderChosen(setup)
+    ? `${folderPath(setup)}/`
     : editing
       ? resolvedSource(setup.editing, app.handleNames?.[setup.editing.id] || "")
       : "";
@@ -1223,6 +1290,10 @@ function readFields(fields, values, { required }) {
 function sameConfig(stored, edited, fields) {
   if (stored.type !== edited.type) return false;
 
+  // A chosen folder is configuration the form never asks for as a field, so
+  // comparing only the fields would call a repointed source unchanged.
+  if ((stored.root || "") !== (edited.root || "")) return false;
+
   return fields
     .filter((field) => !field.secret)
     .every((field) => (stored[field.key] || "") === (edited[field.key] || ""));
@@ -1241,12 +1312,12 @@ async function saveSource(app) {
     // only a new source has to have every required field answered.
     const { config, secret } = readFields(fields, setup.values, { required: !setup.editing });
 
-    if (!fields.length && !setup.editing && !setup.handle) {
+    if (!fields.length && !setup.editing && !folderChosen(setup)) {
       throw new Error("choose a folder first");
     }
 
     if (setup.editing) {
-      const adapter = { type: setup.type, ...config };
+      const adapter = { type: setup.type, ...config, ...folderConfig(setup, setup.editing.adapter) };
 
       // Only what actually changed. Sending the configuration unchanged would
       // make the storage prove itself again, so a source that is temporarily
@@ -1263,7 +1334,7 @@ async function saveSource(app) {
     } else {
       const source = await app.addSource({
         name: setup.name.trim(),
-        adapter: { type: setup.type, ...config },
+        adapter: { type: setup.type, ...config, ...folderConfig(setup) },
         secret: Object.keys(secret).length ? secret : undefined,
         handle: setup.handle,
       });
