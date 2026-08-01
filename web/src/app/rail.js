@@ -20,6 +20,7 @@ import {
 } from "./dom.js";
 import { button } from "../ui/button.js";
 import { render } from "../ui/render.js";
+import { webUrl } from "../domain/url.js";
 
 /**
  * Draw the whole left pane.
@@ -60,13 +61,63 @@ function drawBlurb(app) {
     ),
   );
 
+  const address = webUrl(pull.url);
+
+  const line = document.createElement("span");
+  line.className = "pull-line";
+  line.append(pullName(pull, address));
+
+  // Nothing to copy, so nothing offering to. A button that put a url the
+  // reader cannot follow on their clipboard would be offering a dead end.
+  if (address) line.append(copyButton(address));
+
+  // Only where there is a document to throw away. With nothing written yet the
+  // pull request is already waiting to be picked up, and a button offering to
+  // ask for that again would be offering nothing.
+  if (pull.draft) line.append(redraftButton(app, pull));
+
+  provenance.append(line);
+
+  inner.append(provenance);
+  blurb.append(inner);
+}
+
+/**
+ * Which pull request this is, as a link where there is one to follow.
+ *
+ * The url comes out of a draft, and a draft is written by an agent reading
+ * somebody else's branch. Anything but an http(s) address is named rather than
+ * linked: the reader still sees which pull request they are reading, and a
+ * scheme the browser would run as code never reaches an href. A link drawn
+ * over a url nothing can follow would only be a lie the reader clicks.
+ *
+ * @param {object} pull the pull request being read
+ * @param {string} address its url, or "" when it is not one a link may follow
+ * @returns {HTMLElement} the anchor, or the same words as plain text
+ */
+function pullName(pull, address) {
+  const words = `${pull.repo}#${pull.number}`;
+
+  if (!address) return element("span", "summary-meta mono", words);
+
   const link = document.createElement("a");
+
   link.className = "summary-meta mono pull-link";
-  link.href = pull.url;
+  link.href = address;
   link.target = "_blank";
   link.rel = "noreferrer";
-  link.textContent = `${pull.repo}#${pull.number}`;
+  link.textContent = words;
 
+  return link;
+}
+
+/**
+ * Put the pull request's url on the clipboard.
+ *
+ * @param {string} address the url, already checked
+ * @returns {HTMLElement} the button
+ */
+function copyButton(address) {
   const copy = render(
     button({ role: "icon", icon: COPY_ICON, title: "Copy the pull request url" }),
   );
@@ -74,7 +125,7 @@ function drawBlurb(app) {
   copy.classList.add("copy-url");
   copy.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(pull.url);
+      await navigator.clipboard.writeText(address);
 
       // The button itself says it worked, right where the eye already is.
       copy.classList.add("is-copied");
@@ -91,19 +142,7 @@ function drawBlurb(app) {
     }
   });
 
-  const line = document.createElement("span");
-  line.className = "pull-line";
-  line.append(link, copy);
-
-  // Only where there is a document to throw away. With nothing written yet the
-  // pull request is already waiting to be picked up, and a button offering to
-  // ask for that again would be offering nothing.
-  if (pull.draft) line.append(redraftButton(app, pull));
-
-  provenance.append(line);
-
-  inner.append(provenance);
-  blurb.append(inner);
+  return copy;
 }
 
 /**

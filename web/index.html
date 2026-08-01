@@ -3,6 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The policy travels with the page.
+     `serve/serve.go` sends this as a header, and the desktop build sends its
+     own, but `web/` is a folder of files with no build step: it can be put on
+     a bucket, on Pages, behind somebody's nginx, or opened off a disk, and
+     none of those send anything. The reader's GitHub token and their storage
+     keys are in this origin's IndexedDB, so a page that arrives without a
+     policy is a page where any script that got in could read both.
+
+     Two differences from the header, both deliberate:
+
+     frame-ancestors is ignored in a meta tag, so it is not here. The header
+     from serve/serve.go is still the only thing standing between this
+     interface and a cross-origin frame; this tag does not replace it.
+
+     asset:, ipc: and the two localhost origins are the desktop build's. A
+     second policy is not a replacement for the first, it is intersected with
+     it, so anything the desktop needs and this omits would be refused there.
+     In a browser they are three origins nothing can reach and no widening
+     worth the desktop build breaking. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'self' https: ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: asset: http://asset.localhost; media-src 'self' blob: asset: http://asset.localhost">
 <title>reviewer</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">

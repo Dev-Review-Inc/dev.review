@@ -7,6 +7,7 @@
 
 import { adapterTypes } from "../adapters/index.js";
 import { renderBody } from "../domain/render.js";
+import { webUrl } from "../domain/url.js";
 import { age, element, emptyState, find, say } from "./dom.js";
 import { button } from "../ui/button.js";
 import { render } from "../ui/render.js";
@@ -133,12 +134,17 @@ export function drawSummary(app) {
   // nor a link to a review nobody wrote.
   if (posted && !filtered) {
     const words = postedWords(app);
-    const note = document.createElement(words.sent ? "a" : "div");
+    // The review went out either way, so the record stands either way. A url
+    // that is not an http(s) address costs the link and nothing else: it was
+    // written into a draft or an event by an agent reading somebody else's
+    // branch, and a browser runs some schemes as code on this origin.
+    const address = webUrl(pull.postedUrl) || webUrl(pull.url);
+    const note = document.createElement(words.sent && address ? "a" : "div");
 
     note.className = "posted-note mono";
 
-    if (words.sent) {
-      note.href = pull.postedUrl || pull.url;
+    if (words.sent && address) {
+      note.href = address;
       note.target = "_blank";
       note.rel = "noreferrer";
     }

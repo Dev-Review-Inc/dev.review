@@ -512,6 +512,62 @@ describe("Posting the review", () => {
   });
 });
 
+// A draft is a file an agent wrote while reading somebody else's branch, and
+// the pull request link is the most ordinary thing on the screen to click. A
+// browser runs a `javascript:` href as code on the origin it is clicked from,
+// and that origin holds the reader's GitHub token and their storage keys, so
+// the scheme in a draft's url decides whether both are still theirs.
+describe("A draft whose url is not a web address", () => {
+  const HOSTILE = "javascript:globalThis.__stolen = true";
+
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, {
+      objects: written(aDraft({ url: HOSTILE })),
+      pulls: [aPull({ html_url: HOSTILE })],
+    });
+    await attachStorage(page);
+    await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+  });
+
+  after(() => page.close());
+
+  test("no link on the screen carries it", async () => {
+    const hrefs = await page.eval(
+      '[...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href"))',
+    );
+
+    assert.deepEqual(
+      hrefs.filter((href) => !/^https?:\/\//i.test(href)),
+      [],
+    );
+  });
+
+  test("the pull request is still named, as plain words rather than a link", async () => {
+    assert.equal(await page.count("#blurb a"), 0);
+    assert.match(await page.text("#blurb"), /app#42/);
+  });
+
+  test("nothing offers to copy a url the reader cannot use", async () => {
+    assert.equal(await page.count("#blurb .copy-url"), 0);
+  });
+
+  test("the record of a posted review stands without a link to it", async () => {
+    await page.click("#post");
+    await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
+    await page.click("#confirm-post");
+    await page.until('!document.querySelector("#celebrate").hidden', "the review to land");
+
+    assert.match(await page.text("#comment-notes"), /✓/);
+    assert.equal(await page.count("#comment-notes a"), 0);
+  });
+
+  test("nothing went wrong along the way", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
 describe("Dismissing your own pull request", () => {
   // The case this exists for. GitHub refuses an approval or a change request
   // from the author, so the only verdict on offer is a comment, and here there
