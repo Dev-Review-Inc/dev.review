@@ -61,14 +61,25 @@ export function unavailability() {
  * The dialog is opened on the Rust side, so the desktop app grants the
  * frontend no dialog permission at all.
  *
+ * Only a dismissal is nothing chosen. A dialog that never opened, or a choice
+ * the shell cannot turn into a path, throws instead: both used to arrive here
+ * as nothing, and the interface then told the reader they had chosen no folder.
+ *
  * @returns {Promise<string|null>} the chosen absolute path, or null if dismissed
+ * @throws {Error} if the dialog failed, or what it answered cannot be read
  */
 export async function chooseRoot() {
   const api = core();
 
   if (!api) throw new Error("the desktop app is not running");
 
-  return (await api.invoke("storage_pick_root")) ?? null;
+  try {
+    return (await api.invoke("storage_pick_root")) ?? null;
+  } catch (failure) {
+    // A command answering `Err` rejects with the string itself, and everything
+    // that shows this to the reader reads `.message`.
+    throw failure instanceof Error ? failure : new Error(String(failure));
+  }
 }
 
 export class TauriAdapter extends Adapter {

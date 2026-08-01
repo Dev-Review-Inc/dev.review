@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::Manager;
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, FilePath};
 
 /// One file in a listing. Times and sizes are already in the units the reader
 /// wants - milliseconds since the epoch - so nothing has to be converted twice.
@@ -32,22 +32,62 @@ pub struct Entry {
 /// boundary; the scope cannot be set at build time because the folder is the
 /// customer's choice.
 ///
-/// Returns the absolute path, or nothing if the dialog was dismissed.
+/// Closing the dialog is the reader changing their mind, so it answers with
+/// nothing. Everything else that can go wrong here is a failure, and says so:
+/// answering nothing to all of it left the interface telling the reader they
+/// had not chosen a folder, which is the one thing that had not happened.
 #[tauri::command]
-pub async fn storage_pick_root(app: tauri::AppHandle) -> Option<String> {
+pub async fn storage_pick_root(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let (send, mut receive) = tauri::async_runtime::channel(1);
 
     app.dialog().file().pick_folder(move |folder| {
-        // Capacity is one and this fires once, so the send cannot block.
+        // Capacity is one and this fires once, so the send cannot block. A send
+        // that could not land drops the sender, which the receiver reads as the
+        // dialog never having answered.
         let _ = send.blocking_send(folder);
     });
 
-    let picked = receive.recv().await.flatten()?;
-    let path = picked.into_path().ok()?;
+    let Some(path) = picked(receive.recv().await)? else {
+        return Ok(None);
+    };
 
-    let _ = app.asset_protocol_scope().allow_directory(&path, true);
+    // Widening the scope is what lets `convertFileSrc` stream a recording out of
+    // this folder. Carrying on without it would hand back a folder that works
+    // for everything except the videos, and the reader would meet that hours
+    // later as a player that shows nothing and says nothing.
+    app.asset_protocol_scope()
+        .allow_directory(&path, true)
+        .map_err(|error| {
+            format!(
+                "{} cannot be opened for playback, so recordings in it would \
+                 not play: {error}. Choose a different folder.",
+                path.display()
+            )
+        })?;
 
-    Some(path.to_string_lossy().into_owned())
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+/// What the dialog answered, with the one dismissal told apart from the rest.
+///
+/// The outer `None` is the channel closing empty, which means the callback was
+/// dropped and the dialog never answered at all. The inner `None` is the reader
+/// closing it, which is the only case here that is not a failure. A choice that
+/// is not a path on this disk is a URI the platform handed back, and nothing
+/// under this root can read one.
+fn picked(answer: Option<Option<FilePath>>) -> Result<Option<PathBuf>, String> {
+    let Some(answer) = answer else {
+        return Err("the folder dialog closed without answering".to_string());
+    };
+
+    let Some(chosen) = answer else {
+        return Ok(None);
+    };
+
+    chosen
+        .into_path()
+        .map(Some)
+        .map_err(|error| format!("that folder is not a path on this disk: {error}"))
 }
 
 /// List the files under a prefix, recursively.
@@ -392,6 +432,31 @@ mod tests {
         let resolved = resolve(&base, "linked/review.json").expect("contained");
 
         assert_eq!(resolved, base.join("real/review.json"));
+    }
+
+    #[test]
+    fn a_dismissed_dialog_is_nothing_chosen_rather_than_a_failure() {
+        assert_eq!(picked(Some(None)), Ok(None));
+    }
+
+    #[test]
+    fn a_dialog_that_never_answered_is_a_failure_rather_than_a_dismissal() {
+        assert!(picked(None).is_err());
+    }
+
+    #[test]
+    fn a_chosen_folder_is_the_path_it_names() {
+        let dir = root();
+        let path = dir.path().to_path_buf();
+
+        assert_eq!(picked(Some(Some(FilePath::from(path.clone())))), Ok(Some(path)));
+    }
+
+    #[test]
+    fn a_choice_that_is_not_a_path_on_this_disk_is_a_failure() {
+        let uri: FilePath = "content://com.android.documents/tree/1".parse().expect("a uri");
+
+        assert!(picked(Some(Some(uri))).is_err());
     }
 
     #[test]

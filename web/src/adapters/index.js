@@ -124,13 +124,15 @@ export function folderChooser(type) {
  * The two answer differently and the caller keeps both apart: the desktop app
  * answers with a path it can store, and a browser answers with a handle it
  * cannot. Being dismissed is not a failure in either, so both say so the same
- * way rather than making the caller know one throws and one does not.
+ * way rather than making the caller know one throws and one does not. A dialog
+ * that failed is not dismissal in either, and throws in both.
  *
  * Must be called from a user gesture; the browser picker will not open
  * otherwise.
  *
  * @param {string} type the backend the form has selected
  * @returns {Promise<{root: string}|{handle: object}|null>} what was chosen, or null if dismissed
+ * @throws {Error} if the dialog could not be opened, or failed while open
  */
 export async function chooseFolder(type) {
   if (folderChooser(type) === "native") {
@@ -153,7 +155,7 @@ export async function chooseFolder(type) {
  *
  * @param {object} config the stored adapter configuration
  * @param {object} [secret] credentials, which are never in the configuration
- * @param {object} [handle] a directory handle, for the backends that need one
+ * @param {object|Error} [handle] a directory handle, for the backends that need one, or why it could not be fetched
  * @returns {object} the adapter
  * @throws {Error} if this build has no such backend
  */

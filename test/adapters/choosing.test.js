@@ -76,6 +76,22 @@ describe("choosing a folder", () => {
     assert.equal(await chooseFolder("filesystem"), null);
   });
 
+  // The command answers with nothing for a dismissal and rejects for anything
+  // that broke, so a dialog that never opened must not read as a shrug.
+  test("a desktop dialog that failed is not a dismissal", async () => {
+    inDesktop(() => Promise.reject("the folder dialog never answered"));
+
+    await assert.rejects(() => chooseFolder("tauri"), /never answered/);
+  });
+
+  test("what the desktop side rejects with arrives as a message a form can show", async () => {
+    inDesktop(() => Promise.reject("the folder dialog never answered"));
+
+    const failure = await chooseFolder("tauri").catch((error) => error);
+
+    assert.equal(failure.message, "the folder dialog never answered");
+  });
+
   test("the desktop chooser is never used from a browser tab", async () => {
     inBrowser(() => ({ name: "Reviews" }));
 

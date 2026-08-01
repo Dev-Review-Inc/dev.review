@@ -32,11 +32,20 @@ export class App {
    * @param {(config: object, secret: object, handle: object) => object} [options.adapter] makes a reader
    * @param {(destination: object, secret: object) => object} [options.destination] makes a destination
    * @param {(app: App) => Promise<void>} [options.install] attaches something on a browser that has nothing
+   * @param {{remember: Function, recall: Function, forget: Function}} [options.handles] where directory handles are kept
    */
-  constructor({ database, adapter, destination, install } = {}) {
+  constructor({ database, adapter, destination, install, handles } = {}) {
     this._buildAdapterWith = adapter || buildAdapter;
     this._buildDestinationWith = destination || buildDestination;
     this._install = install || null;
+
+    // The handle store is its own database, apart from the event log, so it
+    // fails on its own terms and a test has to be able to break it on its own.
+    this._handles = handles || {
+      remember: rememberHandle,
+      recall: recallHandle,
+      forget: forgetHandle,
+    };
 
     this.state = new MultiEventStore({
       runners,
@@ -141,7 +150,9 @@ export class App {
         const open = this.source && this.source.id === source.id;
 
         if (source.adapter.type === "filesystem") {
-          names[source.id] = (await recallHandle(source.id).catch(() => null))?.name || "";
+          // Only the folder's name, for a row that has nowhere to put a reason.
+          // The health probe below asks the same store and reports what it says.
+          names[source.id] = (await this._handles.recall(source.id).catch(() => null))?.name || "";
         }
 
         counts[source.id] = this.commands.sync
@@ -247,6 +258,7 @@ export class App {
    *
    * @param {{name: string, adapter: object, secret?: object, handle?: object}} setup what to attach
    * @returns {Promise<object>} the source
+   * @throws {Error} if the folder that was chosen could not be kept
    */
   async addSource(setup) {
     const source = await this.commands.addSource(
@@ -255,8 +267,26 @@ export class App {
     );
 
     // A directory handle cannot be serialised into the log, so it is kept
-    // beside it, structured cloned, and asked for again on return.
-    if (setup.handle) await rememberHandle(source.id, setup.handle);
+    // beside it, structured cloned, and asked for again on return. The id it is
+    // kept under is the log's, which is why this cannot happen first.
+    if (setup.handle) {
+      try {
+        await this._handles.remember(source.id, setup.handle);
+      } catch (failure) {
+        // The folder is the whole of a source that has one. Keeping a source
+        // whose folder was never stored leaves the reader with a row that says
+        // no folder was chosen, which is a full disk reported as forgetfulness.
+        //
+        // Taking it back out is best effort: storage that has just refused one
+        // write can refuse this one, and the failure worth reporting is the
+        // first one either way.
+        await this.commands.removeSource(source).catch(() => {});
+
+        throw new Error(
+          `This browser could not keep the folder you chose, so the source was not attached: ${failure.message}`,
+        );
+      }
+    }
 
     // The reader has brought their own storage, so the root of this origin is
     // no longer a pitch for them. Marked here rather than in the command
@@ -296,7 +326,7 @@ export class App {
         if (value !== "" && value !== null && value !== undefined) secret[key] = value;
       }
 
-      const handle = changes.handle || (await recallHandle(source.id).catch(() => null));
+      const handle = changes.handle || (await this._handleFor(source.id));
       const candidate = this._buildAdapterWith(config, secret, handle);
       const ready = await candidate.ready();
 
@@ -369,7 +399,7 @@ export class App {
     // The adapter's own copy matters more than the handle does. A git source
     // holds a whole clone of the customer's repository, and removing the source
     // while leaving that on disk would be a delete that deleted nothing.
-    await forgetHandle(source.id).catch(() => {});
+    await this._handles.forget(source.id).catch(() => {});
     await this._readerFor(source)
       .then((adapter) => adapter.forget())
       .catch(() => {});
@@ -730,9 +760,20 @@ export class App {
    */
   async _readerFor(source) {
     const secret = await this.state.secret(source.id);
-    const handle = await recallHandle(source.id).catch(() => null);
+    const handle = await this._handleFor(source.id);
 
     return this._buildAdapterWith(source.adapter, secret, handle);
+  }
+
+  // A folder that was never kept is nothing; a handle store that could not be
+  // read is the failure itself. The reader is handed whichever it was and says
+  // which, because the two are not the same news and only one of them is the
+  // reader's own doing.
+  //
+  // A store that hangs rather than failing is not caught here, and cannot be:
+  // there is nothing to catch until it answers.
+  _handleFor(id) {
+    return this._handles.recall(id).catch((failure) => failure);
   }
 
   async _buildAdapter(source) {

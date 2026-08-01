@@ -49,12 +49,17 @@ export class FilesystemAdapter extends Adapter {
   static precise = false;
 
   /**
+   * A folder that was never chosen and a folder this browser could not read
+   * back are different things to say, so they arrive as different values: the
+   * first as nothing, the second as the failure itself.
+   *
    * @param {{type?: string, label?: string}} config the serialisable half
-   * @param {FileSystemDirectoryHandle} handle the folder itself, from IndexedDB or the picker
+   * @param {FileSystemDirectoryHandle|Error|null} handle the folder itself, from IndexedDB or the picker, or why it could not be fetched
    */
   constructor(config = {}, handle = null) {
     super();
-    this._handle = handle;
+    this._handle = handle instanceof Error ? null : handle;
+    this._unreadable = handle instanceof Error ? handle : null;
     this._label = config.label || FilesystemAdapter.label;
   }
 
@@ -156,9 +161,7 @@ export class FilesystemAdapter extends Adapter {
    * @returns {Promise<{ok: boolean, reason: string}>} whether it is usable, and why not
    */
   async ready() {
-    if (!this._handle) {
-      return { ok: false, reason: "No folder has been chosen yet." };
-    }
+    if (!this._handle) return this._missing();
 
     return this._judge(await this._handle.queryPermission(MODE));
   }
@@ -172,9 +175,7 @@ export class FilesystemAdapter extends Adapter {
    * @returns {Promise<{ok: boolean, reason: string}>} what the reviewer answered
    */
   async request() {
-    if (!this._handle) {
-      return { ok: false, reason: "No folder has been chosen yet." };
-    }
+    if (!this._handle) return this._missing();
 
     return this._judge(await this._handle.requestPermission(MODE));
   }
@@ -191,6 +192,21 @@ export class FilesystemAdapter extends Adapter {
    */
   describe() {
     return "Files stay on this computer, in the folder you chose";
+  }
+
+  // Why there is no folder here. Choosing one again is the remedy either way,
+  // but only one of these is something the reader left undone, and telling
+  // someone whose browser storage is broken to choose a folder they already
+  // chose sends them round the same loop.
+  _missing() {
+    if (this._unreadable) {
+      return {
+        ok: false,
+        reason: `This browser could not read back the folder kept for ${this._label}: ${this._unreadable.message}. Choose the folder again to reconnect it.`,
+      };
+    }
+
+    return { ok: false, reason: "No folder has been chosen yet." };
   }
 
   _judge(permission) {

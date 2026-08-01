@@ -103,6 +103,39 @@ describe("filesystem adapter, on its own terms", () => {
     assert.equal(ready.ok, false);
   });
 
+  // A handle store this browser cannot read and a folder that was never chosen
+  // both arrive here as no handle, and blaming the reader for the first is the
+  // one answer they cannot act on.
+  test("says the folder was never chosen when no handle was ever stored", async () => {
+    const ready = await new FilesystemAdapter({ label: "Reviews" }, null).ready();
+
+    assert.equal(ready.ok, false);
+    assert.match(ready.reason, /No folder has been chosen yet/);
+  });
+
+  test("says the folder could not be read back when the handle store failed", async () => {
+    const broken = new FilesystemAdapter(
+      { label: "Reviews" },
+      new Error("the database is not open"),
+    );
+
+    const ready = await broken.ready();
+
+    assert.equal(ready.ok, false);
+    assert.doesNotMatch(ready.reason, /No folder has been chosen yet/);
+    assert.match(ready.reason, /Reviews/);
+    assert.match(ready.reason, /the database is not open/);
+  });
+
+  test("asking again for a folder it could not read back says the same thing", async () => {
+    const broken = new FilesystemAdapter(
+      { label: "Reviews" },
+      new Error("the database is not open"),
+    );
+
+    assert.deepEqual(await broken.request(), await broken.ready());
+  });
+
   test("hands a recording to the object url as a file, never as its bytes", async () => {
     await adapter.write("qa/run.mp4", bytes("not really a video"));
     const given = [];
