@@ -120,15 +120,18 @@ That is not an oversight:
   the same disk.
 - The folder picker runs in Rust (`storage_pick_root`), so the frontend never
   calls the dialog plugin and needs no permission for it.
-- The nine `git_*` commands are the same arrangement over a second root, so
-  they added no capability either. `git_root` is the reason: the clone lives
-  under the app's own data directory, which Tauri hands to Rust, so the one
-  absolute path the frontend ever learns came from Tauri rather than from a
-  setting. `git_open`, `git_tree`, `git_read`, `git_commit_file`,
-  `git_commit_removal`, `git_pull`, `git_push` and `git_ready` take that root
-  back and resolve every path inside it. Running git is a subprocess this crate
-  spawns itself, not the `shell` plugin, which stays ungranted: the frontend
-  can ask for these nine operations and cannot name a program.
+- The `git_*` commands are the same arrangement over a second root, so they
+  added no capability either. `git_root` is the reason: the clone lives under
+  the app's own data directory, which Tauri hands to Rust, so the one absolute
+  path the frontend ever learns came from Tauri rather than from a setting.
+  `git_open`, `git_tree`, `git_read`, `git_commit_file`, `git_commit_removal`,
+  `git_pull`, `git_push` and `git_ready` take that root back and resolve every
+  path inside it. `git_forget` deletes a clone outright, which is the most
+  destructive thing this app does to a disk, so it is given a slug rather than
+  a path and derives the root the same way `git_root` does. Running git is a
+  subprocess this crate spawns itself, not the `shell` plugin, which stays
+  ungranted: the frontend can ask for these operations and cannot name a
+  program.
 
 ## Driving git
 
@@ -146,8 +149,13 @@ about that are security boundaries rather than housekeeping:
 - **No hook ever runs.** `core.hooksPath` points at a path inside `.git` that
   does not exist, commits are made with `--no-verify`, and `.git` is refused as
   a path component, so nothing the repository carries can install one.
-- **Only `https://` remotes.** Git's other transports run a program named in
-  the url, and `ext::` runs whatever it is handed.
+- **No remote that names a program.** Only https and ssh urls are accepted, in
+  the three shapes `check_url` allows. Git's other transports run a program the
+  url picks, and `ext::` runs whatever it is handed, so a doubled colon is
+  refused outright, before the scp form is parsed and could read `ext::x` as an
+  ordinary host called `ext`. A user or host beginning with `-` is refused too,
+  because git hands both to `ssh` as arguments and an option can name a
+  command.
 
 `GIT_TERMINAL_PROMPT` is `0`: a desktop app has no terminal to prompt at, so a
 missing credential fails rather than hanging forever. Commits are unsigned
@@ -189,15 +197,17 @@ Verified:
 
 - The crate compiles, config and capabilities included, so the commands and the
   dialog and asset-scope calls are real.
-- The Rust containment logic, the atomic write and the listing, by 16 tests
-  under `cargo test` in this directory, and the git commands by 23 more beside
-  them, against real repositories on disk.
+- The Rust containment logic, the atomic write and the listing, by the tests in
+  `src/storage.rs`, and the git commands, including which remote urls are
+  refused, by the tests in `src/git.rs` against real repositories on disk. Both
+  run under `cargo test` in this directory.
 - The JavaScript adapter, by the full shared adapter conformance suite in
   `test/adapters/tauri.test.js`, run against a stand-in for `invoke` that
   refuses the same paths the Rust side refuses.
 - `cargo tauri build` on macOS, Apple silicon. It bundles both `Reviewer.app`
-  and `Reviewer_0.1.0_aarch64.dmg`, and the `.app` launches, stays up and opens
-  a top-level window with its menu bar. The window comes up at the configured
+  and `Reviewer_<version>_aarch64.dmg`, taking the version from `Cargo.toml`,
+  and the `.app` launches, stays up and opens a top-level window with its menu
+  bar. The window comes up at the configured
   width; the height is whatever the display leaves once the menu bar and title
   bar are taken, so on a short screen it is less than the 860 asked for.
 - Signing and notarisation, by building the release locally with the Developer

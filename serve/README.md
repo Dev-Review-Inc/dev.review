@@ -27,13 +27,15 @@ default, so the port is a fact about the image and not about the program, and
 ## Run
 
     ./reviewer-serve                          # embedded interface on :8080
-    ./reviewer-serve -dir ../web              # serve the working tree instead
+    ./reviewer-serve -dir ../web              # serve a directory from disk instead
+    ./reviewer-serve -dir ../web -dev         # the working tree, reloading on edit
     ./reviewer-serve -addr 127.0.0.1:8080     # bind somewhere else
 
 | Flag | Default | What it does |
 | --- | --- | --- |
 | `-addr` | `:8080` | Address to listen on. All interfaces, because the normal home for this is a container behind a proxy. |
-| `-dir` | empty | Serve a directory from disk instead of the embedded copy, re-read on every request, never cached, and hot reloaded. Development only. |
+| `-dir` | empty | Serve a directory from disk instead of the embedded copy. Prepared once at startup and cached, the same as the embedded copy, because a directory is not by itself a development signal: the marketing site is production and serves its pages this way. |
+| `-dev` | off | Re-read `-dir` on every request, never cache, and reload the page on edit. Development only, and ignored without `-dir`. |
 | `-csp` | empty | Replace the content security policy entirely. For hosting that needs a different shape, at the cost of owning what it allows. |
 
 ## The embed decision
@@ -48,8 +50,8 @@ directory that is not there, and a fresh checkout has to build and test without
 running a copy step first. Any real build overwrites it; the Docker build never
 copies it into the image at all.
 
-`-dir` covers development, where waiting on a copy and a rebuild to see an edit
-is not worth it. Embedded is the default because embedded is what ships.
+`-dir -dev` covers development, where waiting on a copy and a rebuild to see an
+edit is not worth it. Embedded is the default because embedded is what ships.
 
 ## The policy
 
@@ -113,16 +115,16 @@ rather than fetched over the network.
   a deploy instead of as a 404 on the reader's first module.
 - Directories are never listed. Only files in the set are addressable.
 - `index.html` is `no-cache`. Hashed asset names are immutable for a year.
-  Everything else gets five minutes. Under `-dir` every response is `no-store`
+  Everything else gets five minutes. Under `-dev` every response is `no-store`
   instead, because an edit answered from the browser's own cache is an edit
   nobody can see.
-- Under `-dir`, and only there, the page reloads itself when a file in the
+- Under `-dev`, and only there, the page reloads itself when a file in the
   served directory changes. `index.html` gains one `<script src="/reload.js">`
   on the way out, that script opens an event stream at `/reload`, and the
   server restamps the directory four times a second and speaks when the stamp
   moves. Both halves are same-origin, so `script-src 'self'` and
-  `connect-src 'self'` cover it and the policy is untouched. The embedded
-  snapshot cannot change under a running process, so it carries none of this.
+  `connect-src 'self'` cover it and the policy is untouched. A snapshot cannot
+  change under a running process, so it carries none of this.
 
 ## Test
 

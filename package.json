@@ -2,6 +2,12 @@
   "name": "reviewer",
   "private": true,
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "Dev Review Inc.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dev-Review-Inc/dev.review"
+  },
   "scripts": {
     "test": "npm run test:units && npm run test:e2e",
     "test:units": "node --test \"test/**/*.test.js\" \"skills/collector/test/**/*.test.js\"",

@@ -124,8 +124,9 @@ repository executing code on your machine.
   made with `--no-verify`. No hook runs, whoever wrote it.
 - `.git` is refused as a path component, so no path from a draft can reach the
   repository's own directory and install one.
-- Only `https://` remotes are accepted. Git's other transports run a program
-  the url names, and `ext::` runs whatever it is handed.
+- No remote that names a program is accepted. https and ssh are on the list
+  because neither lets the url choose what runs; git's other transports do, and
+  `ext::` runs whatever it is handed. The list above is the whole of it.
 
 ## What is not a vulnerability
 
