@@ -8,7 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { button } from "../../web/src/ui/button.js";
-import { render } from "../../web/src/ui/render.js";
+import { render, restyle } from "../../web/src/ui/render.js";
 
 function fakeDocument() {
   return {
@@ -21,6 +21,14 @@ function fakeDocument() {
         attributes: {},
         style: {
           declarations: {},
+          get cssText() {
+            return Object.entries(this.declarations)
+              .map(([property, value]) => `${property}: ${value}`)
+              .join("; ");
+          },
+          set cssText(value) {
+            if (!value) this.declarations = {};
+          },
           setProperty(name, value) {
             this.declarations[name] = value;
           },
@@ -28,6 +36,9 @@ function fakeDocument() {
         listeners: {},
         setAttribute(name, value) {
           this.attributes[name] = value;
+        },
+        removeAttribute(name) {
+          delete this.attributes[name];
         },
         addEventListener(name, handler) {
           this.listeners[name] = handler;
@@ -61,6 +72,47 @@ test("a click handler is bound once", () => {
   node.listeners.click();
 
   assert.equal(clicks, 1);
+});
+
+test("a link is rendered as an anchor", () => {
+  const node = render(button({ label: "Read the docs", role: "primary", link: true }), fakeDocument());
+
+  assert.equal(node.tag, "a");
+  assert.equal(node.textContent, "Read the docs");
+});
+
+test("a button already in the page is restyled where it stands", () => {
+  // The send button, the confirm sheet's two and the celebration's are written
+  // in index.html and wired by id at boot. Rebuilding them would drop the
+  // listeners; describing them and applying the description does not.
+  const node = fakeDocument().createElement("button");
+
+  node.className = "old";
+  node.setAttribute("disabled", "");
+
+  restyle(button({ label: "Post review", role: "primary" }), node);
+
+  assert.match(node.className, /ui-button--primary/);
+  assert.ok(!node.className.includes("old"));
+  assert.equal(node.textContent, "Post review");
+  assert.equal(node.style.declarations.height, "var(--ctlStandard)");
+
+  // An attribute the description no longer carries has to leave the element,
+  // or a button drawn once as disabled never becomes pressable again.
+  assert.ok(!("disabled" in node.attributes));
+});
+
+test("a button restyled keeps nothing of the shape it had before", () => {
+  // The roles do not all set the same properties - an armed square has a
+  // minimum width where a plain one has a width - so writing the new
+  // description over the old one is not enough to be rid of the old one.
+  const node = fakeDocument().createElement("button");
+
+  restyle(button({ role: "icon", icon: "<svg/>", arms: true }), node);
+  restyle(button({ role: "icon", icon: "<svg/>" }), node);
+
+  assert.ok(!("min-width" in node.style.declarations));
+  assert.equal(node.style.declarations.width, "var(--ctlIcon)");
 });
 
 test("an icon button gets markup and a labelled one never does", () => {

@@ -13,6 +13,8 @@
 import { adapterTypes, chooseFolder } from "../adapters/index.js";
 import { destinationTypes } from "../destinations/index.js";
 import { age, arm, element, find, initials, say } from "./dom.js";
+import { button } from "../ui/button.js";
+import { render, restyle } from "../ui/render.js";
 import { leaveWords } from "./words.js";
 
 // What the detail header calls a backend, under the item's name.
@@ -122,11 +124,14 @@ export function drawHeader(app) {
   drawOpen(app);
 
   const leave = leaveWords(app);
-  const control = find("signout");
+  // Compact, because the header is dense chrome. It carried its own 26px rule
+  // for that, ten pixels from what the same class meant everywhere else.
+  const control = restyle(
+    button({ label: leave.label, compact: true, title: leave.title }),
+    find("signout"),
+  );
 
   control.hidden = !app.destination;
-  control.textContent = leave.label;
-  control.title = leave.title;
 }
 
 /**
@@ -309,15 +314,19 @@ function drawDismissed(app) {
     );
     row.firstChild.append(element("span", "name", entry.title));
 
-    const button = document.createElement("button");
-    button.className = "ghost setup-edit";
-    button.textContent = "Restore";
-    button.title = "Put this pull request back on the queue";
     // `restore` says whatever went wrong itself, so the promise a listener
     // cannot return is one nothing is waiting on rather than one nobody holds.
-    button.addEventListener("click", () => restore(app, entry));
+    const edit = render(
+      button({
+        label: "Restore",
+        compact: true,
+        title: "Put this pull request back on the queue",
+        onClick: () => restore(app, entry),
+      }),
+    );
 
-    line.append(row, button);
+    edit.classList.add("setup-edit");
+    line.append(row, edit);
     section.append(line);
   }
 }
@@ -503,7 +512,18 @@ function drawSettings(app) {
 
   const add = find("settings-add");
 
-  add.classList.toggle("is-solid", !sources.length && !destinations.length);
+  // With nothing attached yet it is the one thing to press, which is what the
+  // primary role is. Attached, it is one action among the rows above it.
+  restyle(
+    button({
+      label: "+ Add",
+      role: sources.length || destinations.length ? "ghost" : "primary",
+      compact: true,
+    }),
+    add,
+  );
+
+  add.classList.add("settings-add");
   add.onclick = () => startAdd(app, "source");
 
   const teaching = !sources.length && !destinations.length && selection.kind !== "add";
@@ -825,13 +845,18 @@ function drawTeach(app, show) {
   );
 
   const actions = element("div", "teach-actions", "");
-  const addSource = element("button", "settings-button fill", "Add a source");
-  const connect = element("button", "settings-button", "Connect GitHub");
+  const addSource = render(
+    button({
+      label: "Add a source",
+      role: "primary",
+      compact: true,
+      onClick: () => startAdd(app, "source"),
+    }),
+  );
 
-  addSource.type = "button";
-  addSource.addEventListener("click", () => startAdd(app, "source"));
-  connect.type = "button";
-  connect.addEventListener("click", () => startAdd(app, "destination"));
+  const connect = render(
+    button({ label: "Connect GitHub", compact: true, onClick: () => startAdd(app, "destination") }),
+  );
 
   actions.append(
     addSource,
@@ -1073,17 +1098,21 @@ function footWord(text, tone) {
   return element("span", `mono settings-word${tone ? ` is-${tone}` : ""}`, text);
 }
 
+// The settings panel's footer buttons were a private factory taking a variant
+// string, which is a role by another name. Now they are the roles: the way out
+// is quiet, the thing being asked for fills, and Done is an ordinary action.
+const FOOT_ROLE = { plain: "quiet", fill: "primary" };
+
 function footButton(text, variant, onClick) {
-  const button = element("button", `settings-button${variant ? ` ${variant}` : ""}`, text);
-
-  if (onClick) {
-    button.type = "button";
-    button.addEventListener("click", onClick);
-  } else {
-    button.type = "submit";
-  }
-
-  return button;
+  return render(
+    button({
+      label: text,
+      role: FOOT_ROLE[variant] || "ghost",
+      compact: true,
+      submits: !onClick,
+      onClick,
+    }),
+  );
 }
 
 function drawSourceForm(app) {
@@ -1239,13 +1268,11 @@ function labelWord(label) {
 
 function folderRow(app, setup, editing) {
   const row = element("div", "settings-folder", "");
-  const choose = element("button", "mono settings-choose", "Choose…");
-
-  choose.type = "button";
-
   // The picker only opens inside a user gesture, which is why this is its own
   // button rather than something the submit handler does. Re-picking is also
   // how a folder whose permission has lapsed is granted again.
+  const choose = render(button({ label: "Choose…", compact: true }));
+
   choose.addEventListener("click", async () => {
     try {
       const picked = await chooseFolder(setup.type);

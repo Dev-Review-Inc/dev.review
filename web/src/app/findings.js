@@ -7,6 +7,8 @@
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
 import { arm, element, say } from "./dom.js";
+import { button } from "../ui/button.js";
+import { render } from "../ui/render.js";
 import { commentWords } from "./words.js";
 
 /**
@@ -185,34 +187,41 @@ function editorActions(app, pull, finding) {
   const actions = document.createElement("div");
   actions.className = "finding-actions";
 
-  const save = document.createElement("button");
-  save.className = "ghost";
-  save.textContent = "Save";
-  save.addEventListener("click", () => {
-    app.commands.editFinding(app.source, pull, finding, app.editingFinding.body);
-    app.editingFinding = null;
-    app.reselect();
-  });
+  const save = render(
+    button({
+      label: "Save",
+      onClick: () => {
+        app.commands.editFinding(app.source, pull, finding, app.editingFinding.body);
+        app.editingFinding = null;
+        app.reselect();
+      },
+    }),
+  );
 
-  const cancel = document.createElement("button");
-  cancel.className = "ghost";
-  cancel.textContent = "Cancel";
-  cancel.addEventListener("click", () => {
-    app.editingFinding = null;
-    app.changed();
-  });
+  const cancel = render(
+    button({
+      label: "Cancel",
+      onClick: () => {
+        app.editingFinding = null;
+        app.changed();
+      },
+    }),
+  );
 
   actions.append(save, cancel, element("span", "spacer", ""));
 
   if (finding.editedAt) {
-    const revert = document.createElement("button");
-    revert.className = "ghost";
-    revert.textContent = "Revert to drafted";
-    revert.addEventListener("click", () => {
-      app.commands.resetFinding(app.source, pull, finding);
-      app.editingFinding = null;
-      app.reselect();
-    });
+    const revert = render(
+      button({
+        label: "Revert to drafted",
+        onClick: () => {
+          app.commands.resetFinding(app.source, pull, finding);
+          app.editingFinding = null;
+          app.reselect();
+        },
+      }),
+    );
+
     actions.append(revert);
   }
 
@@ -223,32 +232,34 @@ function cardActions(app, pull, finding) {
   const controls = document.createElement("div");
   controls.className = "finding-actions";
 
-  const edit = document.createElement("button");
-  edit.className = "ghost";
-  edit.textContent = "Edit";
-  edit.addEventListener("click", () => {
-    app.editingFinding = { id: finding.id, body: finding.body, focus: true };
-    app.changed();
-  });
+  const edit = render(
+    button({
+      label: "Edit",
+      onClick: () => {
+        app.editingFinding = { id: finding.id, body: finding.body, focus: true };
+        app.changed();
+      },
+    }),
+  );
 
-  const drop = document.createElement("button");
-  drop.className = "ghost";
-  drop.textContent = finding.droppedAt ? "Restore" : "Drop";
-  drop.addEventListener("click", () => {
-    if (finding.droppedAt) {
-      app.commands.restoreFinding(app.source, pull, finding);
-    } else {
-      app.commands.dropFinding(app.source, pull, finding);
-    }
+  const drop = render(
+    button({
+      label: finding.droppedAt ? "Restore" : "Drop",
+      onClick: () => {
+        if (finding.droppedAt) {
+          app.commands.restoreFinding(app.source, pull, finding);
+        } else {
+          app.commands.dropFinding(app.source, pull, finding);
+        }
 
-    app.reselect();
-  });
+        app.reselect();
+      },
+    }),
+  );
 
   const words = commentWords(app);
-  const send = document.createElement("button");
-  send.className = "ghost";
-  send.textContent = words.label;
-  send.title = words.title;
+  const send = render(button({ label: words.label, title: words.title, arms: true }));
+
   send.addEventListener("click", async () => {
     if (!arm(send, words.question, words.label)) return;
 
@@ -270,13 +281,17 @@ function cardActions(app, pull, finding) {
   // A dropped comment of your own can go entirely - unlike the agent's, which
   // stay readable so what it said is never lost.
   if (finding.droppedAt && finding.mine) {
-    const remove = document.createElement("button");
-    remove.className = "ghost danger";
-    remove.textContent = "Delete";
-    remove.addEventListener("click", () => {
-      app.commands.removeFinding(app.source, pull, finding);
-      app.reselect();
-    });
+    const remove = render(
+      button({
+        label: "Delete",
+        role: "danger",
+        onClick: () => {
+          app.commands.removeFinding(app.source, pull, finding);
+          app.reselect();
+        },
+      }),
+    );
+
     controls.append(remove);
   }
 
@@ -304,31 +319,35 @@ export function addBox(app, pull) {
   const actions = document.createElement("div");
   actions.className = "finding-actions";
 
-  const add = document.createElement("button");
-  add.className = "ghost";
-  add.textContent = "Add comment";
-  add.addEventListener("click", () => {
-    const body = app.addingAt.body;
+  const add = render(
+    button({
+      label: "Add comment",
+      onClick: () => {
+        const body = app.addingAt.body;
 
-    app.addingAt = null;
+        app.addingAt = null;
 
-    if (!body.trim()) {
-      app.changed();
+        if (!body.trim()) {
+          app.changed();
 
-      return;
-    }
+          return;
+        }
 
-    app.commands.addFinding(app.source, pull, { path, line, body });
-    app.reselect();
-  });
+        app.commands.addFinding(app.source, pull, { path, line, body });
+        app.reselect();
+      },
+    }),
+  );
 
-  const cancel = document.createElement("button");
-  cancel.className = "ghost";
-  cancel.textContent = "Cancel";
-  cancel.addEventListener("click", () => {
-    app.addingAt = null;
-    app.changed();
-  });
+  const cancel = render(
+    button({
+      label: "Cancel",
+      onClick: () => {
+        app.addingAt = null;
+        app.changed();
+      },
+    }),
+  );
 
   actions.append(add, cancel);
   box.append(actions);

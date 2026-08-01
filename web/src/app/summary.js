@@ -8,6 +8,8 @@
 import { adapterTypes } from "../adapters/index.js";
 import { renderBody } from "../domain/render.js";
 import { age, element, emptyState, find, say } from "./dom.js";
+import { button } from "../ui/button.js";
+import { render } from "../ui/render.js";
 import { findingCard } from "./findings.js";
 import { qaContent } from "./qa.js";
 import { editSource, openSetup } from "./header.js";
@@ -372,12 +374,7 @@ function blankState(app) {
 }
 
 function withAction(empty, label, onClick) {
-  const button = document.createElement("button");
-
-  button.className = "ghost";
-  button.textContent = label;
-  button.addEventListener("click", onClick);
-  empty.querySelector(".empty-inner").append(button);
+  empty.querySelector(".empty-inner").append(render(button({ label, onClick })));
 
   return empty;
 }

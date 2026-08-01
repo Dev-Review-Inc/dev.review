@@ -793,6 +793,77 @@ describe("Being told why the storage would not attach", () => {
   });
 });
 
+// The stylesheet carried the sentence "every button shares one height" above a
+// rule that set eight of them. Prose beside code does not hold. This is that
+// sentence in the only place it can actually be checked: a real browser, with
+// the real fonts, measuring what a reader would see.
+describe("One height for every button", () => {
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: written(aDraft()) });
+    await attachStorage(page);
+    await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+  });
+
+  after(() => page.close());
+
+  test("the footer's send button and its verdicts stand the same height", async () => {
+    // #post was 38 and the verdicts 34, either side of the 36 everything else
+    // on the row was: two pixels each way, which reads as a row that slipped.
+    assert.deepEqual(await measure("#post, #verdicts"), [36, 36]);
+  });
+
+  test("a finding's actions stand the same height as each other", async () => {
+    const heights = await measure("#tab-summary .finding:first-of-type .ui-button");
+
+    assert.ok(heights.length >= 3, `only ${heights.length} buttons`);
+    assert.deepEqual([...new Set(heights)], [36]);
+  });
+
+  test("the confirm sheet's way out and its send stand the same height", async () => {
+    await page.click("#post");
+    await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
+
+    // Keep editing was 36 and Post to GitHub was 32, side by side.
+    assert.deepEqual(await measure("#confirm-cancel, #confirm-post"), [36, 36]);
+    await page.click("#confirm-cancel");
+  });
+
+  test("the settings panel's buttons stand the same height as each other", async () => {
+    await page.click("#source-button");
+    await page.until('!document.querySelector("#setup-popover").hidden', "the settings panel");
+
+    const heights = await measure("#setup-popover .ui-button");
+
+    assert.ok(heights.length >= 2, `only ${heights.length} buttons`);
+    assert.deepEqual([...new Set(heights)], [30]);
+  });
+
+  test("and no button anywhere is a height of its own", async () => {
+    const heights = await measure(".ui-button");
+
+    assert.ok(heights.length >= 10, `only ${heights.length} buttons`);
+
+    for (const height of heights) {
+      assert.ok([20, 30, 36].includes(height), `a button is ${height}px`);
+    }
+  });
+
+  test("nothing went wrong while it was measured", () => {
+    assert.deepEqual(page.complaints, []);
+  });
+
+  // Rounded, because a font metric can leave a box a hundredth of a pixel off
+  // the height it was set to, and a hundredth is not a design decision.
+  // Anything the reader cannot see is not on screen to have a height.
+  function measure(selector) {
+    return page.eval(`[...document.querySelectorAll(${JSON.stringify(selector)})]
+      .map((node) => Math.round(node.getBoundingClientRect().height))
+      .filter((height) => height > 0)`);
+  }
+});
+
 /**
  * An expression answering with the id of whatever is painted over an element.
  *

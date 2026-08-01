@@ -4,6 +4,8 @@
 // differently-coloured button, so the verdict tints the button.
 
 import { find } from "./dom.js";
+import { button } from "../ui/button.js";
+import { restyle } from "../ui/render.js";
 
 // Which tone each verdict carries, in the confirmation sheet and the footer.
 export const VERDICT_TONE = { APPROVE: "ok", COMMENT: "accent", REQUEST_CHANGES: "critical" };
@@ -89,7 +91,6 @@ function drawVerdict(app) {
   const post = find("post");
   const consequence = find("consequence");
 
-  post.classList.remove("is-ok", "is-critical", "is-quiet");
   consequence.classList.remove("is-warn");
   consequence.textContent = "";
 
@@ -106,18 +107,31 @@ function drawVerdict(app) {
   const verdict = pull ? app.queries.verdictFor(app.source, pull, app.login) : "";
   const chosen = app.dismissing ? DISMISS : verdict;
 
-  for (const button of find("verdicts").children) {
-    const dismiss = button.dataset.event === DISMISS;
+  for (const choice of find("verdicts").children) {
+    const dismiss = choice.dataset.event === DISMISS;
 
-    button.hidden = dismiss ? !own : own && button.dataset.event !== "COMMENT";
-    button.setAttribute("aria-pressed", String(button.dataset.event === chosen));
-    button.disabled = !pull;
+    choice.hidden = dismiss ? !own : own && choice.dataset.event !== "COMMENT";
+    choice.setAttribute("aria-pressed", String(choice.dataset.event === chosen));
+    choice.disabled = !pull;
   }
 
   const commit = commitButton(pull, chosen, Boolean(pull) && app.queries.isPosted(app.source, pull));
 
-  post.textContent = commit.label;
-  post.disabled = commit.disabled;
+  // The verdict tints the send button. "accent" is the primary's own fill, so
+  // it is said by saying nothing. Dismissing sends nothing at all, so it does
+  // not wear the send colour: it steps down to an ordinary action rather than
+  // being a filled button repainted to look like it is not one.
+  const tone = VERDICT_TONE[chosen] || "";
+
+  restyle(
+    button({
+      label: commit.label,
+      role: chosen === DISMISS ? "ghost" : "primary",
+      tone: tone === "accent" ? "" : tone,
+      disabled: commit.disabled,
+    }),
+    post,
+  );
 
   if (!pull || !chosen) return;
 
@@ -130,8 +144,4 @@ function drawVerdict(app) {
     consequence.textContent = CONSEQUENCE[chosen];
   }
 
-  // A button that sends nothing must not wear the colour of the one that does.
-  const tone = chosen === DISMISS ? "quiet" : VERDICT_TONE[chosen];
-
-  if (tone && tone !== "accent") post.classList.add(`is-${tone}`);
 }

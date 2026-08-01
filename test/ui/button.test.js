@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { button } from "../../web/src/ui/button.js";
+import { button, ROLES } from "../../web/src/ui/button.js";
 
 test("a ghost is the standard height, in mono, at the label size", () => {
   const described = button({ label: "Edit" });
@@ -39,22 +39,20 @@ test("the primary action differs by weight and fill, not by size", () => {
 
   assert.equal(primary.style.height, ghost.style.height);
   assert.equal(primary.style["font-size"], ghost.style["font-size"]);
-  assert.equal(primary.style["font-weight"], "700");
-  assert.equal(primary.style.background, "var(--accent)");
+  assert.equal(ROLES.primary.weight, "700");
+  assert.equal(ROLES.primary.background, "var(--accent)");
 });
 
 test("danger reads as danger in the border and the ink, not in the shape", () => {
   const danger = button({ label: "Remove", role: "danger" });
 
-  assert.equal(danger.style.color, "var(--red)");
+  assert.equal(ROLES.danger.color, "var(--red)");
   assert.equal(danger.style.height, button({ label: "Remove" }).style.height);
 });
 
 test("a quiet button carries no border and no fill", () => {
-  const quiet = button({ label: "Cancel", role: "quiet" });
-
-  assert.equal(quiet.style.border, "none");
-  assert.equal(quiet.style.background, "none");
+  assert.equal(ROLES.quiet.border, "none");
+  assert.equal(ROLES.quiet.background, "none");
 });
 
 test("an icon button is a square and takes markup, not a label", () => {
@@ -84,6 +82,75 @@ test("disabled, a title and a click all reach the description", () => {
   assert.equal(described.attributes.disabled, "");
   assert.equal(described.attributes.title, "posts one comment");
   assert.equal(described.onClick, onClick);
+});
+
+test("the verdict tints the primary without resizing it", () => {
+  // The footer's send button wears the verdict it would send. That was three
+  // id rules stacked on a fourth, each free to set a height none of the others
+  // knew about.
+  const plain = button({ label: "Post review", role: "primary" });
+  const ok = button({ label: "Post review", role: "primary", tone: "ok" });
+  const critical = button({ label: "Post review", role: "primary", tone: "critical" });
+
+  assert.ok(!plain.className.includes("is-ok"));
+  assert.match(ok.className, /ui-button--primary .*is-ok/);
+  assert.match(critical.className, /ui-button--primary .*is-critical/);
+  assert.equal(ok.style.height, plain.style.height);
+  assert.equal(critical.style.padding, plain.style.padding);
+});
+
+test("a tone nobody agreed to is refused, and only a fill can carry one", () => {
+  assert.throws(() => button({ label: "Post", role: "primary", tone: "loud" }), /loud/);
+  assert.throws(() => button({ label: "Edit", tone: "ok" }), /ghost/);
+});
+
+test("the filled button is read against its fill, not against the page", () => {
+  // --postFg is near-white and the dark accent is a light blue, which is the
+  // one pairing in the palette that cannot be read. Every other filled control
+  // already used --accentFg.
+  assert.equal(ROLES.primary.color, "var(--accentFg)");
+});
+
+test("a description carries no colour, because colour has states", () => {
+  // An inline background beats every :hover this app could write, and the two
+  // states that matter - hovering, and armed for a second click - are both
+  // colour. So the role is a class and the sheet answers it.
+  for (const role of Object.keys(ROLES)) {
+    const { style } = button({ role, label: "x", icon: "<svg/>" });
+
+    for (const property of ["background", "color", "border", "font-weight"]) {
+      assert.ok(!(property in style), `${role} sets ${property} inline`);
+    }
+  }
+});
+
+test("a button that arms says so before it is armed", () => {
+  // arm() writes data-armed on the first click. A button that starts without
+  // the attribute is a button whose armed look nothing declared.
+  assert.equal(button({ label: "Delete", role: "danger", arms: true }).attributes["data-armed"], "false");
+  assert.ok(!("data-armed" in button({ label: "Delete", role: "danger" }).attributes));
+});
+
+test("an icon button that arms is at least a square, because the question is words", () => {
+  // arm() replaces the glyph with "Delete?". A fixed 20px square clips it.
+  const armed = button({ role: "icon", icon: "<svg/>", arms: true });
+
+  assert.equal(armed.style["min-width"], "var(--ctlIcon)");
+  assert.equal(armed.style.height, "var(--ctlIcon)");
+  assert.ok(!("width" in armed.style));
+  assert.equal(armed.style.padding, "0 var(--space1)");
+});
+
+test("a link can wear a button's clothes without becoming a button", () => {
+  // The celebration's invitation is an anchor: it navigates, so a middle click
+  // has to open it. It sits beside a button doing the same job and had no
+  // height at all.
+  const link = button({ label: "Read the docs", role: "primary", link: true });
+
+  assert.equal(link.tag, "a");
+  assert.ok(!("type" in link.attributes));
+  assert.equal(link.style.height, button({ label: "x", role: "primary" }).style.height);
+  assert.equal(button({ label: "x" }).tag, "button");
 });
 
 test("a role nobody agreed to is refused", () => {

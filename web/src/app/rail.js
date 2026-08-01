@@ -18,6 +18,8 @@ import {
   COPIED_ICON,
   REDRAFT_ICON,
 } from "./dom.js";
+import { button } from "../ui/button.js";
+import { render } from "../ui/render.js";
 
 /**
  * Draw the whole left pane.
@@ -65,10 +67,11 @@ function drawBlurb(app) {
   link.rel = "noreferrer";
   link.textContent = `${pull.repo}#${pull.number}`;
 
-  const copy = document.createElement("button");
-  copy.className = "copy-url";
-  copy.title = "Copy the pull request url";
-  copy.innerHTML = COPY_ICON;
+  const copy = render(
+    button({ role: "icon", icon: COPY_ICON, title: "Copy the pull request url" }),
+  );
+
+  copy.classList.add("copy-url");
   copy.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(pull.url);
@@ -116,12 +119,17 @@ function drawBlurb(app) {
  * @returns {HTMLElement} the button
  */
 function redraftButton(app, pull) {
-  const again = document.createElement("button");
+  const again = render(
+    button({
+      role: "icon",
+      icon: REDRAFT_ICON,
+      arms: true,
+      title: "Delete this draft, so this pull request is reviewed again",
+    }),
+  );
 
-  again.className = "clear-review";
-  again.title = "Delete this draft, so this pull request is reviewed again";
+  again.classList.add("clear-review");
   again.setAttribute("aria-label", "Review again");
-  again.innerHTML = REDRAFT_ICON;
 
   const restore = () => {
     again.innerHTML = REDRAFT_ICON;

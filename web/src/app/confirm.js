@@ -3,6 +3,8 @@
 import { renderBody } from "../domain/render.js";
 import { reviewPayload } from "../domain/review.js";
 import { find, say } from "./dom.js";
+import { button } from "../ui/button.js";
+import { restyle } from "../ui/render.js";
 import { findingCard } from "./findings.js";
 import { VERDICT_TONE } from "./footer.js";
 import { reviewText } from "./summary.js";
@@ -20,12 +22,13 @@ import { dismissedWords, postLabel, postNote, postedWords } from "./words.js";
  * @returns {void}
  */
 export function settle(app) {
-  const button = find("confirm-post");
+  // Described rather than reset field by field: the spinner the send put in
+  // its place goes with the description, and so does the tint.
+  const send = restyle(button({ label: postLabel(app), role: "primary" }), find("confirm-post"));
+  const cancel = restyle(button({ label: "Keep editing" }), find("confirm-cancel"));
 
-  button.disabled = false;
-  button.classList.remove("is-posting");
-  button.textContent = postLabel(app);
-  find("confirm-cancel").disabled = false;
+  send.disabled = false;
+  cancel.disabled = false;
 }
 
 /**
@@ -87,11 +90,10 @@ export async function post(app) {
 
   if (!pull) return;
 
-  const button = find("confirm-post");
+  const send = find("confirm-post");
 
-  button.disabled = true;
-  button.classList.add("is-posting");
-  button.innerHTML = '<span class="spin" aria-hidden="true"></span>Posting…';
+  send.disabled = true;
+  send.innerHTML = '<span class="spin" aria-hidden="true"></span>Posting…';
   find("confirm-cancel").disabled = true;
   find("confirm-note").textContent = "sending…";
   say("posting…");
@@ -193,6 +195,8 @@ export async function dismiss(app) {
  */
 export function celebrate(app, pull, url, words = postedWords(app)) {
 
+  restyle(button({ label: "Back to the queue" }), find("cheer-close"));
+
   find("cheer-slug").textContent = `${pull.owner}/${pull.repo}#${pull.number}`;
   find("cheer-pr").textContent = pull.title;
   find("cheer-title").textContent = words.title;
@@ -214,18 +218,28 @@ export function celebrate(app, pull, url, words = postedWords(app)) {
   const cta = find("cheer-cta");
 
   cta.hidden = !words.cta.href;
-  cta.textContent = words.cta.text;
-  if (words.cta.href) cta.href = words.cta.href;
+
+  // The one thing being asked for on a page that sent nothing, so it wears the
+  // primary's clothes. It stays an anchor: it navigates, and a middle click on
+  // it has to open a tab the way every other link here does.
+  if (words.cta.href) {
+    restyle(button({ label: words.cta.text, role: "primary", link: true }), cta);
+    cta.classList.add("cheer-cta");
+    cta.href = words.cta.href;
+  }
 
   // Crossing the title out reads as "done, and gone". Nothing left the demo, so
   // there is nothing to strike through.
   find("cheer-pr").classList.toggle("cheer-struck", words.struck);
 
   const next = app.queue().find((entry) => entry.isReady);
-  const button = find("cheer-next");
+  const onward = restyle(
+    button({ label: "Next ready review \u2192", role: "primary" }),
+    find("cheer-next"),
+  );
 
-  button.hidden = !next;
-  button.onclick = () => {
+  onward.hidden = !next;
+  onward.onclick = () => {
     find("celebrate").hidden = true;
 
     if (next) app.select(next).catch((failure) => say(failure.message, "error"));
