@@ -85,7 +85,12 @@ export class MultiEventStore {
    * @returns {Promise<void>} when nothing anywhere is outstanding
    */
   async settled() {
-    await Promise.all([this._root, ...Object.values(this._dbs)].map((db) => db.settled()));
+    const logs = [this._root, ...Object.values(this._dbs)];
+
+    // Settled rather than all, so this holds whatever a log does. What waits
+    // here is waiting to draw, and one log that answers with a failure should
+    // not reject onto the redraw path and freeze the interface for the rest.
+    await Promise.allSettled(logs.map((db) => db.settled()));
   }
 
   /**
