@@ -114,6 +114,23 @@ describe("when starting up goes wrong", () => {
     assert.equal(log.includes("open"), false);
   });
 
+  // A curtain that never lifts is the whole app lost, and the reader has no way
+  // out of it but a reload that lands them in the same place.
+  test("still lifts the curtain when drawing the interface throws", async () => {
+    const { run, log } = aStartup({
+      render: () => {
+        throw new Error("the rail would not draw");
+      },
+    });
+
+    await run;
+
+    assert.deepEqual(
+      log.filter((entry) => !entry.startsWith("wait")),
+      ["boot", "open", "failed:the rail would not draw", "reveal"],
+    );
+  });
+
   test("lifts the curtain when the review it tried to open will not load", async () => {
     const { run, log } = aStartup({
       open: async () => {

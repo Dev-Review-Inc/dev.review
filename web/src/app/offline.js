@@ -1,5 +1,7 @@
 // Turning the offline shell on, and knowing when not to.
 
+import { say } from "./dom.js";
+
 /**
  * Whether the development server is behind this page.
  *
@@ -51,7 +53,31 @@ export async function offline(page, agent, store) {
   return true;
 }
 
+/**
+ * Turn the offline shell on as the page loads, and say so if it will not.
+ *
+ * Nothing awaits this: it is the last statement of a module the page loads and
+ * nobody holds. A registration the browser refuses - a worker that will not
+ * parse, a MIME type it will not take, a scope it will not grant, storage the
+ * reader has blocked - would otherwise reject into the console, and the reader
+ * would go on believing they had an app that starts without a network when they
+ * do not.
+ *
+ * @param {Document} page the document
+ * @param {Navigator} agent the browser
+ * @param {CacheStorage} store the browser's caches
+ * @param {(message: string, tone: string) => void} report how to tell the reader
+ * @returns {Promise<void>} when it is on, or has said why it is not
+ */
+export async function start(page, agent, store, report) {
+  try {
+    await offline(page, agent, store);
+  } catch (failure) {
+    report(failure.message, "error");
+  }
+}
+
 // The browser is passed in rather than reached for, so a test can hand these
 // functions a document and a navigator of its own. In node there is a navigator
 // with no workers on it, which is the answer this wants anyway.
-offline(globalThis.document, globalThis.navigator, globalThis.caches);
+start(globalThis.document, globalThis.navigator, globalThis.caches, say);

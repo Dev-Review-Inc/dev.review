@@ -409,9 +409,11 @@ export class Commands {
   }
 
   // Syncing is debounced because dropping four findings in a row is one thought
-  // and should be one write, not four. Nothing is caught here: a push that does
-  // not land answers so rather than throwing, and records that it did not, so
-  // the reader can be told how much is waiting.
+  // and should be one write, not four. Nothing is caught here because there is
+  // nothing to catch: `push` answers that it did not land rather than throwing,
+  // and records that it did not, so the reader can be told how much is waiting.
+  // That is a contract `push` keeps, not an assumption made here - a timer's
+  // callback has nobody to hand a rejection to.
   _laterSync(source) {
     if (!this.sync) return;
 

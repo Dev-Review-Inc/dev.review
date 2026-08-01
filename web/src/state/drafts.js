@@ -151,9 +151,22 @@ export class Drafts {
 
     if (!this._unwatch) {
       this._unwatch = this.adapter.watch(ROOT, (paths) => {
-        this._absorb(paths).then((changed) => {
-          if (changed.length) this._listeners.forEach((listener) => listener(changed));
-        });
+        this._absorb(paths)
+          .then((changed) => {
+            if (!changed.length) return null;
+
+            // Held rather than dropped: a listener here is a redraw, and a
+            // redraw is the thing in this round most likely to fail.
+            return Promise.all([...this._listeners].map((listener) => listener(changed)));
+          })
+          .catch(() => {
+            // What is lost is one round of this watch. The drafts read above
+            // are in; whoever was told about them did not finish. That is
+            // acceptable because the next round is two seconds away and reads
+            // the same listing, and because the only way to report it would be
+            // a message every two seconds for as long as the fault lasted,
+            // over an interface the reader is trying to read.
+          });
       });
     }
 

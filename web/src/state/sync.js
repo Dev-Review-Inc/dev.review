@@ -36,22 +36,25 @@ export class Sync {
    * what is already there needs a read-modify-write, and this file is small
    * enough that rewriting it is cheaper than being clever about it.
    *
-   * A refused write is answered rather than thrown. A reader whose storage is
-   * unreachable keeps reading and keeps deciding; what they have decided since
-   * the last write that landed is what `unsynced` counts.
+   * Nothing here throws, and that is a contract rather than a convenience: the
+   * debounced push is dropped on a timer with nobody holding what it returns,
+   * so anything that got out would be an unhandled rejection. That is why the
+   * whole body is inside the try and not only the write. A reader whose storage
+   * is unreachable keeps reading and keeps deciding; what they have decided
+   * since the last write that landed is what `unsynced` counts.
    *
    * @param {object} source which source
    * @returns {Promise<boolean>} whether it is known to have reached the source
    */
   async push(source) {
-    const adapter = this.adapterFor(source);
-
-    if (!adapter) return false;
-
-    const events = this.state.allEvents(source.id);
-    const body = events.map((event) => event.toLine()).join("\n");
-
     try {
+      const adapter = this.adapterFor(source);
+
+      if (!adapter) return false;
+
+      const events = this.state.allEvents(source.id);
+      const body = events.map((event) => event.toLine()).join("\n");
+
       await adapter.write(this._path(this.deviceId), new TextEncoder().encode(body));
 
       // What went out, not what is held now. A decision made while the write was
@@ -128,11 +131,19 @@ export class Sync {
 
       Promise.all(others.map((path) => this._absorb(source, adapter, path)))
         .then((absorbed) => {
-          if (absorbed.some((events) => events.length)) onChange();
+          // Returned rather than dropped, so the redraw this asks for is inside
+          // the same chain as the read that earned it.
+          if (absorbed.some((events) => events.length)) return onChange();
+
+          return null;
         })
         .catch(() => {
-          // Another device's log being briefly unreadable is not worth
-          // interrupting a reader over. The next round picks it up.
+          // What is lost is one round of this watch: either another device's
+          // log was briefly unreadable, or whoever was told about it did not
+          // finish. Neither is worth interrupting a reader over, because the
+          // next round is two seconds away and reads the same listing, and
+          // saying so would mean a message every two seconds for as long as
+          // the fault lasted.
         });
     });
 

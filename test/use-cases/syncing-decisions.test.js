@@ -208,6 +208,59 @@ describe("A local store that cannot remember what reached the source", () => {
   });
 });
 
+// A push is documented as answering rather than throwing, and the debounced one
+// is dropped on a timer that relies on exactly that. Only the write was ever
+// inside the try, so reading the log, turning it into lines, or finding the
+// reader for the source could each throw straight past the contract.
+describe("A push that cannot get as far as writing", () => {
+  let rejections;
+  let note;
+
+  beforeEach(() => {
+    rejections = [];
+    note = (reason) => rejections.push(reason);
+    process.on("unhandledRejection", note);
+  });
+
+  afterEach(() => {
+    process.off("unhandledRejection", note);
+  });
+
+  test("answers that it did not land when the log cannot be read", async () => {
+    const app = await anApp();
+
+    app.state.allEvents = () => {
+      throw new Error("the log is unreadable");
+    };
+
+    assert.equal(await app.sync.push(app.source), false);
+  });
+
+  test("answers that it did not land when there is no reader for the source", async () => {
+    const app = await anApp();
+
+    app.sync.adapterFor = () => {
+      throw new Error("that source cannot be built");
+    };
+
+    assert.equal(await app.sync.push(app.source), false);
+  });
+
+  test("does not reject out of the timer that dropped it", async () => {
+    const app = await anApp();
+
+    app.state.allEvents = () => {
+      throw new Error("the log is unreadable");
+    };
+
+    app.commands.dismissPull(app.source, app.open());
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    assert.deepEqual(rejections, []);
+  });
+});
+
 describe("Counting what another device decided", () => {
   test("a decision taken in from a peer is already at the source, so it is not waiting", async () => {
     const adapter = new MemoryAdapter();

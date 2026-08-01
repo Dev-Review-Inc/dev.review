@@ -7,11 +7,12 @@
 // disagree about what is being looked at.
 
 import { App } from "./app.js";
+import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
 import { afterClick, find, say } from "./dom.js";
-import { dismissedWords, leaveWords } from "./words.js";
-import { celebrate, closeConfirm, openConfirm, post } from "./confirm.js";
+import { leaveWords } from "./words.js";
+import { closeConfirm, dismiss, openConfirm, post } from "./confirm.js";
 import {
   closeQueue,
   closeSetup,
@@ -26,6 +27,11 @@ import { DISMISS, drawFooter } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail } from "./rail.js";
 import { closeEditor, drawSummary } from "./summary.js";
+
+// Registered first, before anything that could fail has run. It handles
+// nothing: it is the backstop described in backstop.js, and anything it ever
+// reports is a catch missing from the code that caused it.
+backstop(window, say);
 
 // A page that asked for the demo gets sample data attached on its first load.
 // Every other page gets an app with nothing in it, as before.
@@ -206,28 +212,12 @@ find("editor").addEventListener("blur", () => {
   afterClick(() => closeEditor(app));
 });
 
-find("post").addEventListener("click", async () => {
+find("post").addEventListener("click", () => {
   if (!app.dismissing) return openConfirm(app);
 
-  // There is no sheet to confirm because there is nothing to send: the
-  // decision is local, and the way back is the restore the queue offers.
-  const pull = app.selected;
-
-  // Waited for rather than fired off, so the queue never shows a pull request
-  // gone before the reason it is gone has been written down. Closing the tab
-  // on that screen would otherwise bring it back.
-  await app.commands.dismissPull(app.source, pull);
-  app.dismissing = false;
-  // Answering "nothing" leaves nothing to look at, so the review is closed
-  // rather than left open under a footer offering to post it after all.
-  app.selected = null;
-  app.changed();
-
-  // The same screen a posted review gets. Finishing with a pull request is the
-  // thing being marked, and deciding there was nothing to say is a way of
-  // finishing with it. The words are the dismissal's own, so nothing here
-  // claims a review went anywhere.
-  celebrate(app, pull, pull.url, dismissedWords());
+  // `dismiss` says whatever went wrong itself, so the promise a listener cannot
+  // return is one nothing is waiting on rather than one nobody is holding.
+  dismiss(app);
 });
 
 find("verdicts").addEventListener("click", (event) => {
@@ -301,4 +291,6 @@ startup({
   render,
   reveal: () => (find("curtain").hidden = true),
   failed: (failure) => say(failure.message, "error"),
-}).then(() => app.onChange(render));
+})
+  .then(() => app.onChange(render))
+  .catch((failure) => say(failure.message, "error"));

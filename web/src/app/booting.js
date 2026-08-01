@@ -50,7 +50,16 @@ export async function startup({
     failed(failure);
   }
 
-  render();
+  // Drawing gets a try of its own rather than joining the one above, for the
+  // same reason the one above exists: the curtain is lifted after this, and a
+  // pane that threw would leave the reader under an opaque screen with no way
+  // out but a reload that lands them back under it. Separate, because a start
+  // up that could not reach its destination still has an interface to draw.
+  try {
+    render();
+  } catch (failure) {
+    failed(failure);
+  }
 
   await wait(Math.max(0, FLOOR - (now() - started)));
 

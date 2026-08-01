@@ -309,18 +309,39 @@ function drawDismissed(app) {
     );
     row.firstChild.append(element("span", "name", entry.title));
 
-    const restore = document.createElement("button");
-    restore.className = "ghost setup-edit";
-    restore.textContent = "Restore";
-    restore.title = "Put this pull request back on the queue";
-    restore.addEventListener("click", async () => {
-      await app.commands.restorePull(app.source, entry);
-      app.changed();
-    });
+    const button = document.createElement("button");
+    button.className = "ghost setup-edit";
+    button.textContent = "Restore";
+    button.title = "Put this pull request back on the queue";
+    // `restore` says whatever went wrong itself, so the promise a listener
+    // cannot return is one nothing is waiting on rather than one nobody holds.
+    button.addEventListener("click", () => restore(app, entry));
 
-    line.append(row, restore);
+    line.append(row, button);
     section.append(line);
   }
+}
+
+/**
+ * Put a dismissed pull request back on the queue.
+ *
+ * @param {object} app the application
+ * @param {object} entry the dismissed pull request
+ * @returns {Promise<void>} when it is back, or has said why it is not
+ */
+export async function restore(app, entry) {
+  try {
+    await app.commands.restorePull(app.source, entry);
+  } catch (failure) {
+    // The row stays in the dismissed list, which is the truth: a restore that
+    // was not written down did not happen, and redrawing the pull request onto
+    // the queue would put it somewhere it will not be after a reload.
+    say(failure.message, "error");
+
+    return;
+  }
+
+  app.changed();
 }
 
 function queueRow(app, entry) {

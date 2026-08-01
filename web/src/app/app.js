@@ -522,7 +522,38 @@ export class App {
     // That read can have cleared the very review being looked at, so this ends
     // the way the watch does. Redrawing alone would leave the queue saying the
     // review is gone while the pane went on showing it.
-    this.reselect();
+    await this.reselect();
+  }
+
+  /**
+   * Ask again, on the timer, with nobody holding the answer.
+   *
+   * `loadQueue` throws, because every other caller awaits it and can say what
+   * went wrong. A timer's callback cannot: what it returns is discarded, so
+   * anything thrown out of here would be an unhandled rejection and the reader
+   * would be told nothing at all. The reason is left on the source instead, in
+   * the same words and the same shape the sweep uses, so it shows on the
+   * source's row and its attention dot rather than in a console nobody opens.
+   *
+   * @returns {Promise<void>} when the queue is current, or the source says why not
+   */
+  async refreshQueue() {
+    try {
+      await this.loadQueue();
+    } catch (failure) {
+      this.problems.source = failure.message;
+
+      if (this.source) {
+        this.health[this.source.id] = {
+          state: "broken",
+          reason: failure.message,
+          drafts: 0,
+          at: Date.now(),
+        };
+      }
+
+      this.changed();
+    }
   }
 
   /**
@@ -600,7 +631,7 @@ export class App {
     if (!pull || !this.drafts || !pull.draft) return;
 
     await this.drafts.clear(pull, pull.key);
-    this.reselect();
+    await this.reselect();
   }
 
   /**
@@ -650,7 +681,7 @@ export class App {
     });
 
     this.commands.recordPostedFinding(this.source, pull, finding, posted);
-    this.reselect();
+    await this.reselect();
   }
 
   /**
@@ -670,7 +701,7 @@ export class App {
       url: posted.url,
       event: payload.event,
     });
-    this.reselect();
+    await this.reselect();
 
     return posted;
   }
@@ -742,11 +773,15 @@ export class App {
       this.commands.sync.watch(this.source, () => this.reselect()),
     );
 
+    // A first pull that could not reach the storage loses nothing: this device
+    // has its own decisions either way, and the watch below asks again in two
+    // seconds. Stopping here would mean a source that opens into nothing
+    // because another device's log was briefly unreadable.
     await this.commands.sync.pull(this.source).catch(() => {});
     await this.loadQueue();
 
     clearInterval(this._refresh);
-    this._refresh = setInterval(() => this.loadQueue(), REFRESH);
+    this._refresh = setInterval(() => this.refreshQueue(), REFRESH);
     // Asking the destination again must never be the reason a process stays alive.
     if (typeof this._refresh.unref === "function") this._refresh.unref();
   }

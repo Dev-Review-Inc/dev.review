@@ -10,7 +10,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { developing, offline } from "../../web/src/app/offline.js";
+import { developing, offline, start } from "../../web/src/app/offline.js";
 
 // The worker registers its listeners on `self` as it is imported, so there has
 // to be one before the import runs. Nothing else about a worker is needed: the
@@ -114,6 +114,47 @@ describe("turning the offline shell on", () => {
 
   test("does nothing in a browser that has no workers", async () => {
     assert.equal(await offline(pageServed({ byTheDevelopmentServer: false }), {}, undefined), false);
+  });
+});
+
+// Nothing awaits the call the module makes as the page loads. A registration
+// the browser refuses - a worker that will not parse, a MIME type it will not
+// take, storage the reader has blocked - would reject into the console, and the
+// reader would go on believing they had an app that starts without a network.
+describe("a registration the browser refuses", () => {
+  function refusing(reason) {
+    const agent = fakeAgent();
+
+    agent.serviceWorker.register = () => Promise.reject(new Error(reason));
+
+    return agent;
+  }
+
+  test("is said rather than dropped", async () => {
+    const said = [];
+
+    await start(
+      pageServed({ byTheDevelopmentServer: false }),
+      refusing("the worker would not parse"),
+      fakeStore(),
+      (message, tone) => said.push([message, tone]),
+    );
+
+    assert.deepEqual(said, [["the worker would not parse", "error"]]);
+  });
+
+  test("is held, so it is not the page's first unhandled rejection", async () => {
+    const rejections = [];
+    const note = (reason) => rejections.push(reason);
+
+    process.on("unhandledRejection", note);
+
+    start(pageServed({ byTheDevelopmentServer: false }), refusing("blocked"), fakeStore(), () => {});
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off("unhandledRejection", note);
+
+    assert.deepEqual(rejections, []);
   });
 });
 

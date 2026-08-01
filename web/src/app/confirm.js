@@ -6,7 +6,7 @@ import { find, say } from "./dom.js";
 import { findingCard } from "./findings.js";
 import { VERDICT_TONE } from "./footer.js";
 import { reviewText } from "./summary.js";
-import { postLabel, postNote, postedWords } from "./words.js";
+import { dismissedWords, postLabel, postNote, postedWords } from "./words.js";
 
 /**
  * Put the confirmation sheet back to a state it can be used from.
@@ -133,6 +133,48 @@ export async function post(app) {
     settle(app);
     find("confirm-note").textContent = "nothing has been sent";
   }
+}
+
+/**
+ * Take a pull request off the queue, with nothing sent anywhere.
+ *
+ * There is no sheet to confirm because there is nothing to send: the decision is
+ * local, and the way back is the restore the queue offers.
+ *
+ * @param {object} app the application
+ * @returns {Promise<void>} when it is off the queue, or has said why it is not
+ */
+export async function dismiss(app) {
+  const pull = app.selected;
+
+  if (!pull) return;
+
+  try {
+    // Waited for rather than fired off, so the queue never shows a pull request
+    // gone before the reason it is gone has been written down. Closing the tab
+    // on that screen would otherwise bring it back.
+    await app.commands.dismissPull(app.source, pull);
+  } catch (failure) {
+    // Nothing is closed and nothing is celebrated. A dismissal that was not
+    // written down did not happen, and taking the review off screen for it
+    // would leave the reader sure they had dealt with a pull request that is
+    // still on the queue.
+    say(failure.message, "error");
+
+    return;
+  }
+
+  app.dismissing = false;
+  // Answering "nothing" leaves nothing to look at, so the review is closed
+  // rather than left open under a footer offering to post it after all.
+  app.selected = null;
+  app.changed();
+
+  // The same screen a posted review gets. Finishing with a pull request is the
+  // thing being marked, and deciding there was nothing to say is a way of
+  // finishing with it. The words are the dismissal's own, so nothing here
+  // claims a review went anywhere.
+  celebrate(app, pull, pull.url, dismissedWords());
 }
 
 /**
