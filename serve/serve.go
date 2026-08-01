@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -152,6 +153,15 @@ type live struct {
 }
 
 func (l live) lookup(name string) (*asset, bool) {
+	// The reload listener is part of what this mode serves, though it is not in
+	// the directory. Answering for it here rather than as a route of its own is
+	// what keeps the served set and the directory from being two different
+	// things: index.html names the listener, so a health check reading that
+	// document has to find it.
+	if name == listenerName {
+		return listener, true
+	}
+
 	body, err := fs.ReadFile(l.files, name)
 	if err != nil {
 		return nil, false
@@ -180,6 +190,13 @@ func (l live) lookup(name string) (*asset, bool) {
 //
 // An empty policy means the documented one; anything else replaces it whole,
 // for hosting that needs a different shape and accepts owning the consequences.
+//
+// A tree the interface cannot run from is refused here rather than served. The
+// alternative is a process that logs "listening on", answers, and 404s the
+// modules at the first reader, which is a deploy that looks like it worked. The
+// container refused is the new one, so what a refusal costs is a failed deploy
+// with the absent file named in the log, while whatever was already taking
+// traffic carries on.
 func newSnapshot(files fs.FS, policy string) (http.Handler, error) {
 	assets := snapshot{}
 
@@ -205,6 +222,10 @@ func newSnapshot(files fs.FS, policy string) (http.Handler, error) {
 		return nil, err
 	}
 
+	if absent := missing(assets); len(absent) > 0 {
+		return nil, fmt.Errorf("the interface cannot run from this tree: %s", strings.Join(absent, ", "))
+	}
+
 	return secured(handler(assets), policy), nil
 }
 
@@ -213,6 +234,100 @@ func newSnapshot(files fs.FS, policy string) (http.Handler, error) {
 // exists in this mode and no other.
 func newLive(files fs.FS, policy string) http.Handler {
 	return secured(reloadRoutes(files, handler(live{files: files})), policy)
+}
+
+// reference matches a file this site names in its own markup. Single-quoted
+// attributes are not read, which leaves a reference uncounted rather than
+// counted wrongly, and uncounted is the safe direction for everything below.
+var reference = regexp.MustCompile(`(?i)\b(?:src|href)="([^"]*)"`)
+
+// missing lists what the interface needs and does not have.
+//
+// The set is read out of index.html rather than written down here. index.html
+// is the document every client-side route is answered with, and the files it
+// names are the ones the browser fetches before anything runs: the entry
+// module, the manifest, the icons. A list kept in this file would be a list
+// that goes stale the first time the interface renames a module, and a stale
+// list is a check that passes over the thing it was written to catch.
+//
+// It stops at the entry document. Following the module graph from there means
+// parsing JavaScript, which is a great deal of machinery for a static file
+// server, and the failure worth catching is a tree that arrived in pieces
+// rather than one file deep in it.
+func missing(files source) []string {
+	index, ok := files.lookup("index.html")
+	if !ok {
+		return []string{"index.html"}
+	}
+
+	var absent []string
+
+	for _, name := range references(index.body) {
+		if _, ok := files.lookup(name); !ok {
+			absent = append(absent, name)
+		}
+	}
+
+	return absent
+}
+
+// references reads the local files a document names, as paths within the asset
+// set.
+//
+// Anything with a scheme belongs to another origin and is not ours to have.
+// Anything without an extension is a client-side route rather than a file: the
+// interface links to its own addresses, and those are answered by the fallback,
+// not looked up.
+func references(document []byte) []string {
+	var names []string
+
+	seen := map[string]bool{}
+
+	for _, match := range reference.FindAllSubmatch(document, -1) {
+		name, _, _ := strings.Cut(string(match[1]), "?")
+		name, _, _ = strings.Cut(name, "#")
+
+		if scheme, _, found := strings.Cut(name, ":"); found && !strings.Contains(scheme, "/") {
+			continue
+		}
+
+		// A protocol-relative address is another origin with the scheme left to
+		// the page.
+		if strings.HasPrefix(name, "//") || path.Ext(name) == "" {
+			continue
+		}
+
+		name = resolve(name)
+
+		if seen[name] {
+			continue
+		}
+
+		seen[name] = true
+
+		names = append(names, name)
+	}
+
+	return names
+}
+
+// up answers the deploy's health check.
+//
+// It is a route of its own so that its answer can never be the fallback's
+// doing, and it reports what is served rather than that this process is running:
+// a check that only proves the port answers is passed by a deployment holding
+// nothing but the file it hands back.
+func up(writer http.ResponseWriter, files source) {
+	if absent := missing(files); len(absent) > 0 {
+		http.Error(writer, "the interface cannot run: "+strings.Join(absent, " "), http.StatusServiceUnavailable)
+
+		return
+	}
+
+	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	writer.Header().Set("Cache-Control", "no-store")
+	writer.WriteHeader(http.StatusOK)
+	io.WriteString(writer, "up\n")
 }
 
 // prepare works out everything about a file that does not depend on the
@@ -331,6 +446,16 @@ func handler(files source) http.Handler {
 
 		name := resolve(request.URL.Path)
 
+		// Before the lookup, because /up names no file and would otherwise reach
+		// the fallback at the bottom of this function and be answered 200 by it.
+		// Matched on the resolved name so that /up/ and //up are the same route
+		// rather than two addresses that take the fallback instead.
+		if name == "up" {
+			up(writer, files)
+
+			return
+		}
+
 		if found, ok := files.lookup(name); ok {
 			send(writer, request, found)
 
@@ -399,10 +524,10 @@ func handler(files source) http.Handler {
 		// Anything else is a client-side route. The interface is served at the
 		// requested address so the router can read it.
 		//
-		// /up arrives here too, and that is the deploy contract rather than a
-		// coincidence: Basecamp ONCE health checks it, and a 200 from this branch
-		// says the interface is present and servable, which is more than a route
-		// returning a constant could say. TestUpIsTheHealthEndpoint holds it.
+		// This branch says yes to everything it is asked, which is why /up is
+		// answered above it: a health check landing here would be a 200 from any
+		// deployment able to read one file. TestUpIsTheHealthEndpoint holds them
+		// apart.
 		index, ok := files.lookup("index.html")
 		if !ok {
 			http.Error(writer, "interface missing", http.StatusInternalServerError)

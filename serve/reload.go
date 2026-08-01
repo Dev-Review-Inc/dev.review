@@ -24,10 +24,14 @@ import (
 // few hundred files costs nothing noticeable.
 const poll = 250 * time.Millisecond
 
+// listenerName is where the listener is served from, and the name index.html
+// asks for it by.
+const listenerName = "reload.js"
+
 // listenerTag is appended to index.html in -dir mode. It is appended rather
 // than woven into the document because the document belongs to the interface,
 // not to the server: nothing in web/ has to know this mode exists.
-const listenerTag = "\n<script src=\"/reload.js\"></script>\n"
+const listenerTag = "\n<script src=\"/" + listenerName + "\"></script>\n"
 
 // listenerSource reloads the page when the stream says the directory changed.
 // The stream only speaks when something actually changed, so there is no state
@@ -40,21 +44,18 @@ const listenerSource = `new EventSource("/reload").addEventListener("message", (
 var listener = script()
 
 func script() *asset {
-	ready := prepare("reload.js", []byte(listenerSource))
+	ready := prepare(listenerName, []byte(listenerSource))
 	ready.cache = "no-store"
 
 	return ready
 }
 
-// reloadRoutes puts the stream and the listener in front of the served files.
+// reloadRoutes puts the stream in front of the served files. The listener needs
+// no route: live serves it as one of its files.
 func reloadRoutes(files fs.FS, next http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /reload", reloader(files, poll))
-
-	mux.HandleFunc("GET /reload.js", func(writer http.ResponseWriter, request *http.Request) {
-		send(writer, request, listener)
-	})
 
 	mux.Handle("/", next)
 

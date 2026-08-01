@@ -19,7 +19,10 @@ import (
 // read from web/ so a change to the real interface cannot turn these tests red.
 func fixture() fstest.MapFS {
 	return fstest.MapFS{
-		"index.html":             {Data: []byte("<!doctype html><title>reviewer</title>")},
+		// The entry document names the files the interface starts from, because
+		// that is what the health check reads. A fixture whose index.html named
+		// nothing would let a check that asserts nothing pass.
+		"index.html":             {Data: []byte(`<!doctype html><title>reviewer</title><link rel="manifest" href="./manifest.webmanifest"><script type="module" src="/src/tiny.js"></script>`)},
 		"src/app.js":             {Data: []byte(strings.Repeat("// module\n", 300))},
 		"src/tiny.js":            {Data: []byte("export default 1\n")},
 		"src/app.css":            {Data: []byte(strings.Repeat(".a{color:red}\n", 200))},
@@ -275,27 +278,89 @@ func TestDirectoryRedirectsToItsSlash(t *testing.T) {
 // an internal choice: Basecamp ONCE probes it, and kamal-proxy refuses to
 // register a target that does not answer there.
 //
-// There is no /up route, and deliberately so. /up carries no extension, so it
-// takes the client-side route path and is answered with the interface itself.
-// That proves strictly more than a route returning a constant would: a 200 here
-// means the embedded interface is present and servable, which is the whole job
-// of this process, where a constant would keep saying yes over an image whose
-// index.html had gone missing.
-//
-// What it must not be is an accident. Without this test, a change to the
-// fallback would take the health endpoint with it and nothing would say so
-// until a deploy timed out two minutes in.
+// It is a route of its own, and that is the point. /up carries no extension, so
+// without a route it takes the client-side fallback and is answered with
+// index.html, which means the health check passes on any deployment able to
+// read that one file. What it has to answer is whether the interface can run.
 func TestUpIsTheHealthEndpoint(t *testing.T) {
 	handler := handlerFor(t)
 
-	response := get(t, handler, http.MethodGet, "/up", nil)
+	// /up/ is the same route: an address the fallback would otherwise answer
+	// 200 for while the endpoint itself was saying no.
+	for _, target := range []string{"/up", "/up/"} {
+		response := get(t, handler, http.MethodGet, target, nil)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("/up: status %d, want 200: ONCE's health check is a GET /up", response.Code)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s: status %d, want 200: ONCE's health check is a GET /up", target, response.Code)
+		}
+
+		if strings.Contains(response.Body.String(), "<title>") {
+			t.Errorf("%s: must be answered by its own route, not by the client-side fallback", target)
+		}
+	}
+}
+
+// A deployment that kept index.html and lost the modules it names is broken,
+// and has to say so where the deploy is listening.
+//
+// This is the failure that was seen: a 200 from /up over a tree that had lost
+// almost everything, because the fallback answers with index.html and reading
+// one file was the whole of what the old check proved.
+func TestUpFailsWhenTheInterfaceCannotRun(t *testing.T) {
+	// Assembled here rather than through newSnapshot, which now refuses a tree
+	// like this at startup. What is under test is the answer given by a process
+	// that is already serving one.
+	lost := snapshot{"index.html": prepare("index.html", []byte(`<!doctype html><script type="module" src="/src/app.js"></script>`))}
+
+	response := get(t, handler(lost), http.MethodGet, "/up", nil)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("/up: status %d, want 503 over a tree holding nothing but index.html", response.Code)
 	}
 
-	if !strings.Contains(response.Body.String(), "<title>reviewer</title>") {
-		t.Error("/up must answer with the interface, which is what makes the 200 mean something")
+	if !strings.Contains(response.Body.String(), "src/app.js") {
+		t.Errorf("/up must name what is missing, said %q", response.Body.String())
+	}
+}
+
+// And an interface whose entry document is gone entirely.
+func TestUpFailsWithoutTheInterface(t *testing.T) {
+	response := get(t, handler(snapshot{}), http.MethodGet, "/up", nil)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("/up: status %d, want 503 with no index.html at all", response.Code)
+	}
+}
+
+// A tree that cannot run the interface does not become a running server.
+//
+// Failing here rather than at the first probe is what makes the deploy report
+// the missing file by name. The container that never registers is the new one;
+// the one already taking traffic is untouched, so refusing to start costs a
+// failed deploy and not an outage.
+func TestStartupRefusesATreeTheInterfaceCannotRunFrom(t *testing.T) {
+	cases := map[string]fstest.MapFS{
+		"only the entry document": {
+			"index.html": {Data: []byte(`<!doctype html><script type="module" src="/src/app.js"></script>`)},
+		},
+		"nothing at all": {},
+	}
+
+	for name, files := range cases {
+		if _, err := newSnapshot(files, ""); err == nil {
+			t.Errorf("%s: started, want a refusal naming what is absent", name)
+		}
+	}
+}
+
+// The listener the -dir server adds to the document is served by the same
+// server, so the health check counts it as present. Without this, every
+// development server reports itself down over a reference it added itself.
+func TestUpHoldsInDevelopment(t *testing.T) {
+	response := get(t, newLive(fixture(), ""), http.MethodGet, "/up", nil)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("/up: status %d, want 200", response.Code)
 	}
 }
 

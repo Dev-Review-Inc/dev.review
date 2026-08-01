@@ -103,10 +103,14 @@ rather than fetched over the network.
 - Unknown paths without a file extension serve `index.html`, so client-side
   routing works. A missing path *with* an extension is a 404: answering a
   missing module with HTML produces a syntax error instead of a useful one.
-- `/up` is answered that way too, and is the health endpoint the hosting probes.
-  A 200 there means the interface is present and servable, which is more than a
-  route returning a constant could mean. It is a published contract rather than
-  a side effect, so a test names it.
+- `/up` is the health endpoint the hosting probes, and is a route of its own so
+  that the fallback above can never answer it. A 200 there means `index.html` is
+  present and so is every local file it names: the entry module, the manifest,
+  the icons. That set is read out of the document rather than written down in
+  the source, so it cannot go stale. Anything absent is a 503 naming it.
+- A tree the interface cannot run from is refused at startup, with the absent
+  files in the log, rather than served. A deploy that arrives in pieces fails as
+  a deploy instead of as a 404 on the reader's first module.
 - Directories are never listed. Only files in the set are addressable.
 - `index.html` is `no-cache`. Hashed asset names are immutable for a year.
   Everything else gets five minutes. Under `-dir` every response is `no-store`
