@@ -300,6 +300,21 @@ describe("Writing the review's summary", () => {
     assert.match(await page.text("#comment-body"), /Two things worth a look/);
   });
 
+  test("a written summary still says it can be changed, quietly", async () => {
+    // No button names the affordance, but nor should the box be silent about
+    // it: the title carries it for a screen reader, and this carries it for
+    // an eye that has not read the title yet.
+    const hint = "#comment-body .summary-box .summary-edit-hint";
+
+    assert.equal(await page.count(hint), 1);
+    assert.equal(await page.text(hint), "click to edit");
+    assert.equal(await page.eval(`document.querySelector("${hint}").getAttribute("aria-hidden")`), "true");
+    assert.equal(
+      await page.eval('document.querySelector("#comment-body .summary-box").title'),
+      "Click to write in the summary",
+    );
+  });
+
   test("the summary is a box you click to write in, and no button says so", async () => {
     assert.equal(await page.count("#tab-summary button#edit"), 0);
 
@@ -397,6 +412,10 @@ describe("Clearing a review that is open", () => {
     // The tally under the rows counts the same pull request, so it cannot
     // claim a review is under way when the row above it says none has started.
     assert.equal(await page.text("#queue-foot"), "0 drafted · 1 waiting");
+  });
+
+  test("the rail says the same thing the pane does, rather than nothing", async () => {
+    assert.equal(await page.text("#analysis .rail-waiting"), "not started");
   });
 
   test("nothing went wrong along the way", () => {

@@ -606,6 +606,11 @@
 
   .card-head { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 
+  /* Nothing has been drafted yet. Distinct from isDrafting, which means a
+     draft exists and is still being written; this is the state before that,
+     where the sweep has not picked the pull request up at all. */
+  .rail-waiting { padding: 8px 12px; font-family: var(--mono); font-size: var(--textSmall); color: var(--faint); }
+
   /* Section rows double as the pane's filters. Colour is a named token the
      drafting agent picks; the app maps it here, so no draft can be unreadable. */
 
@@ -683,6 +688,7 @@
      there is no edit button, so the border and its hover are what say the
      words can be changed. A box nobody may change loses the invitation. */
   .summary-box {
+    position: relative;
     display: block; width: 100%; text-align: left;
     padding: 16px 18px; border: 1px solid var(--border); border-radius: 8px;
     color: inherit; font: inherit;
@@ -703,6 +709,21 @@
   }
 
   button.summary-box:hover .title { color: var(--accent); }
+
+  /* Quiet until the box itself says it is being considered. The title
+     attribute already gives this to a screen reader, so this is decoration
+     for the eye that is already looking. */
+  .summary-edit-hint {
+    position: absolute; top: 14px; right: 16px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--faint);
+    opacity: 0; transition: opacity .15s ease; pointer-events: none;
+  }
+
+  .summary-box[role="button"]:hover .summary-edit-hint,
+  .summary-box[role="button"]:focus-visible .summary-edit-hint {
+    opacity: 1;
+  }
 
   #comment-notes { padding-bottom: 0; }
   #comment-cards { padding-bottom: 0; }
