@@ -132,3 +132,47 @@ rather than fetched over the network.
 
 The tests build their own in-memory filesystem, so a change to the real
 interface cannot turn them red.
+
+## Deploying
+
+Anything that runs a container runs this. Push to `main` and
+[GitHub Actions](../.github/workflows/docker.yml) runs both suites, then builds
+the image from the repository root with `-f serve/Dockerfile` and pushes it to
+`ghcr.io/<owner>/dev-review`. Every commit is tagged with its full sha as well
+as `latest`, so an install can be pinned to one and a rollback has a name to go
+back to.
+
+What we run it on is [Basecamp ONCE](https://once.com), which installs the image
+on the machine and runs it behind kamal-proxy. The proxy holds 80 and 443,
+routes by hostname and terminates TLS on a Let's Encrypt certificate.
+
+### The contract
+
+ONCE runs any container that meets four conditions. Three of them it checks at
+install time, giving up after two minutes, so each is worth knowing. They are
+also a fair description of what any host needs from this image.
+
+| ONCE asks for | How this image answers |
+| --- | --- |
+| A Docker container | `Dockerfile`: distroless, static, one binary, running as uid 65532 |
+| HTTP on port 80 | `CMD ["-addr", ":80"]`. kamal-proxy is given a target with no port in it, which means 80, and it never asks. Nothing has to be given up to bind it: Docker sets `net.ipv4.ip_unprivileged_port_start=0`, so the unprivileged user binds 80 without a capability |
+| A healthcheck at `/up` returning success | A 200 there says `index.html` and every local file it names are present and servable, which is the only thing this process does. `TestUpIsTheHealthEndpoint` holds it |
+| Persistent data in `/storage` | There is none, so no volume is needed. The reader's token lives in their browser and their drafts live in their own storage; this process reads nothing off disk and writes nothing to it |
+
+### Before the first install
+
+1. Point the hostname's DNS at the machine with an `A` record, **and let it
+   resolve first**. The certificate is issued during the install by validating
+   the name, so an install that runs ahead of DNS gets no cert.
+2. If the image you are installing is private, `docker login ghcr.io` on the
+   machine first, with a GitHub PAT scoped `read:packages`. ONCE authenticates a
+   pull from whatever the machine's Docker config holds (`registryAuthFor` in
+   its `internal/docker/application.go`) and otherwise pulls anonymously, which
+   against a private image is not a slower pull but no pull at all. That PAT is
+   the only secret in the deployment. The app holds no credential of its own.
+
+### Installing
+
+`once` asks rather than taking flags. Give it the image path and the hostname
+when it prompts for them. Shipping a change after that is pushing to `main`: the
+workflow moves `latest`, and ONCE updates itself from it.
