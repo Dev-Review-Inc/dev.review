@@ -131,6 +131,16 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(await page.text("#queue-ready"), "1");
   });
 
+  // Sign out used to carry a label wide enough that, beside a long title, it
+  // wrapped clear off the header's own row. An icon has no such width to give
+  // back, and still needs to say who it is to someone who cannot see it.
+  test("sign out is an icon, not a label, and still has a name to a screen reader", async () => {
+    assert.equal(await page.text("#signout"), "");
+    assert.equal(await page.count("#signout svg"), 1);
+    assert.equal(await page.eval('document.querySelector("#signout").getAttribute("aria-label")'), "Sign out");
+    assert.equal(await page.eval('document.querySelector("#signout").title'), "Forget this destination's token and sign in again");
+  });
+
   test("the drafted review opens by itself, and shows what the agent wrote", async () => {
     assert.equal(await page.text("#head-title"), "Re-root the errors onto a common base class");
     assert.match(await page.text("#blurb"), /the family catch-all is now inert/);

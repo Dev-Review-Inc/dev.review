@@ -27,6 +27,10 @@ export const REDRAFT_ICON =
 export const COPIED_ICON =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// A door with an arrow leaving it: the reader's own reading of "sign out".
+export const LEAVE_ICON =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h7.5m0 0-2.5-2.5m2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 /**
  * @param {string} id an element's id
  * @returns {HTMLElement} the element
