@@ -12,7 +12,7 @@
 
 import { adapterTypes, chooseFolder } from "../adapters/index.js";
 import { destinationTypes } from "../destinations/index.js";
-import { age, arm, element, find, initials, say } from "./dom.js";
+import { age, arm, element, find, initials, say, LEAVE_ICON } from "./dom.js";
 import { button } from "../ui/button.js";
 import { render, restyle } from "../ui/render.js";
 import { leaveWords } from "./words.js";
@@ -124,13 +124,16 @@ export function drawHeader(app) {
   drawOpen(app);
 
   const leave = leaveWords(app);
-  // Compact, because the header is dense chrome. It carried its own 26px rule
-  // for that, ten pixels from what the same class meant everywhere else.
+  // An icon rather than a label: this is the one action on the row that is
+  // not what a reader came here to do, and a label on it was wide enough to
+  // push the title it sits beside onto a second row before the title had
+  // given up any of its own space.
   const control = restyle(
-    button({ label: leave.label, compact: true, title: leave.title }),
+    button({ role: "icon", icon: LEAVE_ICON, title: leave.title }),
     find("signout"),
   );
 
+  control.setAttribute("aria-label", leave.label);
   control.hidden = !app.destination;
 }
 
