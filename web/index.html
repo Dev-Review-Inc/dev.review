@@ -79,10 +79,14 @@
        by 2px, which read as misalignment rather than as importance. */
     --ctlIcon:20px; --ctlCompact:30px; --ctlStandard:36px;
 
-    /* Five steps covering eighteen sizes. Every text size in use lands within
-       a pixel of one: 10.5, 11 and 12 fold into 11.5, 12.5 and 13.5 into 13,
-       14 and 16 into 15. The 8px and 9px marks are glyphs inside dots rather
-       than text, and belong to those components. */
+    /* Five steps covering what were eighteen sizes. Every font-size in this
+       sheet reads one of these off, which is the standard: a size changes
+       here or not at all, never on the selector that happened to need it
+       first. 10.5, 11 and 12 fold into 11.5, 12.5 and 13.5 into 13, 14 and
+       16 into 15. The 8px, 9px and 9.5px marks left outside the scale are
+       glyphs inside dots and badges rather than read text, and the one
+       literal 16px on a mobile input is a technical floor (iOS's zoom-on-
+       focus threshold), not a type choice - see its own comment. */
     --textMicro:10px; --textSmall:11.5px; --textBody:13px;
     --textLead:15px; --textDisplay:19px;
 
@@ -150,7 +154,7 @@
     background: var(--bg);
     color: var(--text);
     font-family: 'IBM Plex Sans', system-ui, sans-serif;
-    font-size: 13px;
+    font-size: var(--textBody);
   }
 
   /* Reset once, here, rather than per component: a rule that only overrides
@@ -251,27 +255,28 @@
     border: 1px solid var(--border); border-radius: 6px;
     background: var(--panel2); color: var(--text);
     text-align: left; white-space: nowrap;
+    font-family: var(--mono);
   }
 
   /* The open pull request reads as header text beside the chips: slug,
      title, stats, one line. */
   .head-open { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
-  .head-open .head-slug { font-size: 11px; flex-shrink: 0; }
+  .head-open .head-slug { font-size: var(--textSmall); flex-shrink: 0; }
   .head-open .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .head-open .head-stats { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+  .head-open .head-stats { font-size: var(--textSmall); white-space: nowrap; flex-shrink: 0; }
 
   .chip:hover { background: var(--panel3); }
   .chip[aria-expanded="true"] { border-color: var(--accent); }
 
-  .chip-value { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .chip-value { display: flex; align-items: center; gap: 6px; font-size: var(--textSmall); }
 
   .chip-count {
     padding: 0 5px; border-radius: 3px;
     background: var(--critBg); color: var(--red);
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
   }
 
-  .caret { color: var(--faint); font-size: 10px; }
+  .caret { color: var(--faint); font-size: var(--textMicro); }
 
   /* The backdrop makes clicking away a way out, without a document listener
      that would also fire on the button that opened it. */
@@ -289,10 +294,10 @@
     display: flex; align-items: center; gap: 8px;
     padding: 9px 12px; border-bottom: 1px solid var(--border2);
     background: var(--panel);
-    font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+    font-size: var(--textMicro); letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
   }
 
-  .popover-foot { padding: 12px; font-size: 10.5px; color: var(--faint); line-height: 1.6; }
+  .popover-foot { padding: 12px; font-size: var(--textSmall); color: var(--faint); line-height: 1.6; }
 
   .setup-row {
     display: grid; gap: 3px; width: 100%;
@@ -304,9 +309,9 @@
   .setup-row:hover { background: var(--panel2); }
   .setup-row[aria-current="true"] { border-left-color: var(--accent); background: var(--hl); }
   .setup-row .top { display: flex; align-items: center; gap: 8px; }
-  .setup-row .name { font-size: 13px; font-weight: 500; }
-  .setup-row .count { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--dim2); }
-  .setup-row .dir { font-family: var(--mono); font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .setup-row .name { font-size: var(--textBody); font-weight: 500; }
+  .setup-row .count { margin-left: auto; font-family: var(--mono); font-size: var(--textSmall); color: var(--dim2); }
+  .setup-row .dir { font-family: var(--mono); font-size: var(--textSmall); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* A row is a switch and an edit, so the row itself cannot be one button. */
   .setup-line { display: flex; align-items: stretch; border-bottom: 1px solid var(--border2); }
@@ -343,11 +348,11 @@
   .settings-group {
     display: flex; align-items: center; gap: 8px;
     padding: 12px 14px 8px;
-    font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .12em; text-transform: uppercase;
     color: var(--setFaint);
   }
 
-  .settings-none { padding: 2px 14px 10px; font-size: 10.5px; color: var(--setFaint); }
+  .settings-none { padding: 2px 14px 10px; font-size: var(--textSmall); color: var(--setFaint); }
 
   .settings-row {
     display: flex; align-items: center; gap: 10px; width: 100%;
@@ -357,10 +362,10 @@
   }
 
   .settings-row .text { display: grid; gap: 2px; min-width: 0; }
-  .settings-row .name { font-size: 13px; font-weight: 500; color: var(--setLabel); }
+  .settings-row .name { font-size: var(--textBody); font-weight: 500; color: var(--setLabel); }
 
   .settings-row .dir {
-    font-size: 10.5px; color: var(--setFaint);
+    font-size: var(--textSmall); color: var(--setFaint);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
@@ -399,21 +404,21 @@
   }
 
   .settings-head { display: flex; align-items: center; gap: 10px; }
-  .settings-title { font-size: 15px; font-weight: 600; color: var(--bright); }
+  .settings-title { font-size: var(--textLead); font-weight: 600; color: var(--bright); }
 
   .settings-state {
     display: flex; align-items: center; gap: 5px;
-    font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase;
   }
 
   .settings-state .settings-dot { width: 6px; height: 6px; }
 
   .settings-type {
-    font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase;
     color: var(--setFaint);
   }
 
-  .settings-remove { padding: 0; font-size: 11px; color: var(--setBad); flex-shrink: 0; }
+  .settings-remove { padding: 0; font-size: var(--textSmall); color: var(--setBad); flex-shrink: 0; }
   .settings-remove[data-armed="true"] { font-weight: 700; }
 
   .settings-fields {
@@ -423,7 +428,7 @@
   /* Each field is a label wrapping its caption and control, flattened into
      the grid so the two columns line up across every row. */
   .settings-fields label { display: contents; }
-  .settings-key { font-size: 11px; color: var(--dim); }
+  .settings-key { font-size: var(--textSmall); color: var(--dim); }
 
   .settings-set {
     margin-left: 6px; padding: 0 4px; border-radius: 3px;
@@ -435,12 +440,12 @@
     height: 34px; padding: 0 11px; min-width: 0;
     border: 1px solid var(--setBorder); border-radius: 6px;
     background: var(--setInput); color: var(--bright);
-    font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;
+    font-family: 'IBM Plex Sans', sans-serif; font-size: var(--textBody);
   }
 
-  .settings-fields input.mono { font-family: var(--mono); font-size: 12px; }
-  .settings-fields select { width: 260px; max-width: 100%; font-family: var(--mono); font-size: 12px; }
-  .settings-hint { grid-column: 2; font-size: 10.5px; line-height: 1.55; color: var(--setFaint); }
+  .settings-fields input.mono { font-family: var(--mono); font-size: var(--textSmall); }
+  .settings-fields select { width: 260px; max-width: 100%; font-family: var(--mono); font-size: var(--textSmall); }
+  .settings-hint { grid-column: 2; font-size: var(--textSmall); line-height: 1.55; color: var(--setFaint); }
 
   /* A segmented control rather than a button: a bordered group whose children
      divide it and whose pressed one fills. It is not built on button() - it
@@ -449,33 +454,33 @@
     display: flex; width: max-content; height: var(--ctlCompact);
     border: 1px solid var(--setBorder); border-radius: 6px; overflow: hidden;
   }
-  .settings-kind button { padding: 0 12px; font-size: 11.5px; color: var(--setFaint); }
+  .settings-kind button { padding: 0 12px; font-size: var(--textSmall); color: var(--setFaint); }
   .settings-kind button + button { border-left: 1px solid var(--setBorder); }
   .settings-kind button[aria-pressed="true"] { background: var(--hl); color: var(--bright); }
 
   .settings-folder { display: flex; align-items: center; gap: 9px; min-width: 0; }
 
   .settings-path {
-    font-size: 11.5px; color: var(--dim);
+    font-size: var(--textSmall); color: var(--dim);
     min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .settings-status { font-size: 10.5px; line-height: 1.6; color: var(--setFaint); }
+  .settings-status { font-size: var(--textSmall); line-height: 1.6; color: var(--setFaint); }
 
   /* The inventory of the source's folder, under the reading. Quieter than the
      status line because it never changes and never needs acting on: it is
      there to be checked once, not watched. */
   .settings-work { display: grid; gap: 3px; margin-top: -4px; }
-  .settings-work-at { font-size: 10px; letter-spacing: .04em; color: var(--faint2); }
+  .settings-work-at { font-size: var(--textMicro); letter-spacing: .04em; color: var(--faint2); }
   .settings-work-row { display: flex; align-items: baseline; gap: 10px; }
 
   .settings-work-path {
     flex-shrink: 0; width: 168px;
-    font-size: 10.5px; color: var(--setLabel);
+    font-size: var(--textSmall); color: var(--setLabel);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .settings-work-doing { font-size: 10.5px; line-height: 1.55; color: var(--faint); }
+  .settings-work-doing { font-size: var(--textSmall); line-height: 1.55; color: var(--faint); }
 
   .settings-foot {
     display: flex; align-items: center; gap: 10px;
@@ -484,15 +489,15 @@
     background: var(--setNav);
   }
 
-  .settings-word { font-size: 10.5px; color: var(--setFaint); }
+  .settings-word { font-size: var(--textSmall); color: var(--setFaint); }
 
-  .settings-blank { display: grid; place-items: center; padding: 40px; font-size: 11px; color: var(--setFaint); text-align: center; }
+  .settings-blank { display: grid; place-items: center; padding: 40px; font-size: var(--textSmall); color: var(--setFaint); text-align: center; }
 
   .settings-teach { display: grid; align-content: center; justify-content: center; padding: 26px 30px; overflow-y: auto; }
   .settings-teach { gap: 16px; max-width: 580px; }
   .teach-intro { display: grid; gap: 6px; }
-  .teach-title { font-size: 15px; font-weight: 600; color: var(--bright); }
-  .teach-text { font-size: 12.5px; line-height: 1.65; color: var(--dim); text-wrap: pretty; }
+  .teach-title { font-size: var(--textLead); font-weight: 600; color: var(--bright); }
+  .teach-text { font-size: var(--textBody); line-height: 1.65; color: var(--dim); text-wrap: pretty; }
 
   .teach-halves { display: grid; grid-template-columns: 1fr 22px 1fr; align-items: stretch; }
 
@@ -504,14 +509,14 @@
   }
 
   .teach-card .kicker { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--setFaint); }
-  .teach-card .what { font-size: 12.5px; font-weight: 500; color: var(--bright); }
-  .teach-card .how { font-size: 10.5px; line-height: 1.55; color: var(--dim); }
+  .teach-card .what { font-size: var(--textBody); font-weight: 500; color: var(--bright); }
+  .teach-card .how { font-size: var(--textSmall); line-height: 1.55; color: var(--dim); }
 
   .teach-joint { position: relative; }
   .teach-joint::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--setBorder); }
 
   .teach-actions { display: flex; align-items: center; gap: 9px; }
-  .teach-actions .either { font-size: 10.5px; color: var(--setFaint); }
+  .teach-actions .either { font-size: var(--textSmall); color: var(--setFaint); }
 
   main { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
 
@@ -521,7 +526,7 @@
     display: flex; align-items: center; gap: 8px;
     padding: 0 12px; height: 34px;
     border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 10px;
+    font-family: var(--mono); font-size: var(--textMicro);
     letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
     position: sticky; top: 0; background: var(--panel); z-index: 1;
   }
@@ -578,10 +583,10 @@
   .flag-toggle[aria-pressed="true"] { color: var(--accent); }
   .flag-toggle[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); }
   .row-title { font-weight: 500; line-height: 1.35; text-wrap: pretty; }
-  .row-repo { font-family: var(--mono); font-size: 11px; color: var(--dim2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row-meta { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--dim2); }
+  .row-repo { font-family: var(--mono); font-size: var(--textSmall); color: var(--dim2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-meta { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: var(--textSmall); color: var(--dim2); }
 
-  .state { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+  .state { font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase; }
   .state.drafted { color: var(--green); }
   .state.approve { color: var(--green); }
   .state.comment { color: var(--accent); }
@@ -604,7 +609,7 @@
   .rail-summary .provenance { display: grid; gap: 3px; justify-items: start; }
   .rail-summary .provenance .summary-meta { white-space: nowrap; }
 
-  .card-head { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .card-head { font-family: var(--mono); font-size: var(--textMicro); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 
   /* Nothing has been drafted yet. Distinct from isDrafting, which means a
      draft exists and is still being written; this is the state before that,
@@ -615,10 +620,10 @@
      drafting agent picks; the app maps it here, so no draft can be unreadable. */
 
   .lens {
-    display: flex; gap: 8px; align-items: baseline; width: 100%;
+    display: flex; gap: 8px; align-items: center; width: 100%;
     padding: 5px 12px; border: none; border-left: 2px solid transparent;
     background: none; text-align: left;
-    font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
 
   .lens:hover { background: var(--panel2); }
@@ -636,8 +641,8 @@
   .card-head.is-ok, .card-head.is-warn,
   .card-head.is-critical, .card-head.is-accent { color: var(--tone); }
 
-  .summary { font-size: 12.5px; line-height: 1.55; color: var(--dim); text-wrap: pretty; padding-top: 2px; }
-  .summary-meta { font-size: 11px; color: var(--dim2); }
+  .summary { font-size: var(--textBody); line-height: 1.55; color: var(--dim); text-wrap: pretty; padding-top: 2px; }
+  .summary-meta { font-size: var(--textSmall); color: var(--dim2); }
   .pull-link { color: var(--accent); text-decoration: none; }
   .pull-link:hover { text-decoration: underline; }
   .pull-line { display: flex; align-items: center; gap: 6px; }
@@ -652,7 +657,7 @@
      a label because the square it grows out of is 20px. */
   .clear-review[data-armed="true"] { font-size: var(--textMicro); }
 
-  .lens-body { font-size: 12.5px; line-height: 1.6; color: var(--dim); }
+  .lens-body { font-size: var(--textBody); line-height: 1.6; color: var(--dim); }
   .lens-body ul, .lens-body ol { padding-left: 18px; margin: 6px 0; }
   .lens-body li { margin: 5px 0; }
   .lens-body strong { color: var(--bright); }
@@ -679,7 +684,7 @@
     margin-bottom: 14px; padding: 9px 12px;
     border: 1px solid var(--greenBd); border-radius: 6px;
     background: var(--okBg); color: var(--green);
-    font-size: 11px; text-decoration: none;
+    font-size: var(--textSmall); text-decoration: none;
   }
 
   .posted-note:hover { text-decoration: underline; }
@@ -700,7 +705,7 @@
   }
 
   .summary-box .title { font-weight: 600; color: var(--dim); }
-  .summary-box .text { font-size: 12px; color: var(--faint); }
+  .summary-box .text { font-size: var(--textSmall); color: var(--faint); }
 
   .summary-box[role="button"], button.summary-box { cursor: text; }
 
@@ -715,7 +720,7 @@
      for the eye that is already looking. */
   .summary-edit-hint {
     position: absolute; top: 14px; right: 16px;
-    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    font-family: var(--mono); font-size: var(--textMicro); letter-spacing: .08em;
     text-transform: uppercase; color: var(--faint);
     opacity: 0; transition: opacity .15s ease; pointer-events: none;
   }
@@ -733,9 +738,9 @@
   #tab-summary:has(.empty) { max-width: none; height: 100%; }
   #comment-body:has(> .empty) { height: 100%; padding: 0; }
 
-  .prose { padding: 20px 24px; font-size: 13.5px; line-height: 1.65; }
+  .prose { padding: 20px 24px; font-size: var(--textBody); line-height: 1.65; }
 
-  .prose h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin: 26px 0 10px; }
+  .prose h3 { font-size: var(--textSmall); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin: 26px 0 10px; }
   .prose ol, .prose ul { padding-left: 20px; }
   .prose li { margin: 10px 0; }
   .prose code { font-family: var(--mono); font-size: .88em; background: color-mix(in srgb, currentColor 10%, transparent); padding: .15em .35em; border-radius: 4px; }
@@ -766,7 +771,7 @@
     background: var(--panel2);
     color: var(--text);
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: var(--textBody);
     line-height: 1.7;
     resize: vertical;
   }
@@ -784,10 +789,10 @@
     width: 40px; height: 40px; border-radius: 50%;
     border: 1px solid var(--border); background: var(--panel2);
     display: grid; place-items: center;
-    color: var(--dim2); font-family: var(--mono); font-size: 15px;
+    color: var(--dim2); font-family: var(--mono); font-size: var(--textLead);
   }
 
-  .empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .empty-title { font-size: var(--textLead); font-weight: 600; color: var(--text); }
 
   .progress {
     width: 220px; height: 4px; border-radius: 2px;
@@ -801,11 +806,11 @@
     display: flex; align-items: center; gap: 9px;
     margin-bottom: 14px; padding: 8px 12px;
     border: 1px dashed var(--border); border-radius: 6px;
-    font-size: 11px; color: var(--dim2);
+    font-size: var(--textSmall); color: var(--dim2);
   }
 
   .wip .progress { width: 120px; margin-left: auto; flex-shrink: 0; }
-  .empty-text { font-size: 13px; line-height: 1.6; color: var(--dim2); text-wrap: pretty; }
+  .empty-text { font-size: var(--textBody); line-height: 1.6; color: var(--dim2); text-wrap: pretty; }
 
   /* Files list ---------------------------------------------------------- */
 
@@ -813,7 +818,7 @@
     display: flex; align-items: center; gap: 7px; width: 100%;
     padding: 8px 12px; border: none; border-left: 2px solid transparent;
     background: none; text-align: left;
-    font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
 
   .file:hover { background: var(--panel2); }
@@ -823,15 +828,15 @@
     margin-left: auto; flex-shrink: 0;
     padding: 0 5px; border-radius: 3px;
     background: var(--panel3); color: var(--tone, var(--dim2));
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
   }
 
   .file .n.is-critical { background: var(--critBg); }
   .file .n.is-warn { background: var(--warnBg); }
   .file .n.is-ok { background: var(--okBg); }
 
-  .file .adds { flex-shrink: 0; color: var(--green); font-size: 10px; }
-  .file .dels { flex-shrink: 0; color: var(--red); font-size: 10px; }
+  .file .adds { flex-shrink: 0; color: var(--green); font-size: var(--textMicro); }
+  .file .dels { flex-shrink: 0; color: var(--red); font-size: var(--textMicro); }
 
   .filter-hint .path { color: var(--faint); font-style: italic; }
   .filter-hint .show { flex-shrink: 0; color: var(--accent); }
@@ -848,7 +853,7 @@
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
     background: var(--panel);
     text-align: left;
-    font-family: var(--mono); font-size: 11.5px; color: var(--bright);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--bright);
   }
 
   .diff-head:hover { background: var(--panel2); }
@@ -859,7 +864,7 @@
   .viewed {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
     padding: 0; border: none; background: none;
-    font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .viewed .box {
@@ -876,12 +881,12 @@
   .hunk-head {
     padding: 2px 14px;
     background: var(--hunk); color: var(--faint);
-    font-family: var(--mono); font-size: 11.5px;
+    font-family: var(--mono); font-size: var(--textSmall);
   }
 
   .line {
     display: grid; grid-template-columns: 46px 46px 1fr;
-    font-family: var(--mono); font-size: 11.5px; line-height: 1.7;
+    font-family: var(--mono); font-size: var(--textSmall); line-height: 1.7;
   }
 
   .line .old, .line .new {
@@ -916,16 +921,16 @@
     display: flex; align-items: center; gap: 9px;
     padding: 9px 12px; background: var(--panel3);
     border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
 
-  .finding-head .sent { color: var(--green); font-size: 10px; }
+  .finding-head .sent { color: var(--green); font-size: var(--textMicro); }
 
   .finding.is-posted { opacity: .72; }
 
   .finding-head .kind {
     padding: 1px 6px; border-radius: 3px;
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
     background: var(--panel); color: var(--tone, var(--dim2));
   }
 
@@ -934,7 +939,7 @@
   .finding-code {
     margin: 0; padding: 0;
     background: var(--code); border-bottom: 1px solid var(--border2);
-    font-size: 11.5px; line-height: 1.7; color: var(--dim);
+    font-size: var(--textSmall); line-height: 1.7; color: var(--dim);
     white-space: pre-wrap; overflow-x: auto;
   }
 
@@ -943,7 +948,7 @@
   .finding-code .code-line.add { background: var(--addBg); color: var(--addText); }
   .finding-code .code-line.del { background: var(--delBg); color: var(--delText); }
 
-  .finding-body { padding: 11px 12px; display: grid; gap: 10px; font-size: 13px; line-height: 1.6; }
+  .finding-body { padding: 11px 12px; display: grid; gap: 10px; font-size: var(--textBody); line-height: 1.6; }
 
   /* Long unbroken content - env lines, checklists, urls - scrolls inside
      its block instead of stretching the card past its pane. Grid and flex
@@ -957,16 +962,16 @@
   .prose { overflow-wrap: break-word; }
 
   .suggestion { border: 1px solid var(--border); border-radius: 5px; background: var(--code); overflow: hidden; }
-  .suggestion-head { padding: 5px 10px; border-bottom: 1px solid var(--border2); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-  .suggestion pre { margin: 0; padding: 6px 10px; background: var(--addBg); color: var(--addText); font-family: var(--mono); font-size: 11.5px; line-height: 1.7; white-space: pre-wrap; }
+  .suggestion-head { padding: 5px 10px; border-bottom: 1px solid var(--border2); font-family: var(--mono); font-size: var(--textMicro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .suggestion pre { margin: 0; padding: 6px 10px; background: var(--addBg); color: var(--addText); font-family: var(--mono); font-size: var(--textSmall); line-height: 1.7; white-space: pre-wrap; }
 
-  .finding-actions { display: flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: 11px; }
+  .finding-actions { display: flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: var(--textSmall); }
 
   .finding-editor {
     width: 100%; min-height: 18rem; padding: 9px 10px;
     border: 1px solid var(--accent); border-radius: 5px;
     background: var(--bg); color: var(--text);
-    font-size: 12.5px; line-height: 1.7; resize: vertical;
+    font-size: var(--textBody); line-height: 1.7; resize: vertical;
   }
 
   /* QA evidence ---------------------------------------------------------- */
@@ -974,7 +979,7 @@
   .qa-head {
     display: flex; align-items: center; gap: 10px;
     padding: 14px 16px 8px;
-    font-family: var(--mono); font-size: 10px;
+    font-family: var(--mono); font-size: var(--textMicro);
     letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
   }
 
@@ -995,15 +1000,15 @@
   .scenario-head {
     display: flex; align-items: center; gap: 9px;
     padding: 9px 12px; border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 11.5px;
+    font-family: var(--mono); font-size: var(--textSmall);
   }
 
   .scenario-head .glyph { color: var(--tone, var(--dim2)); flex-shrink: 0; }
   .scenario-head .url { color: var(--bright); }
-  .scenario-head .what { font-family: 'IBM Plex Sans', sans-serif; font-size: 12.5px; color: var(--dim); }
+  .scenario-head .what { font-family: 'IBM Plex Sans', sans-serif; font-size: var(--textBody); color: var(--dim); }
   .scenario-head .verdict {
     margin-left: auto; flex-shrink: 0;
-    font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase;
     color: var(--tone, var(--dim2));
   }
 
@@ -1012,13 +1017,13 @@
   .scenario-missing {
     height: 140px; display: grid; place-items: center;
     background: repeating-linear-gradient(135deg, var(--panel3) 0 8px, var(--panel2) 8px 16px);
-    font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .scenario-foot {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 12px; border-top: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .add-comment {
@@ -1033,7 +1038,7 @@
     display: flex; align-items: center; gap: 9px;
     padding: 8px 12px;
     border: 1px dashed var(--border); border-radius: 7px;
-    font-family: var(--mono); font-size: 11px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .add-hint .plus { color: var(--accent); }
@@ -1044,13 +1049,13 @@
     display: grid; gap: 6px;
   }
 
-  .filter-empty .title { font-size: 13px; font-weight: 500; }
-  .filter-empty .text { font-size: 12.5px; line-height: 1.6; color: var(--dim2); }
+  .filter-empty .title { font-size: var(--textBody); font-weight: 500; }
+  .filter-empty .text { font-size: var(--textBody); line-height: 1.6; color: var(--dim2); }
 
   /* The QA note reads as prose, like the summary - not a boxed aside. */
   .qa-note {
     margin: 0 0 40px; padding: 4px 24px;
-    font-size: 13.5px; line-height: 1.65; color: var(--text);
+    font-size: var(--textBody); line-height: 1.65; color: var(--text);
   }
 
   .qa-note code, .lens-body code {
@@ -1062,7 +1067,7 @@
   .finding-head .edited {
     padding: 1px 6px; border-radius: 3px;
     background: var(--warnBg); color: var(--amber);
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
   }
 
   /* Footer -------------------------------------------------------------- */
@@ -1080,8 +1085,8 @@
     white-space: nowrap; flex-shrink: 0;
   }
 
-  .payload #staged { font-size: 11.5px; color: var(--dim); }
-  .payload #counts { font-size: 10.5px; color: var(--faint); }
+  .payload #staged { font-size: var(--textSmall); color: var(--dim); }
+  .payload #counts { font-size: var(--textSmall); color: var(--faint); }
 
   .fdivider { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
 
@@ -1100,7 +1105,7 @@
     padding: 0 12px;
     border: none;
     background: transparent; color: var(--text);
-    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    font-family: var(--mono); font-size: var(--textSmall); font-weight: 500;
     white-space: nowrap;
   }
 
@@ -1126,7 +1131,7 @@
   }
 
   .consequence {
-    font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
     white-space: nowrap;
   }
 
@@ -1147,15 +1152,15 @@
   }
 
   .cheer-mark { font-size: 34px; }
-  .cheer-title { font-size: 19px; font-weight: 700; color: var(--bright); }
-  .cheer-done { font-size: 11px; color: var(--dim2); }
-  #cheer-pr { font-size: 14px; color: var(--dim); max-width: 30rem; }
+  .cheer-title { font-size: var(--textDisplay); font-weight: 700; color: var(--bright); }
+  .cheer-done { font-size: var(--textSmall); color: var(--dim2); }
+  #cheer-pr { font-size: var(--textLead); color: var(--dim); max-width: 30rem; }
   /* Crossing it off is the "done, and gone" signal, so it is only worn by a
      review that actually left. */
   .cheer-struck { text-decoration: line-through; text-decoration-color: var(--green); text-decoration-thickness: 2px; }
-  .cheer-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+  .cheer-link { font-size: var(--textSmall); color: var(--accent); text-decoration: none; }
   .cheer-link:hover { text-decoration: underline; }
-  .cheer-note { font-size: 13px; color: var(--dim); max-width: 26rem; line-height: 1.5; }
+  .cheer-note { font-size: var(--textBody); color: var(--dim); max-width: 26rem; line-height: 1.5; }
 
   /* The invitation a destination that sent nothing offers instead of a link to
      what it did not send. It is the one thing being asked for on the page, so
@@ -1181,12 +1186,12 @@
 
   .sheet-head { padding: 14px 18px; border-bottom: 1px solid var(--border2); display: grid; gap: 5px; }
   .sheet-title { display: flex; align-items: center; gap: 10px; }
-  .sheet-title .h { font-size: 15px; font-weight: 600; }
-  .sheet-count { font-size: 11px; color: var(--dim2); }
+  .sheet-title .h { font-size: var(--textLead); font-weight: 600; }
+  .sheet-count { font-size: var(--textSmall); color: var(--dim2); }
 
   .verdict-badge {
     padding: 1px 7px; border-radius: 3px;
-    font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
     color: var(--tone, var(--dim)); border: 1px solid var(--tone, var(--border));
   }
 
@@ -1195,7 +1200,7 @@
     display: flex; align-items: center; gap: 10px; background: var(--panel3);
   }
 
-  #confirm-note { font-size: 10.5px; color: var(--faint); }
+  #confirm-note { font-size: var(--textSmall); color: var(--faint); }
 
   #confirm-post .spin {
     display: inline-block; vertical-align: -2px;
@@ -1226,11 +1231,11 @@
     width: 40px; height: 40px; border-radius: 50%;
     border: 1px solid var(--border); background: var(--panel2);
     display: grid; place-items: center;
-    color: var(--dim2); font-family: var(--mono); font-size: 15px;
+    color: var(--dim2); font-family: var(--mono); font-size: var(--textLead);
   }
 
   .curtain-word {
-    font-family: var(--mono); font-size: 10px;
+    font-family: var(--mono); font-size: var(--textMicro);
     letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
   }
 
@@ -1264,7 +1269,7 @@
 
   #confirm-post:disabled { opacity: .75; cursor: wait; }
 
-  #status { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  #status { font-family: var(--mono); font-size: var(--textSmall); color: var(--faint); }
   #status.error { color: var(--red); }
   #status.ok { color: var(--green); }
 
@@ -1274,7 +1279,7 @@
      carries the same report, in front of itself, and takes up no room until
      there is something to report. */
   #curtain-say, #celebrate-say, #confirm-say, #setup-say {
-    font-family: var(--mono); font-size: 11px; line-height: 1.55;
+    font-family: var(--mono); font-size: var(--textSmall); line-height: 1.55;
     color: var(--faint); text-align: center;
   }
 
@@ -1377,19 +1382,33 @@
        place any of it changes. Three heights become the touch-friendly
        trio Apple and Google both call the floor for a tappable control -
        every button already built on them (ROLES in button.js, the verdicts
-       segmented control, the chips) grows with no rule but this one. */
-    :root { --ctlIcon: 32px; --ctlCompact: 40px; --ctlStandard: 44px; }
+       segmented control, the chips) grows with no rule but this one.
+
+       Type moves the same way: every selector in this sheet already reads
+       its size off --textMicro/Small/Body/Lead/Display, so raising the five
+       here raises the whole app in one place instead of chasing one-off
+       rules per selector. Only the rows a thumb taps (.lens, .file,
+       .diff-head) get a further explicit step up to --textBody, so the list
+       a phone is scrolled with reads at the same size as the prose it is
+       held up to read - not the smaller size everything else in that row's
+       chrome (chips, buttons, badges) still shares. */
+    :root {
+      --ctlIcon: 32px; --ctlCompact: 40px; --ctlStandard: 44px;
+      --textMicro: 12px; --textSmall: 13px; --textBody: 15px;
+      --textLead: 16px; --textDisplay: 19px;
+    }
 
     .chip { min-height: 44px; }
-    .lens, .file, .diff-head { min-height: 44px; font-size: 14px; }
-    .lens .count { font-size: 13px; }
-    .card-head { font-size: 12px; }
+    .lens, .file, .diff-head { min-height: 44px; font-size: var(--textBody); }
     .flag-toggle, .viewed { min-height: 44px; }
 
     /* iOS Safari zooms the page in on focus of any text control under 16px.
        That is not a stylistic choice to preserve - it is a bug the desktop
        sizes happen to trigger, so every text control mobile can focus is
-       raised to the threshold that keeps the page still. */
+       raised to the threshold that keeps the page still. Set as a literal
+       16 rather than var(--textLead): this is a hard technical floor, not a
+       type-scale choice, and must not follow --textLead if that token is
+       ever tuned to something smaller. */
     .settings-fields input,
     .settings-fields select,
     .settings-fields input.mono,
