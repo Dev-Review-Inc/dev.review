@@ -36,6 +36,11 @@ export class Drafts {
     this._byKey = new Map();
     this._listeners = new Set();
     this._unwatch = null;
+
+    // Set by loadAll: true when drafts/ is empty but the source root holds
+    // something shaped like a draft, which is what a source looks like the
+    // day somebody nests their agent's files at the wrong level.
+    this.misconfigured = false;
   }
 
   /**
@@ -146,7 +151,26 @@ export class Drafts {
 
     for (const key of gone) this._byKey.delete(key);
 
+    // An empty drafts/ is unremarkable on a source nobody has written to yet.
+    // It only means something once the root shows what a draft looks like
+    // sitting one level too high - the giveaway that drafts/ was never made.
+    this.misconfigured = paths.length === 0 && (await this._rootLooksLikeMisplacedDrafts());
+
     return [...(await this._absorb(paths)), ...gone];
+  }
+
+  /**
+   * Whether the source root holds something shaped like a draft directory.
+   *
+   * Only worth asking when drafts/ came back empty, so a healthy source never
+   * pays for a second listing.
+   *
+   * @returns {Promise<boolean>} true when a root entry parses as a draft path
+   */
+  async _rootLooksLikeMisplacedDrafts() {
+    const root = await this.adapter.list("");
+
+    return root.some((entry) => keyOf(`${ROOT}${entry.path}`));
   }
 
   /**

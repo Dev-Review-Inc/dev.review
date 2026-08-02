@@ -79,6 +79,26 @@ export function closeEditor(app) {
 }
 
 /**
+ * Whether the summary text can still be written.
+ *
+ * The same rule as the send button: approving implies having read the whole
+ * review, so only approve waits on the draft finishing. A reader posting a
+ * comment or a request for changes before the agent is done needs somewhere
+ * to write it, so those verdicts do not wait.
+ *
+ * @param {object} draft the draft
+ * @param {string} chosen the verdict about to be sent
+ * @param {boolean} posted whether the review already went out
+ * @param {boolean} filtered whether a lens or theme is narrowing the view
+ * @returns {boolean} whether the box can be typed in
+ */
+export function summaryWritable(draft, chosen, posted, filtered) {
+  if (filtered || posted) return false;
+
+  return chosen !== "APPROVE" || Boolean(draft?.finishedAt);
+}
+
+/**
  * Draw the summary pane.
  *
  * @param {object} app the application
@@ -120,8 +140,12 @@ export function drawSummary(app) {
 
   // The comment is writable once it is real, on the unfiltered summary - and no
   // longer once it has been sent. An editor open over words that just became
-  // unwritable would be editing something this app can no longer change.
-  const writable = !filtered && !unfinished && !posted;
+  // unwritable would be editing something this app can no longer change. Which
+  // verdicts wait on the draft finishing is the send button's own call
+  // (footer.js); this follows the same one, so a reader choosing a verdict
+  // that can go out early has somewhere to write what it says.
+  const chosen = app.queries.verdictFor(app.source, pull, app.login);
+  const writable = summaryWritable(draft, chosen, posted, filtered);
 
   if (!writable && app.editing) {
     app.editing = false;
@@ -295,7 +319,7 @@ export function sourceHint(types = adapterTypes()) {
  * @param {object} app the application
  * @returns {HTMLElement|null} the empty state, or null when there is a review
  */
-function blankState(app) {
+export function blankState(app) {
   if (!app.source) {
     return withAction(
       emptyState(
@@ -365,26 +389,10 @@ function blankState(app) {
     );
   }
 
-  // An unfinished draft with real content - lenses done, QA still running -
-  // reads as the summary it is becoming, under an in-progress banner. Only a
-  // draft with nothing to show yet gets the waiting state.
-  const substantive = pull.draft.sections.length || pull.draft.findings.length;
-  const looking = app.filter.section || app.filter.kind;
-
-  if (pull.draft.finishedAt || substantive || looking) return null;
-
-  const waiting = emptyState(
-    "⏳",
-    "Still being reviewed.",
-    pull.draft.progress.note ||
-      "The agent is writing this review now - sections appear in the rail as each one lands.",
-  );
-
-  if (pull.draft.progress.percent !== null) {
-    waiting.querySelector(".empty-inner").append(progressBar(pull.draft.progress.percent));
-  }
-
-  return waiting;
+  // A draft file existing is the line: from here the pane is its own to draw,
+  // however little is filled in yet. drawSummary's own progress banner says
+  // what is still coming.
+  return null;
 }
 
 function withAction(empty, label, onClick) {

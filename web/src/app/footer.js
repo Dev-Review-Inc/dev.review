@@ -15,8 +15,9 @@ export const VERDICT_TONE = { APPROVE: "ok", COMMENT: "accent", REQUEST_CHANGES:
 // It is not a verdict and it shares their control group anyway: nothing is
 // sent, and the record of it is this app's own log rather than anything on
 // GitHub. It earns its place there because the reader is answering one
-// question, "what am I doing with this pull request", and on your own pull
-// request with nothing to say, dropping it is the only true answer to it.
+// question, "what am I doing with this pull request", and "I don't want to
+// review this one" is a true answer regardless of who opened it - so unlike
+// the verdicts, it is never withheld for authorship.
 export const DISMISS = "DISMISS";
 
 // What each choice does to the pull request, stated once.
@@ -30,9 +31,12 @@ const CONSEQUENCE = {
 /**
  * What the one send button says, and whether there is anything for it to do.
  *
- * Posting waits on a draft the agent finished, because until then there is
- * nothing to send. Dismissing waits on nothing, because the case it exists for
- * is a pull request with nothing worth drafting.
+ * Approving waits on a draft the agent finished, because approving implies
+ * having seen the whole review. Commenting or requesting changes can be about
+ * the part already drafted, and does not claim to have seen the rest, so
+ * either can go out while the agent is still writing. Dismissing waits on
+ * nothing, because the case it exists for is a pull request with nothing
+ * worth drafting.
  *
  * @param {object|null} pull the open pull request, if one is open
  * @param {string} chosen a verdict, or DISMISS
@@ -44,7 +48,27 @@ export function commitButton(pull, chosen, posted) {
 
   if (chosen === DISMISS) return { label: "Dismiss", disabled: false };
 
-  return { label: "Post review", disabled: !pull.draft?.finishedAt || posted };
+  const needsFinish = chosen === "APPROVE";
+  const notReady = !pull.draft || (needsFinish && !pull.draft.finishedAt);
+
+  return { label: "Post review", disabled: notReady || posted };
+}
+
+/**
+ * Whether a choice in the footer's button row is offered.
+ *
+ * The destination refuses an approval or a change request on your own pull
+ * request, so verdictFor already narrows those to a comment; this only has to
+ * hide the buttons that agree. Dismissing answers a different question, "do I
+ * want to review this at all", which authorship never settles - so it is
+ * offered regardless of whose pull request is open.
+ *
+ * @param {string} event a verdict, or DISMISS
+ * @param {boolean} own whether the reader authored the open pull request
+ * @returns {boolean} true when the choice should not be shown
+ */
+export function choiceHidden(event, own) {
+  return event === DISMISS ? false : own && event !== "COMMENT";
 }
 
 /**
@@ -96,9 +120,7 @@ function drawVerdict(app) {
 
   // The destination refuses an approval or change request on your own pull request,
   // so on your own the only verdict offered is a comment. verdictFor already
-  // settles that; the buttons only have to reflect it. Dismissing is the
-  // opposite way round: it is offered only on your own, where it is the answer
-  // a comment cannot be.
+  // settles that; the buttons only have to reflect it.
   const own = Boolean(app.login) && pull?.author === app.login;
 
   // A chosen dismissal is held on the app rather than written down, because
@@ -108,9 +130,7 @@ function drawVerdict(app) {
   const chosen = app.dismissing ? DISMISS : verdict;
 
   for (const choice of find("verdicts").children) {
-    const dismiss = choice.dataset.event === DISMISS;
-
-    choice.hidden = dismiss ? !own : own && choice.dataset.event !== "COMMENT";
+    choice.hidden = choiceHidden(choice.dataset.event, own);
     choice.setAttribute("aria-pressed", String(choice.dataset.event === chosen));
     choice.disabled = !pull;
   }

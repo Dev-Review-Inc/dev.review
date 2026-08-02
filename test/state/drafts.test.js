@@ -132,3 +132,44 @@ describe("a draft that really was deleted", () => {
     assert.equal(drafts.problem(KEY), null);
   });
 });
+
+// The common way a brand new source is set up wrong: the agent's files sit at
+// the source root instead of nested under drafts/, so the listing this app
+// reads is empty even though the storage has work in it. That is worth naming
+// rather than reading as "the agent has not started" - it is what a reader
+// hits before ever seeing a draft.
+describe("a source with no drafts/ directory", () => {
+  test("is unremarkable when the source is simply empty", async () => {
+    const adapter = new MemoryAdapter();
+    const drafts = new Drafts({ adapter });
+
+    await drafts.loadAll();
+
+    assert.equal(drafts.misconfigured, false);
+  });
+
+  test("is flagged when what looks like a draft sits at the source root", async () => {
+    const adapter = new MemoryAdapter();
+
+    // Written at the root, not under drafts/ - the mistake this catches.
+    await adapter.write(
+      "org--app-42/review.json",
+      new TextEncoder().encode(JSON.stringify(aDraft())),
+    );
+
+    const drafts = new Drafts({ adapter });
+
+    await drafts.loadAll();
+
+    assert.equal(drafts.misconfigured, true);
+  });
+
+  test("clears once drafts/ actually holds something", async () => {
+    const adapter = await storageThatCanRefuseReads();
+    const drafts = new Drafts({ adapter });
+
+    await drafts.loadAll();
+
+    assert.equal(drafts.misconfigured, false);
+  });
+});

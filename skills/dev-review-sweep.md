@@ -23,4 +23,4 @@ No `gh pr comment`, `gh pr review`, `gh pr merge`, or anything else that posts. 
 
 ## Finish with
 
-One short paragraph: what you drafted, how many were deferred and which, and anything that failed and why. Never let the cap pass silently.
+One short paragraph: what you drafted, how many were deferred and which, and anything that failed and why — including any git sync failure /dev-review reported. Never let the cap pass silently.

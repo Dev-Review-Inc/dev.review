@@ -27,6 +27,8 @@ Store all media related to this (videos, screenshots) in the same directory.
   "comment": "A review of this pull request is being written." }
 ```
 
+Then sync to git — see "Sync to git" below.
+
 **If the file already exists, stop — with one exception.** An existing draft means another run owns this pull request or a human already has the review; a second reviewer would fight it over the same file. The exception is a dead claim: a file with no `finishedAt` that has not been modified in over 30 minutes is a run that died partway. Overwrite it with your own placeholder and take the review over.
 
 ## Write as you go
@@ -35,6 +37,18 @@ As review input comes in, keep `org--app-42/review.json` up-to-date so the human
 
 1. **After each lens completes**, overwrite the file with everything so far — sections and findings accumulated to that point, `draftedAt` refreshed, and `progress` updated: `{ "note": "Security review", "percent": 60 }`. Write the note for the human waiting ("Reading the diff", "QA: scenario 2 of 3"), not as an internal state code.
 2. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
+
+Sync to git after each of these writes too — same section below.
+
+## Sync to git
+
+After every write to `review.json` — the claim, each progress update, and the finished draft:
+
+1. Check `git -C <drafts directory> rev-parse --is-inside-work-tree` succeeds and `git -C <drafts directory> remote` lists something. If either fails, the drafts directory is a plain folder — do nothing, exactly as before.
+2. Otherwise `git -C <drafts directory> add -A` (this respects `.gitignore` — never force-add an ignored file, e.g. `qa.mp4` or `frames/`), commit with a small mechanical message like `Update review draft: org/repo#42`, and push.
+3. If the push is rejected, pull/rebase once and retry. If it still fails, don't crash the review — note the sync failure in your final summary instead.
+
+Never touch git config. Never force-push. Never ask.
 
 ## The finished draft
 
