@@ -261,7 +261,17 @@
 
   /* The open pull request reads as header text beside the chips: slug,
      title, stats, one line. */
-  .head-open { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+  /* flex-basis: 0 rather than the default auto - a wrapping flex container
+     decides its line breaks off each item's hypothetical (un-shrunk) size,
+     and text-overflow:ellipsis only truncates at paint time, so the full,
+     untruncated title width was what got measured. Signout paid for that:
+     it read as not fitting the line and wrapped to its own, even though
+     head-open shrinks to nothing once actually placed. */
+  .head-open { display: flex; align-items: baseline; gap: 9px; flex: 1 1 0%; min-width: 0; }
+
+  /* Not rendered unless the mobile media query below turns it into a line
+     break - see .row-break there for what it is doing and why. */
+  .row-break { flex-basis: 0; height: 0; }
   .head-open .head-slug { font-size: var(--textSmall); flex-shrink: 0; }
   .head-open .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .head-open .head-stats { font-size: var(--textSmall); white-space: nowrap; flex-shrink: 0; }
@@ -1340,6 +1350,15 @@
       padding-top: 6px; padding-bottom: 6px;
     }
 
+    /* The chips alone are wider than this line has room to also fit the
+       open pull request and signout beside, so something has to move to
+       a line of its own - and left alone, it was signout: the one item
+       here that cannot shrink, so it lost whatever scraps were left over
+       after head-open squeezed down. Forcing the break here instead, on
+       a dedicated empty item, means head-open and signout share the new
+       line together rather than head-open claiming the whole width of it. */
+    .row-break { flex-basis: 100%; }
+
     main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 
     .pane {
@@ -1466,6 +1485,14 @@
         <div id="dismissed" hidden></div>
       </div>
     </div>
+
+    <!-- Chips alone are wider than a phone screen has room to also fit the
+         open pull request and signout beside, so both need the line to
+         themselves. flex-basis:100% forces that break, but only on this
+         empty, zero-height item - putting it on head-open instead would
+         claim the whole new line for itself and bump signout to a third
+         line rather than sharing this one. -->
+    <span class="row-break"></span>
 
     <span class="head-open">
       <span class="title" id="head-title"></span>
