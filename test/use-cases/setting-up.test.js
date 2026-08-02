@@ -59,6 +59,21 @@ describe("Setting up a source and a destination", () => {
     assert.equal(app.drafts.find("org/app#42").verdict, "COMMENT");
   });
 
+  // The mistake this catches: a brand new repository or bucket with the
+  // agent's files sitting at its root instead of nested under drafts/. With
+  // no drafts/ at all, every read of every pull request answers "nothing
+  // written yet", which is not what actually happened.
+  test("attaching a source whose drafts sit at the root, not under drafts/, says so", async () => {
+    await adapter.write(
+      "org--app-42/review.json",
+      new TextEncoder().encode(JSON.stringify(aDraft())),
+    );
+
+    await app.addSource({ name: "Work", adapter: { type: "memory" } });
+
+    assert.match(app.problem, /drafts\//);
+  });
+
   test("adding a destination signs the reader in and fills the queue", async () => {
     await app.addSource({ name: "Work", adapter: { type: "memory" } });
 

@@ -159,8 +159,11 @@ write that file can feed this interface, which is the whole of the neutrality
 claim: bring your own agent.
 
 The skills in [`skills/`](skills/) are the drafting agent we use, and
-[`install.md`](install.md) installs them. They are one implementation of the
-schema, not a requirement of it.
+[`install.md`](install.md) installs them — read it yourself, hand it to an
+agent, or run `node install.mjs` for a wizard that asks where drafts should
+live, whether that's backed by a git remote, and installs the skills once it
+has an answer. They are one implementation of the schema, not a requirement of
+it.
 
 ## Sources and destinations
 

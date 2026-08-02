@@ -187,10 +187,10 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(await page.text("#consequence"), "blocks merge until resolved");
   });
 
-  test("dismissing is not offered on somebody else's pull request", async () => {
+  test("dismissing is offered on somebody else's pull request too", async () => {
     assert.equal(
       await page.eval('document.querySelector("#verdicts button[data-event=DISMISS]").hidden'),
-      true,
+      false,
     );
   });
 

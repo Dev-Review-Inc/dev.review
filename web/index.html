@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <!-- The policy travels with the page.
      `serve/serve.go` sends this as a header, and the desktop build sends its
      own, but `web/` is a folder of files with no build step: it can be put on
@@ -1343,7 +1343,20 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .popover { width: min(420px, calc(100vw - 24px)); }
+    /* A popover anchored to its own chip (left:0 of .popover-host) runs off
+       the right edge of a phone screen the moment that chip is not itself
+       flush with the left edge - which neither the source nor the queue chip
+       is. Anchoring to the header instead, which always spans the full
+       width, keeps every popover inside the viewport regardless of which
+       chip opened it. */
+    header { position: relative; }
+    .popover-host { position: static; }
+
+    .popover {
+      position: absolute;
+      top: 100%; left: 12px; right: 12px;
+      width: auto; margin-top: 3px;
+    }
 
     .settings {
       width: min(900px, calc(100vw - 24px));
@@ -1358,6 +1371,32 @@
 
     .verdicts { height: var(--ctlCompact); }
     .verdicts button { gap: 5px; padding: 0 8px; font-size: 11px; }
+
+    /* Touch targets and type, scaled up for a finger rather than a cursor.
+       Desktop keeps its own sizing untouched above; this block is the only
+       place any of it changes. Three heights become the touch-friendly
+       trio Apple and Google both call the floor for a tappable control -
+       every button already built on them (ROLES in button.js, the verdicts
+       segmented control, the chips) grows with no rule but this one. */
+    :root { --ctlIcon: 32px; --ctlCompact: 40px; --ctlStandard: 44px; }
+
+    .chip { min-height: 44px; }
+    .lens, .file, .diff-head { min-height: 44px; font-size: 14px; }
+    .lens .count { font-size: 13px; }
+    .card-head { font-size: 12px; }
+    .flag-toggle, .viewed { min-height: 44px; }
+
+    /* iOS Safari zooms the page in on focus of any text control under 16px.
+       That is not a stylistic choice to preserve - it is a bug the desktop
+       sizes happen to trigger, so every text control mobile can focus is
+       raised to the threshold that keeps the page still. */
+    .settings-fields input,
+    .settings-fields select,
+    .settings-fields input.mono,
+    #editor,
+    .finding-editor {
+      font-size: 16px;
+    }
   }
 </style>
 </head>

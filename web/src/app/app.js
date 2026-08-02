@@ -798,6 +798,17 @@ export class App {
 
     await this.drafts.loadAll();
 
+    // Every source needs a top-level drafts/ directory - it is where every
+    // adapter is told to read and write - and forgetting to nest an agent's
+    // files under it is indistinguishable, from the listing alone, from a
+    // source nobody has written to yet. This is the one case worth naming,
+    // since it is the mistake a reader hits before ever seeing a draft.
+    if (!this.problems.source && this.drafts.misconfigured) {
+      this.problems.source =
+        "no drafts/ directory found - every source needs one at the top level; " +
+        "put review.json under drafts/<owner>--<repo>-<number>/ rather than at the source root";
+    }
+
     // Once a source is open, the watch below is the only thing still asking it
     // anything: health is swept on boot and deliberately never on a timer. So a
     // source that stops answering after it opened is noticed here or nowhere,
