@@ -33,7 +33,7 @@ const SKILLS = [
 
 // The sweep's queue helper. It is four modules that import each other by
 // relative path, so they go into one directory together or none of them works.
-const COLLECTOR = ["queue.js", "select-new.js", "draft-path.js", "resolve-repo.js"];
+const COLLECTOR = ["queue.js", "select-new.js", "draft-path.js", "resolve-repo.js", "prune-drafts.js"];
 const COLLECTOR_TO = "~/.claude/skills/dev-review-sweep/collector";
 
 const read = (name) => fs.readFileSync(path.join(here, name), "utf8").trimEnd();
