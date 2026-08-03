@@ -14,13 +14,28 @@ import {
   say,
   tabRow,
   worstTone,
+  CHEVRON_ICON,
   COPY_ICON,
   COPIED_ICON,
   REDRAFT_ICON,
 } from "./dom.js";
 import { button } from "../ui/button.js";
-import { render } from "../ui/render.js";
+import { render, restyle } from "../ui/render.js";
 import { webUrl } from "../domain/url.js";
+
+/**
+ * Fold the pane's content away, or bring it back. View-only state kept on the
+ * app beside app.filter and app.editing, so a redraw remembers it without a
+ * second place to keep it in step.
+ *
+ * @param {object} app the application
+ * @returns {boolean} the new state
+ */
+export function togglePaneCollapsed(app) {
+  app.paneCollapsed = !app.paneCollapsed;
+
+  return app.paneCollapsed;
+}
 
 /**
  * Draw the whole left pane.
@@ -29,10 +44,37 @@ import { webUrl } from "../domain/url.js";
  * @returns {void}
  */
 export function drawRail(app) {
+  drawPaneBar(app);
   drawBlurb(app);
   drawSections(app);
   drawKinds(app);
   drawFiles(app);
+}
+
+/**
+ * The mobile-only bar above the pane's content.
+ *
+ * It draws on every platform - the description is cheap and #pane-toggle
+ * matters nowhere the bar itself is display:none - rather than branching on
+ * viewport width, which is a thing CSS already decided and JS has no business
+ * deciding again.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+function drawPaneBar(app) {
+  const collapsed = Boolean(app.paneCollapsed);
+  const pane = document.querySelector(".pane");
+
+  if (pane) pane.classList.toggle("is-collapsed", collapsed);
+
+  const label = collapsed ? "Show the review panel" : "Hide the review panel";
+  const toggle = restyle(
+    button({ role: "icon", icon: CHEVRON_ICON, pressed: collapsed, title: label }),
+    find("pane-toggle"),
+  );
+
+  toggle.setAttribute("aria-label", label);
 }
 
 function drawBlurb(app) {
