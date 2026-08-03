@@ -542,6 +542,25 @@
     position: sticky; top: 0; background: var(--panel); z-index: 1;
   }
 
+  /* The pane's own bar, above everything .pane-head already labels. It is
+     what a mobile reader keeps seeing once #pane-content is collapsed away -
+     off on a wide screen, where the two-column layout never hides the pane
+     and a bar promising to reveal it would promise nothing. */
+  .pane-bar {
+    display: none;
+    align-items: center; gap: 8px;
+    padding: 0 12px; height: 34px;
+    border-bottom: 1px solid var(--border2);
+    font-family: var(--mono); font-size: var(--textMicro);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+    position: sticky; top: 0; background: var(--panel); z-index: 1;
+  }
+
+  /* Pointing at what collapsing it would do, not at what it is doing: down
+     to say "there is more below", turned to say "this closes it". */
+  #pane-toggle svg { transition: transform .15s ease; }
+  #pane-toggle[aria-pressed="false"] svg { transform: rotate(180deg); }
+
   /* Queue --------------------------------------------------------------- */
 
   .row {
@@ -834,7 +853,12 @@
 
   .file:hover { background: var(--panel2); }
   .file[aria-pressed="true"] { border-left-color: var(--accent); background: var(--hl); color: var(--bright); }
-  .file .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Scrolled rather than clipped: a truncated path hides the one part of a
+     monorepo file that tells two "index.js" rows apart, with no way to read
+     the rest of it back. Universal rather than mobile-only - nothing here
+     relies on the old ellipsis, and a long path is exactly as unreadable on
+     a wide screen as on a narrow one. */
+  .file .path { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; }
   .file .n {
     margin-left: auto; flex-shrink: 0;
     padding: 0 5px; border-radius: 3px;
@@ -1368,6 +1392,13 @@
       border-bottom: 1px solid var(--border);
     }
 
+    .pane-bar { display: flex; }
+
+    /* Collapsed hides the content, not the bar above it - the bar is what
+       says the pane is still there and how to bring it back. */
+    .pane.is-collapsed { max-height: none; }
+    .pane.is-collapsed #pane-content { display: none; }
+
     /* A popover anchored to its own chip (left:0 of .popover-host) runs off
        the right edge of a phone screen the moment that chip is not itself
        flush with the left edge - which neither the source nor the queue chip
@@ -1505,14 +1536,21 @@
 
   <main>
     <section class="pane">
-      <div class="pane-head" id="blurb-head" hidden><span>summary</span></div>
-      <div id="blurb"></div>
-      <div class="pane-head"><span>agent verdict</span><span class="spacer"></span><button class="flag-toggle" id="files-flagged" hidden title="Hide lenses and files with no drafted comments"><span class="box"></span>flagged only</button></div>
-      <div id="analysis"></div>
-      <div class="pane-head" id="kinds-head" hidden><span>themes</span></div>
-      <div id="kinds" style="display: grid; gap: 2px; padding: 8px 0 10px"></div>
-      <div class="pane-head" id="files-head" hidden><span>files</span><span id="file-count" style="color: var(--dim2)"></span></div>
-      <div id="files"></div>
+      <div class="pane-bar">
+        <span>review</span>
+        <span class="spacer"></span>
+        <button id="pane-toggle"></button>
+      </div>
+      <div id="pane-content">
+        <div class="pane-head" id="blurb-head" hidden><span>summary</span></div>
+        <div id="blurb"></div>
+        <div class="pane-head"><span>agent verdict</span><span class="spacer"></span><button class="flag-toggle" id="files-flagged" hidden title="Hide lenses and files with no drafted comments"><span class="box"></span>flagged only</button></div>
+        <div id="analysis"></div>
+        <div class="pane-head" id="kinds-head" hidden><span>themes</span></div>
+        <div id="kinds" style="display: grid; gap: 2px; padding: 8px 0 10px"></div>
+        <div class="pane-head" id="files-head" hidden><span>files</span><span id="file-count" style="color: var(--dim2)"></span></div>
+        <div id="files"></div>
+      </div>
     </section>
 
     <section id="comment">

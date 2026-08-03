@@ -31,6 +31,11 @@ export const COPIED_ICON =
 export const LEAVE_ICON =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h7.5m0 0-2.5-2.5m2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// A chevron: down for "there is more here", turned by CSS to say "this closes
+// it" once the reader has opened it. The mobile pane's own collapse toggle.
+export const CHEVRON_ICON =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 /**
  * @param {string} id an element's id
  * @returns {HTMLElement} the element

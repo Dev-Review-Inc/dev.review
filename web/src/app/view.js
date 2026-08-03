@@ -25,7 +25,7 @@ import {
 import { drawDiff } from "./diff-pane.js";
 import { DISMISS, drawFooter } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
-import { drawRail } from "./rail.js";
+import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { closeEditor, drawSummary } from "./summary.js";
 
 // Registered first, before anything that could fail has run. It handles
@@ -45,6 +45,10 @@ const app = new App({
 app.editing = false;
 app.editingFinding = null;
 app.addingAt = null;
+// Mobile-only: whether the left pane's content is folded away under its own
+// bar. Meaningless at desktop width, where the pane is always open, but kept
+// here rather than guarded on viewport so a resize never has to reconcile it.
+app.paneCollapsed = false;
 app.setup = newSourceSetup();
 app.destinationSetup = newDestinationSetup();
 // Which item the settings panel's detail is showing: a source, a destination,
@@ -190,6 +194,11 @@ find("files-flagged").addEventListener("click", () => {
   if (!app.source) return;
 
   app.commands.showFlaggedOnly(app.source, !app.queries.isFlaggedOnly(app.source));
+  app.changed();
+});
+
+find("pane-toggle").addEventListener("click", () => {
+  togglePaneCollapsed(app);
   app.changed();
 });
 
