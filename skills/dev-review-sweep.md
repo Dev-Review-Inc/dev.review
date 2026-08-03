@@ -21,6 +21,16 @@ You're unattended: never ask a question, never wait for a go-ahead. If one pull 
 
 No `gh pr comment`, `gh pr review`, `gh pr merge`, or anything else that posts. The deliverable is a local draft a person reads; posting is their call, made in the app.
 
+## After every fresh PR is drafted: prune finished ones
+
+A draft's reviewer app already knows when its review was posted or dismissed — that is what the sync log is for. Once the fresh PRs above are drafted, clear out the drafts that are done with:
+
+```bash
+node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>   # delete drafts posted or dismissed, print which ones
+```
+
+This deletes matching draft folders (and their QA media) from disk only. Commit and push the deletion the same way a draft write is: run the "Sync to git" step from **/dev-review** against `<drafts-dir>` — `git add -A`, commit, push — rather than a second git flow.
+
 ## Finish with
 
-One short paragraph: what you drafted, how many were deferred and which, and anything that failed and why — including any git sync failure /dev-review reported. Never let the cap pass silently.
+One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted or dismissed, and anything that failed and why — including any git sync failure /dev-review or the prune step reported. Never let the cap pass silently.

@@ -65,6 +65,7 @@ test("reads every file install.md actually installs", () => {
       "~/.claude/skills/dev-review-sweep/collector/select-new.js",
       "~/.claude/skills/dev-review-sweep/collector/draft-path.js",
       "~/.claude/skills/dev-review-sweep/collector/resolve-repo.js",
+      "~/.claude/skills/dev-review-sweep/collector/prune-drafts.js",
     ],
   );
 
