@@ -138,6 +138,70 @@ describe("a draft that really was deleted", () => {
 // reads is empty even though the storage has work in it. That is worth naming
 // rather than reading as "the agent has not started" - it is what a reader
 // hits before ever seeing a draft.
+// loadAll pays for every draft on startup, and against a GitHub source each
+// read is its own round trip to api.github.com. Reading them one at a time
+// means a reader with thirty drafts waits for thirty round trips before the
+// queue can show anything.
+describe("loadAll's reads", () => {
+  test("run concurrently rather than one at a time", async () => {
+    const adapter = new MemoryAdapter();
+
+    await agentWrites(adapter, aDraft({ number: 1 }));
+    await agentWrites(adapter, aDraft({ number: 2 }));
+    await agentWrites(adapter, aDraft({ number: 3 }));
+
+    const read = adapter.read.bind(adapter);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const gate = [];
+
+    adapter.read = (path) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+
+      return new Promise((resolve) => gate.push(() => resolve(read(path)))).finally(() => {
+        inFlight -= 1;
+      });
+    };
+
+    const drafts = new Drafts({ adapter });
+    const loading = drafts.loadAll();
+
+    // Let every read start before any of them is allowed to finish.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(gate.length, 3);
+    gate.forEach((release) => release());
+
+    await loading;
+
+    assert.equal(maxInFlight, 3);
+  });
+
+  test("still record each file's own outcome when one fails mid-batch", async () => {
+    const adapter = new MemoryAdapter();
+
+    await agentWrites(adapter, aDraft({ number: 1 }));
+    await agentWrites(adapter, aDraft({ number: 2 }));
+    await agentWrites(adapter, aDraft({ number: 3 }));
+
+    const read = adapter.read.bind(adapter);
+
+    adapter.read = async (path) => {
+      if (path.includes("app-2/")) throw new Error("that bucket refused the connection");
+
+      return read(path);
+    };
+
+    const drafts = new Drafts({ adapter });
+    await drafts.loadAll();
+
+    assert.equal(drafts.problem("org/app#2").cause, UNREAD);
+    assert.equal(drafts.find("org/app#1").verdict, "COMMENT");
+    assert.equal(drafts.find("org/app#3").verdict, "COMMENT");
+  });
+});
+
 describe("a source with no drafts/ directory", () => {
   test("is unremarkable when the source is simply empty", async () => {
     const adapter = new MemoryAdapter();
