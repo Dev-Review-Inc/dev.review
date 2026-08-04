@@ -771,6 +771,12 @@ export class App {
       ? { section: "", kind: "", path: "" }
       : { section: "", kind: "", path: "", ...filter };
 
+    // Meaningless at desktop width, where the pane never collapses in the
+    // first place - but on mobile, picking something in it is the reader
+    // saying what they want to look at next, and the drawer is now in the
+    // way of looking at it.
+    this.paneCollapsed = true;
+
     this.changed();
   }
 
