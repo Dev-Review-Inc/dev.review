@@ -83,10 +83,11 @@
        sheet reads one of these off, which is the standard: a size changes
        here or not at all, never on the selector that happened to need it
        first. 10.5, 11 and 12 fold into 11.5, 12.5 and 13.5 into 13, 14 and
-       16 into 15. The 8px, 9px and 9.5px marks left outside the scale are
-       glyphs inside dots and badges rather than read text, and the one
-       literal 16px on a mobile input is a technical floor (iOS's zoom-on-
-       focus threshold), not a type choice - see its own comment. */
+       16 into 15. Test test/ui/scale.test.js enforces this: it fails on any
+       literal font-size in the stylesheet that is not one of these tokens,
+       the one 16px iOS-zoom-floor input rule, or a named glyph-in-a-dot/badge
+       exception (8px, 9px, 9.5px, the 34px cheer mark) - see the test's own
+       header for the full list and why each one is there. */
     --textMicro:10px; --textSmall:11.5px; --textBody:13px;
     --textLead:15px; --textDisplay:19px;
 
@@ -97,7 +98,16 @@
     --radiusTight:4px; --radius:6px; --radiusPanel:10px;
 
     /* The gaps and paddings actually in the sheet. 6 earns its place as the
-       most common gap of all; without it every dense row rounds to 4 or 8. */
+       most common gap of all; without it every dense row rounds to 4 or 8.
+       The sidebar's row controls (.chip, .lens, .file, .diff-head, the
+       verdicts buttons) size their padding off this scale rather than off
+       their own literal px, which is what let their padding drift out of
+       proportion with each other in the first place - see the padding rule
+       in test/ui/scale.test.js. Values that fell between two steps rounded
+       to the nearer one: .chip's 10px horizontal rounds down to space3,
+       .lens's 5px vertical rounds up to space2, .diff-head's 9px/14px both
+       round down to space3/space4 so it reads as one family with .file
+       underneath it. */
     --space1:4px; --space2:6px; --space3:8px;
     --space4:12px; --space5:16px; --space6:24px;
 
@@ -252,7 +262,7 @@
 
   .chip {
     display: flex; align-items: center; gap: 9px;
-    min-height: 36px; padding: 4px 10px;
+    min-height: 36px; padding: var(--space1) var(--space3);
     border: 1px solid var(--border); border-radius: 6px;
     background: var(--panel2); color: var(--text);
     text-align: left; white-space: nowrap;
@@ -596,7 +606,7 @@
 
   .flag-toggle {
     display: flex; align-items: center; gap: 5px;
-    font-family: var(--mono); font-size: 9.5px;
+    font-family: var(--mono); font-size: var(--textSmall);
     letter-spacing: .08em; text-transform: uppercase; color: var(--dim2);
   }
 
@@ -646,7 +656,7 @@
 
   .lens {
     display: flex; gap: 8px; align-items: center; width: 100%;
-    padding: 5px 12px; border: none; border-left: 2px solid transparent;
+    padding: var(--space2) var(--space4); border: none; border-left: 2px solid transparent;
     background: none; text-align: left;
     font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
@@ -841,7 +851,7 @@
 
   .file {
     display: flex; align-items: center; gap: 7px; width: 100%;
-    padding: 8px 12px; border: none; border-left: 2px solid transparent;
+    padding: var(--space3) var(--space4); border: none; border-left: 2px solid transparent;
     background: none; text-align: left;
     font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
@@ -878,7 +888,7 @@
   .diff-head {
     position: sticky; top: 0; z-index: 2;
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 9px 14px;
+    padding: var(--space3) var(--space4);
     border: none;
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
     background: var(--panel);
@@ -1132,7 +1142,7 @@
 
   .verdicts button {
     display: flex; align-items: center; gap: 7px;
-    padding: 0 12px;
+    padding: 0 var(--space4);
     border: none;
     background: transparent; color: var(--text);
     font-family: var(--mono); font-size: var(--textSmall); font-weight: 500;
@@ -1394,9 +1404,18 @@
        is pinned out of flow now, so the whole title fits on its own, given
        room to wrap rather than clip. Stacked above the stats instead of
        beside them: baseline-aligned side by side reads fine for one short
-       line, not for a title now free to run to two or three. */
+       line, not for a title now free to run to two or three. Bigger too:
+       it is the one line on the page saying what is actually being read. */
     .head-open { flex-direction: column; align-items: flex-start; gap: 2px; }
-    .head-open .title { white-space: normal; overflow: visible; text-overflow: clip; }
+    .head-open .title { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--textLead); }
+
+    /* The spacer after head-open exists to push signout to the far side of
+       the row on desktop, where signout is still a normal flow item. Mobile
+       pins signout out of flow by position instead (see #signout above), so
+       here the spacer is dead weight - flex:1 same as head-open, splitting
+       the row about evenly rather than handing the whole width to the
+       title it is meant to spread across. */
+    header > .spacer { flex: 0; }
 
     main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 
@@ -1450,7 +1469,7 @@
     #confirm, .scrim { padding: 12px; }
 
     .verdicts { height: var(--ctlCompact); }
-    .verdicts button { gap: 5px; padding: 0 8px; font-size: 11px; }
+    .verdicts button { gap: 5px; padding: 0 var(--space3); font-size: var(--textSmall); }
 
     /* Touch targets and type, scaled up for a finger rather than a cursor.
        Desktop keeps its own sizing untouched above; this block is the only
@@ -1462,11 +1481,10 @@
        Type moves the same way: every selector in this sheet already reads
        its size off --textMicro/Small/Body/Lead/Display, so raising the five
        here raises the whole app in one place instead of chasing one-off
-       rules per selector. Only the rows a thumb taps (.lens, .file,
-       .diff-head) get a further explicit step up to --textBody, so the list
-       a phone is scrolled with reads at the same size as the prose it is
-       held up to read - not the smaller size everything else in that row's
-       chrome (chips, buttons, badges) still shares. */
+       rules per selector. The rows a thumb taps (.lens, .file, .diff-head)
+       are chrome, not prose - the same scale as the nav chips above them,
+       so a phone reading the pane sees one consistent control size rather
+       than the list quietly outgrowing the bar it scrolls beneath. */
     :root {
       --ctlIcon: 32px; --ctlCompact: 40px; --ctlStandard: 44px;
       --textMicro: 12px; --textSmall: 13px; --textBody: 15px;
@@ -1474,7 +1492,7 @@
     }
 
     .chip { min-height: 44px; }
-    .lens, .file, .diff-head { min-height: 44px; font-size: var(--textBody); }
+    .lens, .file, .diff-head { min-height: 44px; }
     .flag-toggle, .viewed { min-height: 44px; }
 
     /* iOS Safari zooms the page in on focus of any text control under 16px.

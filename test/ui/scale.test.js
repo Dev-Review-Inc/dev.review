@@ -143,6 +143,78 @@ test("no rule in the stylesheet gives a control a typeface of its own", () => {
   }
 });
 
+// Type and control spacing, as assertions rather than as a comment.
+//
+// The mobile media query carried the sentence "every selector in this sheet
+// already reads its size off --textMicro/Small/Body/Lead/Display" directly
+// above a rule that read .lens, .file and .diff-head off a literal step past
+// that scale instead, so the sidebar's rows read larger than the nav chips
+// sitting above them. Same failure as the height one above, different axis.
+//
+// Scope is deliberately narrow: font-size and the padding of the row-style
+// controls the mismatch was actually reported on (chips, lens/file rows,
+// diff-head, the verdicts buttons). It does not touch line-height,
+// letter-spacing, border-radius, icon dimensions, gap, or panel/prose
+// padding - those were never the complaint, and a blanket ban on every
+// literal px in the sheet would just as happily fail on a border-radius as
+// on the thing that actually drifted, which makes the failure less useful
+// to read, not more.
+const FONT_SIZE_TOKEN = /^var\(--text(Micro|Small|Body|Lead|Display)\)$/;
+
+// Sizes that are legitimately not on the type scale: a glyph living inside a
+// dot or a badge rather than read text, and the mobile 16px iOS-zoom-on-focus
+// floor, which must stay a literal (see its own comment) so it cannot follow
+// --textLead down if that token is ever tuned smaller.
+const FONT_SIZE_EXCEPTIONS = [
+  { selector: /^\.head-slug$/, value: "9px" },
+  { selector: /^\.settings-set$/, value: "9px" },
+  { selector: /^\.teach-card \.kicker$/, value: "9.5px" },
+  { selector: /^\.avatar$/, value: "8px" },
+  { selector: /^\.ready-dot$/, value: "8px" },
+  { selector: /^\.viewed \.box$/, value: "9px" },
+  { selector: /^\.cheer-mark$/, value: "34px" },
+  { selector: /#editor|\.finding-editor/, value: "16px" },
+];
+
+// Sized relative to whatever prose it sits inside (inline code and tables
+// inside a rendered review body), not to the absolute scale - an em is the
+// point, so these do not get named one selector at a time.
+const RELATIVE_FONT_SIZE = /^-?\d*\.?\d+em$/;
+
+test("every font-size in the stylesheet is a type-scale token or a named exception", () => {
+  for (const [selector, block] of rules()) {
+    for (const [, value] of block.matchAll(/(?:^|[;{\s])font-size:\s*([^;}]+)/g)) {
+      const size = value.trim();
+
+      if (FONT_SIZE_TOKEN.test(size) || RELATIVE_FONT_SIZE.test(size)) continue;
+
+      const excused = FONT_SIZE_EXCEPTIONS.some((x) => x.selector.test(selector) && x.value === size);
+
+      assert.ok(excused, `${selector} { font-size: ${size} }`);
+    }
+  }
+});
+
+// The row controls the mobile font-size mismatch was reported on. A
+// selector-part matches only when one of these is the last class in it, the
+// same rule the height CONTROL regex above already follows, so a nested
+// child (.lens .glyph) is told apart from the row itself (.lens).
+const ROW_CONTROL = /(^|[\s,>])(\.chip|\.lens|\.file|\.diff-head|\.flag-toggle|\.viewed|\.verdicts button)((\.|:|\[)[^\s,]*)?$/;
+
+const PADDING_TOKEN = /^(0|var\(--space[1-6]\)|(0|var\(--space[1-6]\)) (0|var\(--space[1-6]\)))$/;
+
+test("no row control pads itself with a raw value", () => {
+  for (const [selector, block] of rules()) {
+    if (!selector.split(",").some((one) => ROW_CONTROL.test(one.trim()))) continue;
+
+    const padding = /(?:^|[;{\s])padding:\s*([^;}]+)/.exec(block)?.[1]?.trim();
+
+    if (!padding) continue;
+
+    assert.match(padding, PADDING_TOKEN, `${selector} { padding: ${padding} }`);
+  }
+});
+
 // Every rule in the page's one stylesheet, as selector and declarations. The
 // at-rules are flattened away: a media query's contents are rules like any
 // other, and a height set inside one counts the same.
