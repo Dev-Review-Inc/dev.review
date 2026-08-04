@@ -19,6 +19,13 @@ mod storage;
 #[cfg(target_os = "ios")]
 mod keychain;
 
+// A folder the reader picks is the desktop source; the iOS build's own fixed
+// ubiquity container is this one instead - see the comment at the top of
+// icloud.rs for why that means one new command rather than a whole parallel
+// set of them.
+#[cfg(target_os = "ios")]
+mod icloud;
+
 /// Start the desktop app.
 ///
 /// Split out of `main` because Tauri v2 builds mobile targets from a library
@@ -79,6 +86,7 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_set,
             keychain::keychain_delete,
+            icloud::icloud_root,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");
