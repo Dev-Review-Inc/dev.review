@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <!-- The policy travels with the page.
      `serve/serve.go` sends this as a header, and the desktop build sends its
      own, but `web/` is a folder of files with no build step: it can be put on
@@ -223,10 +223,19 @@
 
   /* Shell --------------------------------------------------------------- */
 
+  /* viewport-fit=cover (see the viewport meta tag) is what makes the two
+     env(safe-area-inset-*) references below report anything but 0 - without
+     it the page never claims the area under a notch/Dynamic Island in the
+     first place, so there is nothing for a webview to avoid. This app is
+     read inside a browser tab (which already keeps clear of the notch on
+     its own) as often as inside the native iOS shell's own full-bleed
+     WKWebView (which does not) - the row heights and header/footer padding
+     below grow by the inset on either, and are simply adding 0 on a
+     platform that already handled it upstream. */
   #shell {
     height: 100vh;
     display: grid;
-    grid-template-rows: 48px 1fr 56px;
+    grid-template-rows: calc(48px + env(safe-area-inset-top)) 1fr calc(56px + env(safe-area-inset-bottom));
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -236,7 +245,7 @@
     display: flex;
     align-items: center;
     gap: 11px;
-    padding: 0 14px;
+    padding: env(safe-area-inset-top) 14px 0;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     min-width: 0;
@@ -1125,7 +1134,7 @@
 
   footer {
     display: flex; align-items: center; gap: 12px;
-    padding: 0 16px;
+    padding: 0 16px env(safe-area-inset-bottom);
     border-top: 1px solid var(--border);
     background: var(--panel);
   }
@@ -1384,10 +1393,27 @@
     #shell { grid-template-rows: auto 1fr auto; }
 
     header, footer {
-      flex-wrap: wrap;
       height: auto;
       row-gap: 6px;
-      padding-top: 6px; padding-bottom: 6px;
+    }
+
+    header {
+      flex-wrap: wrap;
+      padding-top: calc(6px + env(safe-area-inset-top)); padding-bottom: 6px;
+    }
+
+    /* Not flex-wrap here, unlike header: four verdict buttons (Approve,
+       Comment, Request changes, Dismiss - Dismiss is offered on every pull
+       request now, not just your own) plus the staged-comment tally and Post
+       review do not reliably fit one row on a phone, and everything in this
+       row is flex-shrink: 0 on purpose - none of it reads well shrunk. A
+       second row a reader has to notice exists is worse than a scrollable
+       first one; overflow-x here is the same call made for wide diff/code
+       content elsewhere; the row scrolls, the page body never does. */
+    footer {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom));
     }
 
     /* Signout sits at the header's own top-right corner, pinned there by
