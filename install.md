@@ -52,8 +52,10 @@ Then sync to git — see "Sync to git" below.
 
 As review input comes in, keep `org--app-42/review.json` up-to-date so the human stays in the loop.
 
-1. **After each lens completes**, overwrite the file with everything so far — sections and findings accumulated to that point, `draftedAt` refreshed, and `progress` updated: `{ "note": "Security review", "percent": 60 }`. Write the note for the human waiting ("Reading the diff", "QA: scenario 2 of 3"), not as an internal state code.
-2. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
+1. **The moment a finding is identified**, write it in — don't hold it until its lens finishes or batch it with others. A human reading mid-review sees what is here now, not what was here as of the last checkpoint.
+2. **After each lens completes** too, overwrite the file with everything so far — sections and findings accumulated to that point, `draftedAt` refreshed, and `progress` updated: `{ "note": "Security review", "percent": 60 }`. Write the note for the human waiting ("Reading the diff", "QA: scenario 2 of 3"), not as an internal state code.
+3. **Before QA starts**, write and sync once more regardless of whether anything changed since the last write. QA is usually the slowest part of a review — a human should never be looking at a draft that is behind by everything QA takes to run, when every finding QA doesn't touch was already sitting there finished.
+4. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
 
 Sync to git after each of these writes too — same section below.
 
