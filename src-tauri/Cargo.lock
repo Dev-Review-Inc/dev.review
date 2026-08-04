@@ -2423,6 +2423,7 @@ dependencies = [
 name = "reviewer"
 version = "0.5.9"
 dependencies = [
+ "objc2",
  "objc2-foundation",
  "security-framework",
  "serde",
