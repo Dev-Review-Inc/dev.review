@@ -10,6 +10,11 @@
 // escapes, and `.git` is refused outright because a path that reaches it is a
 // path that installs a hook. And the token, which is handed to git through the
 // environment rather than argv, because argv is world readable in `ps`.
+//
+// Desktop only, and not by choice of scope: iOS sandboxing forbids an app from
+// spawning a subprocess at all, so shelling out - the entire premise this
+// module is built on - has no equivalent to fall back to there. lib.rs compiles
+// this module out on iOS rather than compiling it and leaving it unreachable.
 
 use std::fs;
 use std::path::{Path, PathBuf};
