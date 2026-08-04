@@ -11,11 +11,27 @@
 // what tells two secrets apart, matching how the frontend already keys them
 // ("secret:<source-or-destination-id>" becomes the account here).
 
+use std::sync::Mutex;
+
 use security_framework::base::Error as SecurityError;
 use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
 use tauri_plugin_biometric::{AuthOptions, BiometricExt};
 
 const SERVICE: &str = "dev.review";
+
+// One Face ID prompt per app launch, not one per secret read. Health sweeps
+// build a reader for every source at once (see App.probeSources in
+// web/src/app/app.js), running them concurrently - without this, a reader
+// with two GitHub sources got two stacked prompts, back to back, for the
+// same reason a bank app does not ask again every time a screen within the
+// same session touches your balance.
+//
+// A Mutex rather than a plain flag: those concurrent readers call in at the
+// same time, and a flag checked-then-set without a lock lets two of them
+// both see "not yet authenticated" and both open a Face ID sheet before
+// either finishes. Held across the (blocking) prompt itself, so the second
+// caller waits for the first one's answer instead of racing it.
+static AUTHENTICATED: Mutex<bool> = Mutex::new(false);
 
 // errSecItemNotFound, from Security/SecBase.h. Not exposed as a named
 // constant by security-framework, so named here instead of left as a magic
@@ -27,6 +43,12 @@ fn is_not_found(error: &SecurityError) -> bool {
 }
 
 fn authenticate(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
+    let mut authenticated = AUTHENTICATED.lock().map_err(|error| error.to_string())?;
+
+    if *authenticated {
+        return Ok(());
+    }
+
     app.biometric()
         .authenticate(
             reason.to_string(),
@@ -40,7 +62,11 @@ fn authenticate(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
                 ..Default::default()
             },
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+
+    *authenticated = true;
+
+    Ok(())
 }
 
 /// Read a secret out of the Keychain, behind Face ID.

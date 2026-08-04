@@ -106,7 +106,7 @@ targets:
     info:
       path: ReviewerWidgetExtension/Info.plist
       properties:
-        CFBundleDisplayName: Dev Review
+        CFBundleDisplayName: Reviewer
         CFBundleShortVersionString: 0.5.9
         CFBundleVersion: "0.5.9"
         NSExtension:
