@@ -253,7 +253,14 @@ function drawSections(app) {
   // source has rather than a thing the app has.
   const onlyFlagged = Boolean(app.source) && app.queries.isFlaggedOnly(app.source);
 
-  if (draft) {
+  if (pull) {
+    // Drawn whether or not a draft exists yet, and clickable either way: on
+    // mobile this is the only row in an otherwise-empty drawer before the
+    // agent claims the pull request, and with no way to click into it, there
+    // was no way to close the drawer and see the "not started" state
+    // summary.js already draws in the pane underneath - a plain, unclickable
+    // label used to stand here instead, which showed the same word but led
+    // nowhere.
     rows.append(
       tabRow({
         active: app.tab === "summary" && !app.filter.section && !app.filter.kind,
@@ -264,7 +271,9 @@ function drawSections(app) {
         onClick: () => app.show("summary"),
       }),
     );
+  }
 
+  if (draft) {
     for (const section of draft.sections) {
       const active = app.filter.section === section.key;
       const count = app.queries.findingsMatching(app.source, pull, {
