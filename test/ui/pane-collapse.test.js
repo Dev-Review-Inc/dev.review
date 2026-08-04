@@ -1,11 +1,13 @@
-// The left pane's mobile-only collapse toggle.
+// The left pane's mobile-only menu control.
 //
 // Desktop shows the pane in a permanent second column, so nothing about it
-// ever needs folding away there. On a phone it eats 40vh above the review
-// itself (see .pane in the @media (max-width: 760px) block), and a first-time
-// reader has no way to get it out from underfoot. #pane-toggle is the way
-// back: a bar above #pane-content that survives the collapse, so the pane
-// never disappears entirely, only what it was showing.
+// ever needs opening or closing there. On a phone it now opens as a drawer
+// over the comment section rather than pushing it down a page with no room
+// to spare (see .pane and #comment sharing a grid cell in the
+// @media (max-width: 760px) block). #pane-toggle lives in the header itself -
+// higher in the hierarchy than the pane it opens - so it is reachable
+// wherever the reader has scrolled to, and #pane-backdrop is the drawer's own
+// way out, a click on whatever it is covering.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -45,40 +47,60 @@ function mobileMediaBlock() {
   return styleSheet.slice(start, end + 1);
 }
 
-test("the pane bar and its toggle sit in the markup, wrapping the pane's content", () => {
-  const pane = html.slice(html.indexOf('<section class="pane">'), html.indexOf("</section>"));
+test("#pane-toggle sits in the header, ahead of the chips it now outranks", () => {
+  const header = html.slice(html.indexOf("<header>"), html.indexOf("</header>"));
+  const toggleIndex = header.indexOf('id="pane-toggle"');
+  const sourceIndex = header.indexOf('id="source-button"');
 
-  const barIndex = pane.indexOf('class="pane-bar"');
-  const toggleIndex = pane.indexOf('id="pane-toggle"');
-  const contentIndex = pane.indexOf('id="pane-content"');
-  const filesIndex = pane.indexOf('id="files"');
-
-  assert.ok(barIndex >= 0, "no .pane-bar in the pane");
-  assert.ok(toggleIndex >= 0, "no #pane-toggle button in the pane");
-  assert.ok(contentIndex >= 0, "no #pane-content wrapper in the pane");
-  assert.ok(barIndex < contentIndex, ".pane-bar must come before #pane-content, or it collapses with it");
-  assert.ok(contentIndex < filesIndex, "#pane-content must wrap the files list, or collapsing it leaves files showing");
+  assert.ok(toggleIndex >= 0, "no #pane-toggle in the header");
+  assert.ok(sourceIndex >= 0, "no #source-button in the header");
+  assert.ok(toggleIndex < sourceIndex, "#pane-toggle must come before the chips to read as the header's own menu control, not the pane's");
 });
 
-test("the bar is hidden outside the mobile media query, so a wide screen never sees it", () => {
-  const base = ruleFor(".pane-bar");
+test("#pane-backdrop sits in the markup, its own element rather than something borrowed from the pane", () => {
+  const main = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
 
-  assert.ok(base, ".pane-bar is never declared");
-  assert.match(base, /display:\s*none/, `.pane-bar { ${base} } does not start hidden`);
-
-  const mobile = ruleFor(".pane-bar", mobileMediaBlock());
-
-  assert.ok(mobile, "no .pane-bar rule inside the mobile media query");
-  assert.match(mobile, /display:\s*flex/, "the mobile .pane-bar rule does not turn it back on");
+  assert.ok(main.includes('id="pane-backdrop"'), "no #pane-backdrop in the markup");
 });
 
-test("collapsing hides #pane-content, never .pane-bar, and only inside the mobile media query", () => {
+test("#pane-toggle and #pane-backdrop are off outside mobile, where the pane never overlays anything", () => {
+  const toggleBase = ruleFor("#pane-toggle");
+
+  assert.ok(toggleBase, "#pane-toggle is never declared");
+  assert.match(toggleBase, /display:\s*none/, `#pane-toggle { ${toggleBase} } does not start hidden`);
+
+  const backdropBase = ruleFor("#pane-backdrop");
+
+  assert.ok(backdropBase, "#pane-backdrop is never declared");
+  assert.match(backdropBase, /display:\s*none/, `#pane-backdrop { ${backdropBase} } does not start hidden`);
+
+  const mobile = mobileMediaBlock();
+
+  assert.match(mobile, /#pane-toggle\s*\{[^}]*display:\s*inline-flex/, "no mobile rule turning #pane-toggle back on");
+  assert.match(
+    mobile,
+    /#pane-backdrop:not\(\[hidden\]\)\s*\{[^}]*display:\s*block/,
+    "no mobile rule showing #pane-backdrop once it is not hidden",
+  );
+});
+
+test("the pane and the comment section share one grid cell on mobile, so opening the pane overlays rather than pushes it down", () => {
   const mobile = mobileMediaBlock();
 
   assert.match(
     mobile,
-    /\.pane\.is-collapsed\s+#pane-content\s*\{[^}]*display:\s*none/,
-    "no rule hiding #pane-content under .pane.is-collapsed inside the mobile media query",
+    /\.pane,\s*#comment\s*\{[^}]*grid-row:\s*1[^}]*grid-column:\s*1/,
+    "no rule stacking .pane and #comment into the same grid cell inside the mobile media query",
+  );
+});
+
+test("collapsing hides the whole pane, and only inside the mobile media query", () => {
+  const mobile = mobileMediaBlock();
+
+  assert.match(
+    mobile,
+    /\.pane\.is-collapsed\s*\{[^}]*display:\s*none/,
+    "no rule hiding .pane under .pane.is-collapsed inside the mobile media query",
   );
 
   assert.doesNotMatch(

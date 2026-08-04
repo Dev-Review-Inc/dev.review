@@ -14,7 +14,8 @@ import {
   say,
   tabRow,
   worstTone,
-  CHEVRON_ICON,
+  MENU_ICON,
+  CLOSE_ICON,
   COPY_ICON,
   COPIED_ICON,
   REDRAFT_ICON,
@@ -44,7 +45,7 @@ export function togglePaneCollapsed(app) {
  * @returns {void}
  */
 export function drawRail(app) {
-  drawPaneBar(app);
+  drawPaneToggle(app);
   drawBlurb(app);
   drawSections(app);
   drawKinds(app);
@@ -52,29 +53,35 @@ export function drawRail(app) {
 }
 
 /**
- * The mobile-only bar above the pane's content.
+ * The mobile-only control that opens and closes the review pane as a drawer
+ * over the page, and the backdrop that comes with it.
  *
  * It draws on every platform - the description is cheap and #pane-toggle
- * matters nowhere the bar itself is display:none - rather than branching on
- * viewport width, which is a thing CSS already decided and JS has no business
- * deciding again.
+ * matters nowhere it is not display:flex - rather than branching on viewport
+ * width, which is a thing CSS already decided and JS has no business deciding
+ * again.
  *
  * @param {object} app the application
  * @returns {void}
  */
-function drawPaneBar(app) {
+function drawPaneToggle(app) {
   const collapsed = Boolean(app.paneCollapsed);
   const pane = document.querySelector(".pane");
 
   if (pane) pane.classList.toggle("is-collapsed", collapsed);
 
-  const label = collapsed ? "Show the review panel" : "Hide the review panel";
+  const backdrop = find("pane-backdrop");
+
+  if (backdrop) backdrop.hidden = collapsed;
+
+  const label = collapsed ? "Show the review menu" : "Hide the review menu";
   const toggle = restyle(
-    button({ role: "icon", icon: CHEVRON_ICON, pressed: collapsed, title: label }),
+    button({ role: "icon", icon: collapsed ? MENU_ICON : CLOSE_ICON, pressed: !collapsed, title: label }),
     find("pane-toggle"),
   );
 
   toggle.setAttribute("aria-label", label);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
 }
 
 function drawBlurb(app) {
