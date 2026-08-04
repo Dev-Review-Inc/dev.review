@@ -21,10 +21,16 @@ import {
   inTauri,
   unavailability as tauriUnavailability,
 } from "./tauri.js";
+import {
+  ICloudAdapter,
+  icloudRoot,
+  unavailability as icloudUnavailability,
+} from "./icloud.js";
 
 const TYPES = [
   FilesystemAdapter,
   TauriAdapter,
+  ICloudAdapter,
   GitHubAdapter,
   GitAdapter,
   S3Adapter,
@@ -61,6 +67,7 @@ function gitCaveat() {
 const AVAILABILITY = {
   [FilesystemAdapter.type]: filesystemUnavailability,
   [TauriAdapter.type]: tauriUnavailability,
+  [ICloudAdapter.type]: icloudUnavailability,
   [GitHubAdapter.type]: WORKS,
   [GitAdapter.type]: gitCaveat,
   [S3Adapter.type]: WORKS,
@@ -111,11 +118,19 @@ export function adapterTypes() {
  * would offer the desktop dialog to a browser build that has nowhere to put
  * what it returns.
  *
+ * iCloud opens no dialog at all - there is nothing to choose, only this app's
+ * own fixed container to ask Rust for. See icloud.js for why that is a
+ * property of the backend and not a shortcut taken here.
+ *
  * @param {string} type the backend the form has selected
- * @returns {string} "native" for the desktop app's own dialog, "browser" otherwise
+ * @returns {string} "native" for the desktop app's own dialog, "auto" for one
+ *   resolved with nothing to ask, "browser" otherwise
  */
 export function folderChooser(type) {
-  return type === TauriAdapter.type ? "native" : "browser";
+  if (type === TauriAdapter.type) return "native";
+  if (type === ICloudAdapter.type) return "auto";
+
+  return "browser";
 }
 
 /**
@@ -139,6 +154,14 @@ export async function chooseFolder(type) {
     const root = await chooseRoot();
 
     return root ? { root } : null;
+  }
+
+  // Not a dismissal even when there is nothing to resolve yet - unlike a
+  // picker closed with nothing chosen, an unavailable iCloud container is
+  // attached anyway, and ready() is what explains why it cannot be read,
+  // the same as any other source with a real reason it is not working.
+  if (folderChooser(type) === "auto") {
+    return { root: (await icloudRoot()) || "" };
   }
 
   try {

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Source of truth for the iOS entitlements - not read directly by Xcode.
+
+  `cargo tauri ios init` always writes a blank entitlements file at
+  gen/apple/reviewer_iOS/reviewer_iOS.entitlements, even when the project.yml
+  template points elsewhere - it treats wherever the template says as its own
+  output, and overwrites it. gen/apple/ is gitignored and rebuilt from
+  scratch on every init, so nothing placed only there survives.
+
+  After every `cargo tauri ios init`, restore this file into place:
+
+    cp reviewer_iOS.entitlements gen/apple/reviewer_iOS/reviewer_iOS.entitlements
+
+  iCloud.review.dev.app was registered against this project's own Apple
+  Developer team through Xcode's own Signing & Capabilities UI - that step
+  talks to Apple's developer portal and isn't something to hand-author here
+  blind. This file is what was captured from what Xcode wrote there.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.developer.icloud-container-identifiers</key>
+  <array>
+    <string>iCloud.review.dev.app</string>
+  </array>
+  <key>com.apple.developer.icloud-services</key>
+  <array>
+    <string>CloudDocuments</string>
+  </array>
+  <key>com.apple.developer.ubiquity-container-identifiers</key>
+  <array>
+    <string>iCloud.review.dev.app</string>
+  </array>
+</dict>
+</plist>

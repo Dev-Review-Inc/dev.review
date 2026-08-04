@@ -113,7 +113,10 @@ export class TauriAdapter extends Adapter {
   constructor(config = {}) {
     super();
     this._root = config.root || "";
-    this._label = config.label || TauriAdapter.label;
+    // this.constructor rather than TauriAdapter: a subclass with its own
+    // static label (icloud.js's ICloudAdapter) would otherwise fall back to
+    // this one's instead of its own the moment config.label was left unset.
+    this._label = config.label || this.constructor.label;
   }
 
   async ready() {
