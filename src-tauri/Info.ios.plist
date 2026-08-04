@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the generated Info.plist by `cargo tauri ios` - see
+  https://v2.tauri.app/reference/config/#iosconfig, `infoPlist`. Kept here
+  rather than hand-edited in gen/apple/, which is gitignored and regenerated.
+-->
+<plist version="1.0">
+<dict>
+  <key>NSFaceIDUsageDescription</key>
+  <string>Face ID unlocks your GitHub token, kept in the Keychain rather than in the app's own storage.</string>
+</dict>
+</plist>

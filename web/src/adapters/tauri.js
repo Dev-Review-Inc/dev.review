@@ -41,6 +41,22 @@ export function inTauri() {
 }
 
 /**
+ * Whether the app is running inside the desktop shell's iOS build
+ * specifically - the only platform src-tauri/src/keychain.rs's commands
+ * exist on. Desktop Tauri and a plain browser both answer false, and keep
+ * using whatever secret storage they already had.
+ *
+ * User agent sniffing rather than a platform-detection plugin: this project
+ * adds no JS dependencies, and the webview's own UA already says iPhone/iPad
+ * on that build without one.
+ *
+ * @returns {boolean} true inside the iOS app
+ */
+export function inTauriIOS() {
+  return inTauri() && /iPhone|iPad|iPod/.test(globalThis.navigator?.userAgent || "");
+}
+
+/**
  * Why this computer cannot be used here, if it cannot.
  *
  * A browser tab is not a shortcoming to explain away, so there is no hint: the
