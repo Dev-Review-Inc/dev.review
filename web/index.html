@@ -1426,9 +1426,9 @@
     #signout { position: absolute; top: 6px; right: 12px; margin: 0; }
 
     /* #pane-toggle - the menu control that opens the review pane as a
-       drawer - reads left-to-right first, ahead of the chips: it is chrome
-       about the page, not a choice about what the page is showing. */
-    #pane-toggle { display: inline-flex; order: -1; }
+       drawer - sits in DOM order right where it is meant to show: beside
+       the title row, not the chips row. No explicit order needed here. */
+    #pane-toggle { display: inline-flex; align-items: center; }
 
     /* The chips alone are wider than this line has room to also fit the
        open pull request beside, so something has to move to a line of its
@@ -1557,11 +1557,6 @@
 <div id="shell">
   <header>
 
-    <!-- Mobile only: opens and closes the review pane as a drawer over the
-         page. Off (display:none) everywhere else, where the pane is a
-         permanent second column and there is nothing for it to open. -->
-    <button id="pane-toggle" aria-expanded="false"></button>
-
     <div class="popover-host">
       <button class="chip" id="source-button" aria-expanded="false">
         <span class="chip-value" id="source-name">none</span>
@@ -1601,6 +1596,14 @@
          pinned to the header's top-right corner by position, not by flex
          order (see the mobile media query). -->
     <span class="row-break"></span>
+
+    <!-- Mobile only: opens and closes the review pane as a drawer over the
+         page. Off (display:none) everywhere else, where the pane is a
+         permanent second column and there is nothing for it to open. Beside
+         the title rather than the chips: it is chrome about the pull
+         request being read, and the title is the one line on the wrapped
+         row that is always there whether or not one is open yet. -->
+    <button id="pane-toggle" aria-expanded="false"></button>
 
     <span class="head-open">
       <span class="title" id="head-title"></span>

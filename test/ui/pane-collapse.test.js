@@ -47,14 +47,14 @@ function mobileMediaBlock() {
   return styleSheet.slice(start, end + 1);
 }
 
-test("#pane-toggle sits in the header, ahead of the chips it now outranks", () => {
+test("#pane-toggle sits in the header, beside the title it now reads as chrome for", () => {
   const header = html.slice(html.indexOf("<header>"), html.indexOf("</header>"));
   const toggleIndex = header.indexOf('id="pane-toggle"');
-  const sourceIndex = header.indexOf('id="source-button"');
+  const titleIndex = header.indexOf('id="head-title"');
 
   assert.ok(toggleIndex >= 0, "no #pane-toggle in the header");
-  assert.ok(sourceIndex >= 0, "no #source-button in the header");
-  assert.ok(toggleIndex < sourceIndex, "#pane-toggle must come before the chips to read as the header's own menu control, not the pane's");
+  assert.ok(titleIndex >= 0, "no #head-title in the header");
+  assert.ok(toggleIndex < titleIndex, "#pane-toggle must come right before the title, on the row it wraps onto beside it");
 });
 
 test("#pane-backdrop sits in the markup, its own element rather than something borrowed from the pane", () => {
