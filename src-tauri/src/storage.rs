@@ -12,8 +12,11 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+#[cfg(not(target_os = "ios"))]
 use tauri::Manager;
-use tauri_plugin_dialog::{DialogExt, FilePath};
+#[cfg(not(target_os = "ios"))]
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::FilePath;
 
 /// One file in a listing. Times and sizes are already in the units the reader
 /// wants - milliseconds since the epoch - so nothing has to be converted twice.
@@ -36,6 +39,13 @@ pub struct Entry {
 /// nothing. Everything else that can go wrong here is a failure, and says so:
 /// answering nothing to all of it left the interface telling the reader they
 /// had not chosen a folder, which is the one thing that had not happened.
+///
+/// Desktop only: `pick_folder` is not part of the dialog plugin's mobile
+/// surface at all, because iOS has no lasting concept of "an arbitrary folder
+/// the app may return to" the way a desktop filesystem does. A folder as a
+/// draft source is a desktop-only offering for the same reason the git
+/// transport in git.rs is - see the comment there.
+#[cfg(not(target_os = "ios"))]
 #[tauri::command]
 pub async fn storage_pick_root(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let (send, mut receive) = tauri::async_runtime::channel(1);
