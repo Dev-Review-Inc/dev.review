@@ -428,6 +428,25 @@ describe("Clearing a review that is open", () => {
     assert.equal(await page.text("#analysis .rail-waiting"), "not started");
   });
 
+  test("the rail's Summary row still stands and still opens the pane, even with nothing drafted yet", async () => {
+    // On mobile this row is the only way out of an otherwise-empty drawer
+    // before a draft exists - a reader with no clickable row in it has no
+    // way to see the "not started" state this same rail already names.
+    assert.equal(await page.count("#analysis .lens"), 1);
+    assert.equal(await page.text("#analysis .lens .name"), "Summary");
+
+    // clickButton matches a button's exact text, and this one's real text is
+    // "☰Summary" - the tone glyph runs straight into the label with no space
+    // between them in the markup. The row is the only one here either way,
+    // so a plain selector says the same thing without repeating that detail.
+    await page.click("#analysis .lens");
+
+    await page.until(
+      'document.querySelector("#analysis .lens")?.getAttribute("aria-pressed") === "true"',
+      "the Summary row to take the click",
+    );
+  });
+
   test("nothing went wrong along the way", () => {
     assert.deepEqual(page.complaints, []);
   });
