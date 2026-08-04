@@ -178,8 +178,12 @@ export class Queries {
   /**
    * Whether the reader has already sent this review.
    *
-   * The event log is the record, not the draft. A posted review that the agent
-   * later redrafts is still posted.
+   * The event log is the record, not the draft: an agent quietly rewriting
+   * its draft (new commits landing, a scheduled sweep re-running) does not
+   * un-post a review the reader already sent. Asking for a fresh draft from
+   * inside the app is different - see commands.forgetPost, fired from the
+   * same action that throws the old draft away - because that is the reader
+   * saying the posted review no longer describes what is here.
    *
    * @param {object} source the source being read
    * @param {object} pull the pull request

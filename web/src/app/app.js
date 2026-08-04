@@ -665,6 +665,15 @@ export class App {
     if (!pull || !this.drafts || !pull.draft) return;
 
     await this.drafts.clear(pull, pull.key);
+
+    // A review already posted for this pull request described the draft
+    // just thrown away, not whatever the agent writes next - so it stops
+    // counting as posted the moment a fresh one is asked for, rather than
+    // staying locked until the new draft happens to finish.
+    if (this.queries.isPosted(this.source, pull)) {
+      this.commands.forgetPost(this.source, pull);
+    }
+
     await this.reselect();
   }
 

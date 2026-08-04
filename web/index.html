@@ -279,11 +279,22 @@
      head-open shrinks to nothing once actually placed. */
   .head-open { display: flex; align-items: baseline; gap: 9px; flex: 1 1 0%; min-width: 0; }
 
+  /* The spacer between head-open and signout only exists to push signout to
+     the row's far side - it does not also need a share of the row's growth
+     to do that, and taking one anyway (flex:1, same as head-open) sat it
+     between the two, halving how far a short title got to extend before
+     ellipsis had any real reason to appear. Zeroed so head-open, the only
+     item actually meant to grow, gets all of what is left. */
+  header > .spacer { flex: 0; }
+
   /* Not rendered unless the mobile media query below turns it into a line
      break - see .row-break there for what it is doing and why. */
   .row-break { flex-basis: 0; height: 0; }
   .head-open .head-slug { font-size: var(--textSmall); flex-shrink: 0; }
-  .head-open .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .head-open .title {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;
+    flex: 1 1 auto;
+  }
   .head-open .head-stats { font-size: var(--textSmall); white-space: nowrap; flex-shrink: 0; }
 
   .chip:hover { background: var(--panel3); }
@@ -1408,14 +1419,6 @@
        it is the one line on the page saying what is actually being read. */
     .head-open { flex-direction: column; align-items: flex-start; gap: 2px; }
     .head-open .title { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--textLead); }
-
-    /* The spacer after head-open exists to push signout to the far side of
-       the row on desktop, where signout is still a normal flow item. Mobile
-       pins signout out of flow by position instead (see #signout above), so
-       here the spacer is dead weight - flex:1 same as head-open, splitting
-       the row about evenly rather than handing the whole width to the
-       title it is meant to spread across. */
-    header > .spacer { flex: 0; }
 
     main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 

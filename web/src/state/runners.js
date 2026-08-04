@@ -107,6 +107,12 @@ export default {
     verdict: data.event,
   })),
 
+  // Fired when the reader asks for a fresh draft. The old post described a
+  // review that no longer exists once the agent rewrites it from scratch -
+  // forgetting it is what lets a new one go out instead of the buttons
+  // staying locked against a review that has already been superseded.
+  "pulls.redraft": change(() => ({ postedAt: null, postedUrl: "" })),
+
   // ---- What the reader decided about one finding.
   //
   // Keyed by "owner/repo#number:findingId", so the agent's own stable ids are

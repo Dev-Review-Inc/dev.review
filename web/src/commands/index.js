@@ -174,6 +174,24 @@ export class Commands {
   }
 
   /**
+   * Forget that a review already went out for this pull request, because the
+   * reader just asked for a fresh one.
+   *
+   * Without this, a pull request the reader has already posted a review for
+   * stays locked as posted forever, even after the draft it described is
+   * gone and replaced - the buttons and the comment box read "already sent"
+   * against a review that, as far as the reader is concerned, has not
+   * happened yet.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  forgetPost(source, pull) {
+    this.track(source, "pulls", pull.key, "redraft");
+  }
+
+  /**
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {string} body the review body as the reader wants it
