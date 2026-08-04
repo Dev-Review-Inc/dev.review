@@ -29,13 +29,14 @@ export class App {
   /**
    * @param {object} [options] what to build against, for tests
    * @param {(name: string) => object} [options.database] makes a local database
+   * @param {object} [options.secrets] where secrets specifically are kept, in place of the config store - see MultiEventStore
    * @param {(config: object, secret: object, handle: object) => object} [options.adapter] makes a reader
    * @param {(destination: object, secret: object) => object} [options.destination] makes a destination
    * @param {(app: App) => Promise<void>} [options.install] attaches something on a browser that has nothing
    * @param {{remember: Function, recall: Function, forget: Function}} [options.handles] where directory handles are kept
    * @param {(message: string, tone: string) => void} [options.report] tells the reader something
    */
-  constructor({ database, adapter, destination, install, handles, report } = {}) {
+  constructor({ database, secrets, adapter, destination, install, handles, report } = {}) {
     this._buildAdapterWith = adapter || buildAdapter;
     this._buildDestinationWith = destination || buildDestination;
     this._install = install || null;
@@ -57,6 +58,7 @@ export class App {
     this.state = new MultiEventStore({
       runners,
       database: database || ((name) => new IndexedDBKeyValueStore(name)),
+      secrets,
     });
 
     this.drafts = null;

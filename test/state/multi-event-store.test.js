@@ -25,3 +25,37 @@ describe("MultiEventStore", () => {
     await state.settled();
   });
 });
+
+describe("secrets", () => {
+  test("without a secrets store of its own, a secret sits in the same store as everything else's config", async () => {
+    const config = new MemoryKeyValueStore();
+    const state = new MultiEventStore({ runners: {}, database: () => config });
+
+    await state.setSecret("github", { token: "abc" });
+
+    assert.deepEqual(await config.getItem("secret:github"), { token: "abc" });
+  });
+
+  test("given a secrets store, a secret goes there instead - never into the config store", async () => {
+    const config = new MemoryKeyValueStore();
+    const secrets = new MemoryKeyValueStore();
+    const state = new MultiEventStore({ runners: {}, database: () => config, secrets });
+
+    await state.setSecret("github", { token: "abc" });
+
+    assert.deepEqual(await secrets.getItem("secret:github"), { token: "abc" });
+    assert.equal(await config.getItem("secret:github"), null);
+  });
+
+  test("reads and forgets go through the same secrets store a write used", async () => {
+    const secrets = new MemoryKeyValueStore();
+    const state = new MultiEventStore({ runners: {}, database: () => new MemoryKeyValueStore(), secrets });
+
+    await state.setSecret("github", { token: "abc" });
+    assert.deepEqual(await state.secret("github"), { token: "abc" });
+
+    await state.forgetSecret("github");
+    assert.deepEqual(await state.secret("github"), {});
+    assert.equal(await secrets.getItem("secret:github"), null);
+  });
+});

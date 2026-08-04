@@ -10,6 +10,8 @@ import { App } from "./app.js";
 import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
+import { inTauriIOS } from "../adapters/tauri.js";
+import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
 import { leaveWords } from "./words.js";
 import { closeConfirm, dismiss, openConfirm, post } from "./confirm.js";
@@ -38,6 +40,11 @@ backstop(window, say);
 const app = new App({
   install: demoWanted(location.search) ? installDemo : null,
   report: say,
+  // Everywhere else, secrets sit in the same store as every other preference,
+  // as they always have. On the iOS build specifically there is somewhere
+  // sturdier to put a GitHub token than a database any app on the device
+  // could, in principle, be tricked into reading - see keychain.rs.
+  secrets: inTauriIOS() ? new KeychainKeyValueStore() : undefined,
 });
 
 // View-only state, kept on the app beside the rest of what is being looked at

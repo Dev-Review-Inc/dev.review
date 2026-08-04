@@ -13,6 +13,12 @@
 mod git;
 mod storage;
 
+// The Keychain has nothing to gate on desktop - it never held this app's
+// secrets, and IndexedDB stays exactly as it was there. See Cargo.toml for
+// why the crates this leans on are iOS-only dependencies.
+#[cfg(target_os = "ios")]
+mod keychain;
+
 /// Start the desktop app.
 ///
 /// Split out of `main` because Tauri v2 builds mobile targets from a library
@@ -64,11 +70,15 @@ pub fn run() {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_biometric::init())
         .invoke_handler(tauri::generate_handler![
             storage::storage_list,
             storage::storage_read,
             storage::storage_write,
             storage::storage_remove,
+            keychain::keychain_get,
+            keychain::keychain_set,
+            keychain::keychain_delete,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");

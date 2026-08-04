@@ -11,7 +11,7 @@ import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { itBehavesLikeAnAdapter } from "./conformance.js";
-import { TauriAdapter, inTauri, chooseRoot } from "../../web/src/adapters/tauri.js";
+import { TauriAdapter, inTauri, inTauriIOS, chooseRoot } from "../../web/src/adapters/tauri.js";
 
 const bytes = (text) => new TextEncoder().encode(text);
 
@@ -170,5 +170,43 @@ describe("tauri adapter, on the desktop", () => {
     delete globalThis.__TAURI__;
 
     assert.equal((await new TauriAdapter({ root: "/Users/someone/Reviews" }).ready()).ok, false);
+  });
+});
+
+describe("inTauriIOS", () => {
+  const realNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+
+  function fakeNavigator(userAgent) {
+    // Node's own `navigator` global is a getter-only property, unlike
+    // `__TAURI__`, which nothing else defines - a plain assignment throws.
+    Object.defineProperty(globalThis, "navigator", { value: { userAgent }, configurable: true });
+  }
+
+  beforeEach(() => {
+    globalThis.__TAURI__ = fakeTauri().api;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "navigator", realNavigator);
+    delete globalThis.__TAURI__;
+  });
+
+  test("is true inside the desktop app's iOS build", () => {
+    fakeNavigator("Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15");
+
+    assert.equal(inTauriIOS(), true);
+  });
+
+  test("is false inside the desktop app on macOS, which reports no iPhone/iPad in its UA", () => {
+    fakeNavigator("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15");
+
+    assert.equal(inTauriIOS(), false);
+  });
+
+  test("is false in an ordinary iPhone browser tab, outside the desktop app entirely", () => {
+    fakeNavigator("Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15");
+    delete globalThis.__TAURI__;
+
+    assert.equal(inTauriIOS(), false);
   });
 });
