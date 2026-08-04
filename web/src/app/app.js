@@ -20,6 +20,7 @@ import { buildAdapter, MemoryAdapter } from "../adapters/index.js";
 import { recallHandle, rememberHandle, forgetHandle } from "../adapters/filesystem.js";
 import { buildDestination } from "../destinations/index.js";
 import { remember } from "./theirs.js";
+import { syncWidget } from "./widget.js";
 
 // How often the queue is asked for again. The destination is the slow, rate limited
 // part of this app, and a review request does not arrive every second.
@@ -527,6 +528,7 @@ export class App {
     if (!this.destination) {
       this.pulls = [];
       this.changed();
+      await syncWidget(0);
 
       return;
     }
@@ -546,6 +548,7 @@ export class App {
     // the way the watch does. Redrawing alone would leave the queue saying the
     // review is gone while the pane went on showing it.
     await this.reselect();
+    await syncWidget(this.queue().length);
   }
 
   /**

@@ -38,6 +38,7 @@ strip = true
 # secret storage it always has; nothing here is a security regression for
 # it, since it never carried a keychain integration in the first place.
 [target.'cfg(target_os = "ios")'.dependencies]
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSFileManager", "NSURL", "NSString", "std"] }
+objc2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSFileManager", "NSURL", "NSString", "NSUserDefaults", "std"] }
 security-framework = "3.7.0"
 tauri-plugin-biometric = "2.3.2"

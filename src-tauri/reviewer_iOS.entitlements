@@ -9,14 +9,17 @@
   output, and overwrites it. gen/apple/ is gitignored and rebuilt from
   scratch on every init, so nothing placed only there survives.
 
-  After every `cargo tauri ios init`, restore this file into place:
+  After every `cargo tauri ios init`, restore this file and the widget
+  extension's into place:
 
     cp reviewer_iOS.entitlements gen/apple/reviewer_iOS/reviewer_iOS.entitlements
+    cp ReviewerWidget/ReviewerWidget.entitlements gen/apple/ReviewerWidget/ReviewerWidget.entitlements
 
-  iCloud.review.dev.app was registered against this project's own Apple
-  Developer team through Xcode's own Signing & Capabilities UI - that step
-  talks to Apple's developer portal and isn't something to hand-author here
-  blind. This file is what was captured from what Xcode wrote there.
+  iCloud.review.dev.app and group.review.dev.app were registered against this
+  project's own Apple Developer team through Xcode's own Signing &
+  Capabilities UI - that step talks to Apple's developer portal and isn't
+  something to hand-author here blind. This file is what was captured from
+  what Xcode wrote there.
 -->
 <plist version="1.0">
 <dict>
@@ -31,6 +34,10 @@
   <key>com.apple.developer.ubiquity-container-identifiers</key>
   <array>
     <string>iCloud.review.dev.app</string>
+  </array>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.review.dev.app</string>
   </array>
 </dict>
 </plist>

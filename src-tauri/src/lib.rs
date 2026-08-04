@@ -26,6 +26,11 @@ mod keychain;
 #[cfg(target_os = "ios")]
 mod icloud;
 
+// The home screen widget has no desktop equivalent - see the comment at the
+// top of widget.rs for what it hands off and where.
+#[cfg(target_os = "ios")]
+mod widget;
+
 /// Start the desktop app.
 ///
 /// Split out of `main` because Tauri v2 builds mobile targets from a library
@@ -87,6 +92,7 @@ pub fn run() {
             keychain::keychain_set,
             keychain::keychain_delete,
             icloud::icloud_root,
+            widget::widget_update,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");
