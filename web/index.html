@@ -542,24 +542,19 @@
     position: sticky; top: 0; background: var(--panel); z-index: 1;
   }
 
-  /* The pane's own bar, above everything .pane-head already labels. It is
-     what a mobile reader keeps seeing once #pane-content is collapsed away -
-     off on a wide screen, where the two-column layout never hides the pane
-     and a bar promising to reveal it would promise nothing. */
-  .pane-bar {
-    display: none;
-    align-items: center; gap: 8px;
-    padding: 0 12px; height: 34px;
-    border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: var(--textMicro);
-    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
-    position: sticky; top: 0; background: var(--panel); z-index: 1;
-  }
+  /* #pane-toggle lives in the header, not the pane, so it stays reachable
+     however the pane itself is shown or hidden. It means nothing on a wide
+     screen, where the two-column layout never hides the pane, so it is off
+     there and only the mobile media query turns it on. Likewise the backdrop
+     it opens alongside: a drawer's own way out, meaningless where there is no
+     drawer. */
+  #pane-toggle { display: none; }
 
-  /* Pointing at what collapsing it would do, not at what it is doing: down
-     to say "there is more below", turned to say "this closes it". */
-  #pane-toggle svg { transition: transform .15s ease; }
-  #pane-toggle[aria-pressed="false"] svg { transform: rotate(180deg); }
+  #pane-backdrop {
+    display: none;
+    position: fixed; inset: 0; z-index: 35;
+    background: rgba(0, 0, 0, .4);
+  }
 
   /* Queue --------------------------------------------------------------- */
 
@@ -1374,38 +1369,58 @@
       padding-top: 6px; padding-bottom: 6px;
     }
 
+    /* Signout sits at the header's own top-right corner, pinned there by
+       position rather than by flex order, so wherever the chips and the
+       title end up wrapping to, it never moves: it is reachable at a glance,
+       first thing, on the one row that is always on screen. The header's own
+       padding-right keeps flowed content (the chips, the title) from ever
+       running underneath it. */
+    header { position: relative; padding-right: 46px; }
+    #signout { position: absolute; top: 6px; right: 12px; margin: 0; }
+
+    /* #pane-toggle - the menu control that opens the review pane as a
+       drawer - reads left-to-right first, ahead of the chips: it is chrome
+       about the page, not a choice about what the page is showing. */
+    #pane-toggle { display: inline-flex; order: -1; }
+
     /* The chips alone are wider than this line has room to also fit the
-       open pull request and signout beside, so something has to move to
-       a line of its own - and left alone, it was signout: the one item
-       here that cannot shrink, so it lost whatever scraps were left over
-       after head-open squeezed down. Forcing the break here instead, on
-       a dedicated empty item, means head-open and signout share the new
-       line together rather than head-open claiming the whole width of it. */
+       open pull request beside, so something has to move to a line of its
+       own. Forcing the break here instead, on a dedicated empty item, means
+       nothing else on the line is bumped down with it. */
     .row-break { flex-basis: 100%; }
 
-    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+
+    /* The pane and the comment section share the same grid cell instead of
+       stacking in their own rows, so opening the pane lays it over the
+       comment beneath rather than pushing it down a page with no room to
+       spare - the drawer #pane-toggle promises, not a second panel to
+       scroll past to reach the diff. */
+    .pane, #comment { grid-row: 1; grid-column: 1; }
 
     .pane {
-      max-height: 40vh;
+      position: relative;
+      z-index: 36;
+      max-height: 70vh;
       overflow-y: auto;
       border-right: none;
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 16px 32px -12px rgba(0, 0, 0, .4);
     }
 
-    .pane-bar { display: flex; }
+    /* Hidden outright, not folded in place - the header's #pane-toggle is
+       now the only way back in, so there is nothing left inside the pane
+       itself that a collapsed reader needs kept in view. */
+    .pane.is-collapsed { display: none; }
 
-    /* Collapsed hides the content, not the bar above it - the bar is what
-       says the pane is still there and how to bring it back. */
-    .pane.is-collapsed { max-height: none; }
-    .pane.is-collapsed #pane-content { display: none; }
+    #pane-backdrop:not([hidden]) { display: block; }
 
     /* A popover anchored to its own chip (left:0 of .popover-host) runs off
        the right edge of a phone screen the moment that chip is not itself
        flush with the left edge - which neither the source nor the queue chip
-       is. Anchoring to the header instead, which always spans the full
-       width, keeps every popover inside the viewport regardless of which
-       chip opened it. */
-    header { position: relative; }
+       is. Anchoring to the header instead, which already carries
+       position:relative for signout above, keeps every popover inside the
+       viewport regardless of which chip opened it. */
     .popover-host { position: static; }
 
     .popover {
@@ -1486,6 +1501,11 @@
 <div id="shell">
   <header>
 
+    <!-- Mobile only: opens and closes the review pane as a drawer over the
+         page. Off (display:none) everywhere else, where the pane is a
+         permanent second column and there is nothing for it to open. -->
+    <button id="pane-toggle" aria-expanded="false"></button>
+
     <div class="popover-host">
       <button class="chip" id="source-button" aria-expanded="false">
         <span class="chip-value" id="source-name">none</span>
@@ -1518,11 +1538,12 @@
     </div>
 
     <!-- Chips alone are wider than a phone screen has room to also fit the
-         open pull request and signout beside, so both need the line to
-         themselves. flex-basis:100% forces that break, but only on this
-         empty, zero-height item - putting it on head-open instead would
-         claim the whole new line for itself and bump signout to a third
-         line rather than sharing this one. -->
+         open pull request beside, so it needs the line to itself.
+         flex-basis:100% forces that break, but only on this empty,
+         zero-height item - putting it on head-open instead would claim the
+         whole new line for itself. Signout is not here to bump: it is
+         pinned to the header's top-right corner by position, not by flex
+         order (see the mobile media query). -->
     <span class="row-break"></span>
 
     <span class="head-open">
@@ -1536,11 +1557,6 @@
 
   <main>
     <section class="pane">
-      <div class="pane-bar">
-        <span>review</span>
-        <span class="spacer"></span>
-        <button id="pane-toggle"></button>
-      </div>
       <div id="pane-content">
         <div class="pane-head" id="blurb-head" hidden><span>summary</span></div>
         <div id="blurb"></div>
@@ -1552,6 +1568,11 @@
         <div id="files"></div>
       </div>
     </section>
+
+    <!-- Mobile only: the drawer's own way out, a click outside it aimed at
+         what it is covering. Meaningless anywhere the pane never overlays
+         anything. -->
+    <div id="pane-backdrop" hidden></div>
 
     <section id="comment">
       <div id="tab-summary">

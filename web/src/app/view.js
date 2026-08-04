@@ -202,6 +202,13 @@ find("pane-toggle").addEventListener("click", () => {
   app.changed();
 });
 
+// The drawer's own way out, the same as every other backdrop in this app:
+// a click outside it is a click meant for what it is covering, not for it.
+find("pane-backdrop").addEventListener("click", () => {
+  togglePaneCollapsed(app);
+  app.changed();
+});
+
 // Leaving the summary is what keeps it. Nothing else ends the edit, so an
 // editor the reader has clicked away from cannot be holding unsaved words.
 //
