@@ -1389,6 +1389,15 @@
        nothing else on the line is bumped down with it. */
     .row-break { flex-basis: 100%; }
 
+    /* The title used to sit on one line, cut short with an ellipsis - a
+       compromise from when it had to share that line with signout. Signout
+       is pinned out of flow now, so the whole title fits on its own, given
+       room to wrap rather than clip. Stacked above the stats instead of
+       beside them: baseline-aligned side by side reads fine for one short
+       line, not for a title now free to run to two or three. */
+    .head-open { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .head-open .title { white-space: normal; overflow: visible; text-overflow: clip; }
+
     main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 
     /* The pane and the comment section share the same grid cell instead of
