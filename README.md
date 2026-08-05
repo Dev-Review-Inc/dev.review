@@ -88,10 +88,11 @@ endpoint. The left rail lists every pass the agent made with its finding count,
 including Query cost, ticked with nothing flagged. In the diff the deleted
 where clause is struck through in red, and a finding card hangs under
 src/api/orders.js:42 explaining that the limit is unbounded, carrying a
-suggested change marked committable and Edit, Post this comment and Drop
-buttons. The footer reads five comments staged, two blocking and three notes,
-with Request changes
-selected.](docs/media/review-diff-finding.png)
+suggested change marked committable and Edit, Post this comment and Include
+controls. Include is ticked on it and the card wears an accent edge for it,
+while the card below at src/api/orders.js:45 is left unticked and plain. The
+footer reads one comment staged, zero blocking and one note, beside a Request
+changes button.](docs/media/review-diff-finding.png)
 
 **A change arrives because it is waiting on you.** The app asks GitHub which
 pull requests await your review and which are your own, and shows them in one
