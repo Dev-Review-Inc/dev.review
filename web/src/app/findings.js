@@ -7,6 +7,7 @@
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
 import { arm, element, say } from "./dom.js";
+import { includeToggle } from "./include.js";
 import { button } from "../ui/button.js";
 import { render } from "../ui/render.js";
 import { commentWords } from "./words.js";
@@ -232,26 +233,15 @@ function editorActions(app, pull, finding) {
  * The opt-in control every finding carries: unchecked, and nothing this
  * finding says goes out, until the reader says it should.
  *
- * A toggle button rather than a native checkbox, the same recipe
- * #files-flagged already uses (a styled box plus a label) - one visual
- * language for "on or off" rather than a second one this file invents.
- *
  * @param {object} app the application
  * @param {object} pull the pull request the finding belongs to
  * @param {object} finding the finding the toggle is for
  * @returns {HTMLElement} the toggle
  */
-function includeToggle(app, pull, finding) {
+function findingInclude(app, pull, finding) {
   const included = Boolean(finding.includedAt);
 
-  const toggle = document.createElement("button");
-
-  toggle.type = "button";
-  toggle.className = "finding-include";
-  toggle.setAttribute("aria-pressed", String(included));
-  toggle.append(element("span", "box", ""), document.createTextNode("Include"));
-
-  toggle.addEventListener("click", () => {
+  return includeToggle(included, () => {
     if (included) {
       app.commands.excludeFinding(app.source, pull, finding);
     } else {
@@ -260,8 +250,6 @@ function includeToggle(app, pull, finding) {
 
     app.reselect();
   });
-
-  return toggle;
 }
 
 function cardActions(app, pull, finding) {
@@ -278,7 +266,7 @@ function cardActions(app, pull, finding) {
     }),
   );
 
-  const include = includeToggle(app, pull, finding);
+  const include = findingInclude(app, pull, finding);
 
   const words = commentWords(app);
   const send = render(button({ label: words.label, title: words.title, arms: true }));

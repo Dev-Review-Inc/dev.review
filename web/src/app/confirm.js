@@ -7,7 +7,6 @@ import { button } from "../ui/button.js";
 import { restyle } from "../ui/render.js";
 import { findingCard } from "./findings.js";
 import { VERDICT_TONE } from "./footer.js";
-import { reviewText } from "./summary.js";
 import { dismissedWords, postLabel, postNote, postedWords } from "./words.js";
 
 /**
@@ -58,17 +57,28 @@ export function openConfirm(app) {
   verdict.textContent = event.replace("_", " ");
   verdict.className = `verdict-badge mono is-${VERDICT_TONE[event] || "neutral"}`;
 
+  const summary = app.queries.commentToPost(app.source, pull);
+
   find("confirm-target").textContent = `${pull.owner}/${pull.repo}#${pull.number}`;
-  find("confirm-count").textContent = posting.length
-    ? `posts the summary and ${posting.length} line ${posting.length === 1 ? "comment" : "comments"}`
-    : "posts the summary only";
+
+  // Said by listing what is actually in this send. A summary the reader never
+  // opted in is not in it, and a sheet that claims otherwise is describing a
+  // different review than the one about to go.
+  const carrying = [
+    summary ? "the summary" : "",
+    posting.length ? `${posting.length} line ${posting.length === 1 ? "comment" : "comments"}` : "",
+  ].filter(Boolean);
+
+  find("confirm-count").textContent = carrying.length
+    ? `posts ${carrying.join(" and ")}`
+    : "posts the verdict, with nothing written";
 
   // The preview is the summary page over again, read-only, and carries only
   // what this send will actually do: a finding already posted on its own, or
-  // dropped, is not part of it.
+  // never opted in, is not part of it.
   const preview = find("confirm-preview");
 
-  preview.innerHTML = renderBody(reviewText(app));
+  preview.innerHTML = renderBody(summary);
 
   for (const finding of posting) {
     preview.append(findingCard(app, pull, finding, { snippet: true, actions: false }));
@@ -118,7 +128,7 @@ export async function post(app) {
       {
         commitId: app.headCommit,
         dropped: new Set(),
-        body: app.queries.commentFor(app.source, pull),
+        body: app.queries.commentToPost(app.source, pull),
         event,
       },
     );

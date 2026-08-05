@@ -12,6 +12,7 @@ import { age, element, emptyState, find, say } from "./dom.js";
 import { button } from "../ui/button.js";
 import { render } from "../ui/render.js";
 import { findingCard } from "./findings.js";
+import { includeToggle } from "./include.js";
 import { qaContent } from "./qa.js";
 import { editSource, openSetup } from "./header.js";
 import { draftProblemWords, postedWords } from "./words.js";
@@ -201,7 +202,16 @@ export function drawSummary(app) {
   } else {
     // The summary leads: it is what the review says, and the comments below
     // are its particulars.
-    body.append(summaryBox(app, reviewText(app), writable));
+    const text = reviewText(app);
+    const box = summaryBox(app, text, writable);
+
+    if (app.queries.isSummaryIncluded(app.source, pull)) box.classList.add("is-included");
+
+    body.append(box);
+
+    // Words there are none of go nowhere whatever the reader says, and a
+    // review already sent is past deciding.
+    if (text.trim() && !posted) body.append(summaryInclude(app, pull));
   }
 
   // The comments, each on the code it is about - the very same cards the diff
@@ -214,6 +224,37 @@ export function drawSummary(app) {
 
   // The recordings close as the proof.
   extra.append(...qaContent(app, { report: false }));
+}
+
+/**
+ * The summary's own opt-in, the same control and the same word every finding
+ * carries. The body is a thing being sent like any other, so it is decided
+ * like any other rather than riding along on the send.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request
+ * @returns {HTMLElement} the row holding the toggle
+ */
+function summaryInclude(app, pull) {
+  const row = document.createElement("div");
+
+  row.className = "summary-actions";
+
+  const included = app.queries.isSummaryIncluded(app.source, pull);
+
+  row.append(
+    includeToggle(included, () => {
+      if (included) {
+        app.commands.excludeSummary(app.source, pull);
+      } else {
+        app.commands.includeSummary(app.source, pull);
+      }
+
+      app.reselect();
+    }),
+  );
+
+  return row;
 }
 
 /**

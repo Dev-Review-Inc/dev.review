@@ -39,12 +39,18 @@ export const DISMISS = "DISMISS";
  * nothing, because the case it exists for is a pull request with nothing
  * worth drafting.
  *
+ * A review carrying nothing cannot be sent either: the summary and every
+ * comment are opted in one at a time, so "nothing chosen yet" is a state the
+ * reader can be in, and the destination refuses a review with no words and no
+ * comments. Dismissing is untouched by that - it sends nothing by design.
+ *
  * @param {object|null} pull the open pull request, if one is open
  * @param {string} chosen a verdict, or DISMISS
  * @param {boolean} posted whether the review already went out
+ * @param {boolean} [carrying] whether anything has been opted into the review
  * @returns {{label: string, disabled: boolean}} what to draw the button as
  */
-export function commitButton(pull, chosen, posted) {
+export function commitButton(pull, chosen, posted, carrying = true) {
   if (!pull) return { label: "Post review", disabled: true };
 
   if (chosen === DISMISS) return { label: "Dismiss", disabled: false };
@@ -52,7 +58,10 @@ export function commitButton(pull, chosen, posted) {
   const needsFinish = chosen === "APPROVE";
   const notReady = !pull.draft || (needsFinish && !pull.draft.finishedAt);
 
-  return { label: VERDICT_LABEL[chosen] || "Post review", disabled: notReady || posted };
+  return {
+    label: VERDICT_LABEL[chosen] || "Post review",
+    disabled: notReady || posted || !carrying,
+  };
 }
 
 /**
@@ -156,7 +165,18 @@ function drawVerdict(app) {
     choice.setAttribute("aria-pressed", String(choice.dataset.event === chosen));
   }
 
-  const commit = commitButton(pull, chosen, Boolean(pull) && app.queries.isPosted(app.source, pull));
+  const carrying = Boolean(
+    pull &&
+      (app.queries.commentToPost(app.source, pull).trim() ||
+        app.queries.findingsToPost(app.source, pull).length),
+  );
+
+  const commit = commitButton(
+    pull,
+    chosen,
+    Boolean(pull) && app.queries.isPosted(app.source, pull),
+    carrying,
+  );
 
   // The verdict tints the send button. "accent" is the primary's own fill, so
   // it is said by saying nothing. Dismissing sends nothing at all, so it does
