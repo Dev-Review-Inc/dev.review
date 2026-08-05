@@ -19,9 +19,9 @@ const drafting = { draft: { finishedAt: "" } };
 const undrafted = { draft: null };
 
 describe("with a verdict chosen", () => {
-  test("offers to post the review the agent finished", () => {
+  test("offers to post the review the agent finished, saying which verdict it would send", () => {
     assert.deepEqual(commitButton(drafted, "COMMENT", false), {
-      label: "Post review",
+      label: "Comment",
       disabled: false,
     });
   });
