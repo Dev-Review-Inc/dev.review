@@ -52,8 +52,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.6.0
-        CFBundleVersion: "0.6.0"
+        CFBundleShortVersionString: 0.6.1
+        CFBundleVersion: "0.6.1"
     entitlements:
       path: reviewer_iOS/reviewer_iOS.entitlements
     scheme:
@@ -107,8 +107,8 @@ targets:
       path: ReviewerWidgetExtension/Info.plist
       properties:
         CFBundleDisplayName: Reviewer
-        CFBundleShortVersionString: 0.6.0
-        CFBundleVersion: "0.6.0"
+        CFBundleShortVersionString: 0.6.1
+        CFBundleVersion: "0.6.1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
