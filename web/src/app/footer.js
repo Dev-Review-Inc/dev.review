@@ -120,6 +120,37 @@ export function toggleVerdictMenu() {
   find("verdict-popover").hidden = !open;
   find("verdict-backdrop").hidden = !open;
   find("verdict-button").setAttribute("aria-expanded", String(open));
+
+  if (open) positionVerdictMenu();
+}
+
+/**
+ * Put the verdict sheet where it reads as coming out of the caret that opened
+ * it, rather than sliding up from the edge of the screen.
+ *
+ * Measured after the sheet is un-hidden - a hidden element has no box to
+ * measure - and placed with fixed coordinates rather than anchored under a
+ * relatively positioned parent, which is what lets it sit above the footer
+ * without being clipped by the footer's own horizontal scrolling on a narrow
+ * viewport.
+ *
+ * @returns {void}
+ */
+function positionVerdictMenu() {
+  const anchor = find("verdict-button").getBoundingClientRect();
+  const sheet = find("verdict-popover");
+  const margin = 8;
+
+  // Right-aligned to the caret, the same edge #post-split ends on, and
+  // clamped so a caret hard against the left edge does not push the sheet
+  // off the other side of the screen.
+  const left = Math.max(
+    margin,
+    Math.min(anchor.right - sheet.offsetWidth, window.innerWidth - sheet.offsetWidth - margin),
+  );
+
+  sheet.style.left = `${left}px`;
+  sheet.style.top = `${anchor.top - sheet.offsetHeight - margin}px`;
 }
 
 /**

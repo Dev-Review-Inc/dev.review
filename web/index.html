@@ -1225,14 +1225,13 @@
      actually taking the click away from it. */
   .split #post:disabled ~ #verdict-button { opacity: .4; }
 
-  /* The choices themselves, opened from #verdict-button. A sheet rather than
-     a popover anchored under the chip: the footer it would anchor to is a
-     horizontal scroller on mobile (see the mobile media query's overflow-x
-     on footer), and an ancestor with either overflow axis not visible clips
-     an absolutely positioned descendant on the other axis too - upward, the
-     one direction this needs. Fixed to the viewport instead, sitting above
-     everything the same way #confirm's sheet does, sidesteps that clipping
-     rather than fighting it. */
+  /* The choices themselves, opened from #verdict-button. Fixed rather than a
+     popover anchored under a relatively positioned parent - the footer it
+     would anchor to scrolls horizontally on a narrow viewport (see the mobile
+     media query's overflow-x on footer), and fixed positioning is the one
+     kind an ancestor's overflow never clips. footer.js measures the button
+     after this is un-hidden and places it from there, so it reads as coming
+     out of the caret rather than sliding up from the edge of the screen. */
   .scrim2 {
     position: fixed; inset: 0; z-index: 80;
     background: rgba(0, 0, 0, .35);
@@ -1240,13 +1239,12 @@
 
   .verdict-sheet {
     position: fixed; z-index: 90;
-    left: 0; right: 0; bottom: 0; margin: 0 auto;
-    max-width: 320px;
+    width: 224px;
     display: flex; flex-direction: column; gap: 2px;
-    padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom));
-    border: 1px solid var(--border); border-radius: 12px 12px 0 0;
+    padding: 6px;
+    border: 1px solid var(--border); border-radius: 9px;
     background: var(--panel);
-    box-shadow: 0 -18px 44px var(--shadow);
+    box-shadow: 0 18px 44px var(--shadow);
   }
 
   .verdict-sheet button {
