@@ -198,6 +198,34 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(await page.text("#post"), "Request changes");
   });
 
+  // It used to slide up as a sheet from the bottom edge of the screen, which
+  // read as a different control entirely from the button that opened it. It
+  // has to look like it came out of that button: right-aligned to it and
+  // sitting just above it, not centred under the whole viewport.
+  test("the verdict choices open where the caret is, not centred on the screen", async () => {
+    await page.clickWhere('document.querySelector("#verdict-button")', "the verdict button");
+    await page.until('!document.querySelector("#verdict-popover").hidden', "the verdict sheet");
+
+    const gap = await page.eval(`(() => {
+      const anchor = document.querySelector("#verdict-button").getBoundingClientRect();
+      const sheet = document.querySelector("#verdict-popover").getBoundingClientRect();
+
+      return JSON.stringify({
+        rightEdges: Math.round(Math.abs(sheet.right - anchor.right)),
+        above: Math.round(anchor.top - sheet.bottom),
+        centred: Math.round(sheet.width) === Math.round(document.querySelector("#shell").clientWidth) ||
+          Math.round(sheet.left) === 0,
+      });
+    })()`);
+    const { rightEdges, above, centred } = JSON.parse(gap);
+
+    assert.ok(rightEdges <= 4, `the sheet's right edge sits ${rightEdges}px from the caret's`);
+    assert.ok(above >= 0 && above <= 16, `the sheet sits ${above}px above the caret`);
+    assert.equal(centred, false, "the sheet reads as a centred bottom sheet");
+
+    await page.clickWhere('document.querySelector("#verdict-backdrop")', "the backdrop");
+  });
+
   test("dismissing is offered on somebody else's pull request too", async () => {
     assert.equal(
       await page.eval('document.querySelector("#verdict-popover button[data-event=DISMISS]").hidden'),
