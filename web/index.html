@@ -973,9 +973,35 @@
      spaced from each other but not indented. */
   .prose .finding { margin: 14px 0; }
 
-  .finding.is-dropped { opacity: .45; }
+  /* Opting a finding in marks it, rather than opting out dimming it. Nearly
+     every card starts out, so dimming the default would read as a list of
+     broken cards instead of a list of things to choose from. The accent edge
+     is the same one an anchored diff line wears. */
+  .finding.is-included { box-shadow: inset 3px 0 0 var(--accent); }
   .finding.is-critical { border-color: var(--redBd); }
   .finding.is-ok { border-color: var(--greenBd); }
+
+  /* The opt-in toggle every finding carries - the same recipe #files-flagged
+     already uses (a styled box beside a label), so "on or off" reads the
+     same wherever it shows up. height and padding match .ui-button's own
+     tokens rather than #files-flagged's literal sizing, because this one
+     sits in the same row as Edit and Post and has to stand the same height
+     they do. */
+  .finding-include {
+    display: flex; align-items: center; gap: 5px;
+    height: var(--ctlStandard); padding: 0 var(--space4);
+    border: none; background: none;
+    font-size: var(--textSmall);
+    color: var(--dim2);
+  }
+
+  .finding-include .box {
+    width: 11px; height: 11px; border-radius: 3px;
+    border: 1px solid var(--border); background: var(--panel2);
+  }
+
+  .finding-include[aria-pressed="true"] { color: var(--accent); }
+  .finding-include[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); }
 
   .finding-head {
     display: flex; align-items: center; gap: 9px;

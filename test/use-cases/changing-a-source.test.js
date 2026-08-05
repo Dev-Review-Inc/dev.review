@@ -85,14 +85,14 @@ describe("Fixing a source that was set up wrong", () => {
     });
     await app.select(app.queue()[0]);
     const [finding] = app.queries.findingsForPull(app.source, app.selected);
-    app.commands.dropFinding(app.source, app.selected, finding);
+    app.commands.includeFinding(app.source, app.selected, finding);
   });
 
   test("renaming it keeps everything recorded against it", async () => {
     await app.editSource(source, { name: "Work" });
 
     assert.equal(app.queries.findSource(source.id).name, "Work");
-    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].droppedAt);
+    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].includedAt);
   });
 
   test("correcting the bucket keeps the same source, and its decisions", async () => {
@@ -103,7 +103,7 @@ describe("Fixing a source that was set up wrong", () => {
     const after = app.queries.findSource(source.id);
     assert.equal(after.id, source.id);
     assert.equal(after.adapter.bucket, "correct");
-    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].droppedAt);
+    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].includedAt);
   });
 
   test("a key left blank is left alone rather than blanked", async () => {

@@ -112,7 +112,7 @@ function editorFor(app, holder, key) {
  */
 export function findingCard(app, pull, finding, { snippet = false, actions = true } = {}) {
   const card = document.createElement("div");
-  card.className = `finding is-${finding.color}${finding.droppedAt ? " is-dropped" : ""}`;
+  card.className = `finding is-${finding.color}${finding.includedAt ? " is-included" : ""}`;
 
   const head = document.createElement("div");
   head.className = "finding-head";
@@ -228,6 +228,42 @@ function editorActions(app, pull, finding) {
   return actions;
 }
 
+/**
+ * The opt-in control every finding carries: unchecked, and nothing this
+ * finding says goes out, until the reader says it should.
+ *
+ * A toggle button rather than a native checkbox, the same recipe
+ * #files-flagged already uses (a styled box plus a label) - one visual
+ * language for "on or off" rather than a second one this file invents.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request the finding belongs to
+ * @param {object} finding the finding the toggle is for
+ * @returns {HTMLElement} the toggle
+ */
+function includeToggle(app, pull, finding) {
+  const included = Boolean(finding.includedAt);
+
+  const toggle = document.createElement("button");
+
+  toggle.type = "button";
+  toggle.className = "finding-include";
+  toggle.setAttribute("aria-pressed", String(included));
+  toggle.append(element("span", "box", ""), document.createTextNode("Include"));
+
+  toggle.addEventListener("click", () => {
+    if (included) {
+      app.commands.excludeFinding(app.source, pull, finding);
+    } else {
+      app.commands.includeFinding(app.source, pull, finding);
+    }
+
+    app.reselect();
+  });
+
+  return toggle;
+}
+
 function cardActions(app, pull, finding) {
   const controls = document.createElement("div");
   controls.className = "finding-actions";
@@ -242,20 +278,7 @@ function cardActions(app, pull, finding) {
     }),
   );
 
-  const drop = render(
-    button({
-      label: finding.droppedAt ? "Restore" : "Drop",
-      onClick: () => {
-        if (finding.droppedAt) {
-          app.commands.restoreFinding(app.source, pull, finding);
-        } else {
-          app.commands.dropFinding(app.source, pull, finding);
-        }
-
-        app.reselect();
-      },
-    }),
-  );
+  const include = includeToggle(app, pull, finding);
 
   const words = commentWords(app);
   const send = render(button({ label: words.label, title: words.title, arms: true }));
@@ -276,11 +299,11 @@ function cardActions(app, pull, finding) {
     }
   });
 
-  controls.append(edit, send, element("span", "spacer", ""), drop);
+  controls.append(edit, send, element("span", "spacer", ""), include);
 
-  // A dropped comment of your own can go entirely - unlike the agent's, which
-  // stay readable so what it said is never lost.
-  if (finding.droppedAt && finding.mine) {
+  // An excluded comment of your own can go entirely - unlike the agent's,
+  // which stay readable so what it said is never lost.
+  if (!finding.includedAt && finding.mine) {
     const remove = render(
       button({
         label: "Delete",

@@ -50,9 +50,9 @@ describe("clearing the draft on the pull request being read", () => {
 
   test("leaves the reader's decisions standing, for the redraft to land on", async () => {
     const { app, adapter } = await reading();
-    const dropped = app.queries.findingsForPull(app.source, app.selected)[0];
+    const included = app.queries.findingsForPull(app.source, app.selected)[0];
 
-    app.commands.dropFinding(app.source, app.selected, dropped);
+    app.commands.includeFinding(app.source, app.selected, included);
 
     await app.clearDraft();
     await agentWrites(adapter, aDraft({ summary: "Second look." }));
@@ -60,8 +60,8 @@ describe("clearing the draft on the pull request being read", () => {
 
     const again = app.queries.findingsForPull(app.source, app.selected)[0];
 
-    assert.equal(again.id, dropped.id);
-    assert.ok(again.droppedAt);
+    assert.equal(again.id, included.id);
+    assert.ok(again.includedAt);
   });
 });
 
