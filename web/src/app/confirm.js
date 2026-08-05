@@ -2,7 +2,7 @@
 
 import { renderBody } from "../domain/render.js";
 import { reviewPayload } from "../domain/review.js";
-import { find, say } from "./dom.js";
+import { element, find, say } from "./dom.js";
 import { button } from "../ui/button.js";
 import { restyle } from "../ui/render.js";
 import { findingCard } from "./findings.js";
@@ -36,6 +36,7 @@ export function settle(app) {
  */
 export function closeConfirm(app) {
   settle(app);
+  app.editingConfirm = false;
   find("confirm").hidden = true;
 }
 
@@ -73,12 +74,15 @@ export function openConfirm(app) {
     ? `posts ${carrying.join(" and ")}`
     : "posts the verdict, with nothing written";
 
-  // The preview is the summary page over again, read-only, and carries only
-  // what this send will actually do: a finding already posted on its own, or
-  // never opted in, is not part of it.
+  // The preview is the summary page over again, carrying only what this send
+  // will actually do: a finding already posted on its own, or never opted in,
+  // is not part of it. The findings are read-only here - the sheet is the last
+  // look, not a second place to work - but the summary is not, because the
+  // sentence a reader wants to change is the one they are reading right now.
   const preview = find("confirm-preview");
 
-  preview.innerHTML = renderBody(summary);
+  preview.replaceChildren();
+  if (summary) preview.append(summaryBox(app, pull, summary));
 
   for (const finding of posting) {
     preview.append(findingCard(app, pull, finding, { snippet: true, actions: false }));
@@ -87,6 +91,67 @@ export function openConfirm(app) {
   find("confirm-note").textContent = postNote(app);
   find("confirm").hidden = false;
   settle(app);
+}
+
+/**
+ * The review body in the sheet: read, until it is clicked, and then written.
+ *
+ * Its own editor rather than the summary pane's, which is behind the sheet and
+ * so cannot be typed into from here. Leaving the box is what keeps the edit,
+ * the same gesture the pane's box asks for.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request being posted
+ * @param {string} summary the body as it stands
+ * @returns {HTMLElement} the box, or the editor open over it
+ */
+function summaryBox(app, pull, summary) {
+  if (app.editingConfirm) {
+    const editor = document.createElement("textarea");
+
+    editor.className = "finding-editor mono";
+    editor.spellcheck = false;
+    editor.value = summary;
+    editor.addEventListener("blur", () => {
+      app.commands.editComment(app.source, pull, editor.value);
+      app.editingConfirm = false;
+      app.reselect();
+      openConfirm(app);
+    });
+
+    queueMicrotask(() => {
+      editor.focus();
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+    });
+
+    return editor;
+  }
+
+  const box = document.createElement("div");
+
+  box.className = "summary-box";
+  box.innerHTML = renderBody(summary);
+  box.role = "button";
+  box.tabIndex = 0;
+  box.title = "Click to write in the summary";
+
+  // Nobody expects the last look before sending to be a place they can write,
+  // so the box says so on hover the same way the pane's does. Hidden from a
+  // screen reader: the title already names what this decorates.
+  const hint = element("div", "summary-edit-hint", "click to edit");
+
+  hint.setAttribute("aria-hidden", "true");
+  box.append(hint);
+  box.addEventListener("click", (event) => {
+    // A link in the summary goes where it points; only the prose around it
+    // opens the editor.
+    if (event.target.closest("a")) return;
+
+    app.editingConfirm = true;
+    openConfirm(app);
+  });
+
+  return box;
 }
 
 /**
@@ -108,10 +173,16 @@ export async function post(app) {
   find("confirm-note").textContent = "sending…";
   say("posting…");
 
-  // An edit still sitting in the open editor is part of the review. Recording
+  // An edit still sitting in an open editor is part of the review. Recording
   // it before the send is what stops the destination and this app disagreeing
-  // about what was said.
-  if (app.editing) {
+  // about what was said. Either editor: the pane's, left open behind the
+  // sheet, and the sheet's own.
+  const open = app.editingConfirm ? find("confirm-preview").querySelector("textarea") : null;
+
+  if (open) {
+    app.commands.editComment(app.source, pull, open.value);
+    app.editingConfirm = false;
+  } else if (app.editing) {
     app.commands.editComment(app.source, pull, find("editor").value);
     app.editing = false;
   }
