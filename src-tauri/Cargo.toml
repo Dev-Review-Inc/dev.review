@@ -1,6 +1,6 @@
 [package]
 name = "reviewer"
-version = "0.5.9"
+version = "0.6.0"
 description = "Desktop shell for the reviewer app"
 edition = "2021"
 license = "Apache-2.0"
