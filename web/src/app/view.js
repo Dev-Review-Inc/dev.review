@@ -25,7 +25,7 @@ import {
   toggleSetup,
 } from "./header.js";
 import { drawDiff } from "./diff-pane.js";
-import { DISMISS, drawFooter } from "./footer.js";
+import { DISMISS, closeVerdictMenu, drawFooter, toggleVerdictMenu } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { closeEditor, drawSummary } from "./summary.js";
@@ -246,8 +246,13 @@ find("post").addEventListener("click", () => {
   dismiss(app);
 });
 
-find("verdicts").addEventListener("click", (event) => {
+find("verdict-button").addEventListener("click", () => toggleVerdictMenu());
+find("verdict-backdrop").addEventListener("click", () => closeVerdictMenu());
+
+find("verdict-popover").addEventListener("click", (event) => {
   const button = event.target.closest("button");
+
+  closeVerdictMenu();
 
   if (!button || !app.selected) return;
 

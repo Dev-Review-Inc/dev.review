@@ -185,13 +185,14 @@ describe("Reading a review the agent drafted", () => {
   });
 
   test("the verdict the reader chooses is the one the footer stands behind", async () => {
+    await page.clickWhere('document.querySelector("#verdict-button")', "the verdict button");
     await page.clickWhere(
-      'document.querySelector("#verdicts button[data-event=REQUEST_CHANGES]")',
-      "the request changes button",
+      'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]")',
+      "the request changes choice",
     );
 
     await page.until(
-      'document.querySelector("#verdicts button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed") === "true"',
+      'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed") === "true"',
       "the verdict to be taken",
     );
     assert.equal(await page.text("#consequence"), "blocks merge until resolved");
@@ -199,7 +200,7 @@ describe("Reading a review the agent drafted", () => {
 
   test("dismissing is offered on somebody else's pull request too", async () => {
     assert.equal(
-      await page.eval('document.querySelector("#verdicts button[data-event=DISMISS]").hidden'),
+      await page.eval('document.querySelector("#verdict-popover button[data-event=DISMISS]").hidden'),
       false,
     );
   });
@@ -221,7 +222,7 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(await page.count("#tab-summary .finding.is-dropped"), 1);
     assert.equal(
       await page.eval(
-        'document.querySelector("#verdicts button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed")',
+        'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed")',
       ),
       "true",
     );
@@ -637,7 +638,7 @@ describe("Dismissing your own pull request", () => {
     await page.until('document.querySelector("#queue .row")', "the queue to list it");
     await page.click("#queue .row");
     await page.until(
-      '!document.querySelector("#verdicts button[data-event=DISMISS]").hidden',
+      '!document.querySelector("#verdict-popover button[data-event=DISMISS]").hidden',
       "the pull request to open",
     );
   });
@@ -646,7 +647,7 @@ describe("Dismissing your own pull request", () => {
 
   test("only the verdict GitHub would take is offered, alongside dismissing", async () => {
     const offered = await page.eval(
-      '[...document.querySelectorAll("#verdicts button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
+      '[...document.querySelectorAll("#verdict-popover button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
     );
 
     assert.deepEqual(offered, ["COMMENT", "DISMISS"]);
@@ -658,13 +659,14 @@ describe("Dismissing your own pull request", () => {
   });
 
   test("choosing dismiss says plainly that nothing will be sent", async () => {
+    await page.clickWhere('document.querySelector("#verdict-button")', "the verdict button");
     await page.clickWhere(
-      'document.querySelector("#verdicts button[data-event=DISMISS]")',
-      "the dismiss button",
+      'document.querySelector("#verdict-popover button[data-event=DISMISS]")',
+      "the dismiss choice",
     );
 
     await page.until(
-      'document.querySelector("#verdicts button[data-event=DISMISS]").getAttribute("aria-pressed") === "true"',
+      'document.querySelector("#verdict-popover button[data-event=DISMISS]").getAttribute("aria-pressed") === "true"',
       "dismissing to be taken",
     );
 
@@ -912,10 +914,10 @@ describe("One height for every button", () => {
 
   after(() => page.close());
 
-  test("the footer's send button and its verdicts stand the same height", async () => {
+  test("the footer's send button and its verdict chip stand the same height", async () => {
     // #post was 38 and the verdicts 34, either side of the 36 everything else
     // on the row was: two pixels each way, which reads as a row that slipped.
-    assert.deepEqual(await measure("#post, #verdicts"), [36, 36]);
+    assert.deepEqual(await measure("#post, #verdict-button"), [36, 36]);
   });
 
   test("a finding's actions stand the same height as each other", async () => {

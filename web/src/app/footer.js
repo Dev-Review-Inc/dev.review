@@ -10,6 +10,15 @@ import { restyle } from "../ui/render.js";
 // Which tone each verdict carries, in the confirmation sheet and the footer.
 export const VERDICT_TONE = { APPROVE: "ok", COMMENT: "accent", REQUEST_CHANGES: "critical" };
 
+// The word on #verdict-button once a choice is made. Kept beside VERDICT_TONE
+// rather than read off the sheet's own buttons, so the chip can be drawn
+// before anything has ever been chosen.
+const VERDICT_LABEL = {
+  APPROVE: "Approve",
+  COMMENT: "Comment",
+  REQUEST_CHANGES: "Request changes",
+};
+
 // Taking the pull request off the queue, chosen the way a verdict is chosen.
 //
 // It is not a verdict and it shares their control group anyway: nothing is
@@ -55,7 +64,7 @@ export function commitButton(pull, chosen, posted) {
 }
 
 /**
- * Whether a choice in the footer's button row is offered.
+ * Whether a choice in the verdict sheet is offered.
  *
  * The destination refuses an approval or a change request on your own pull
  * request, so verdictFor already narrows those to a comment; this only has to
@@ -69,6 +78,26 @@ export function commitButton(pull, chosen, posted) {
  */
 export function choiceHidden(event, own) {
   return event === DISMISS ? false : own && event !== "COMMENT";
+}
+
+/**
+ * @returns {void}
+ */
+export function closeVerdictMenu() {
+  find("verdict-popover").hidden = true;
+  find("verdict-backdrop").hidden = true;
+  find("verdict-button").setAttribute("aria-expanded", "false");
+}
+
+/**
+ * @returns {void}
+ */
+export function toggleVerdictMenu() {
+  const open = find("verdict-popover").hidden;
+
+  find("verdict-popover").hidden = !open;
+  find("verdict-backdrop").hidden = !open;
+  find("verdict-button").setAttribute("aria-expanded", String(open));
 }
 
 /**
@@ -114,6 +143,9 @@ function drawVerdict(app) {
   const pull = app.selected;
   const post = find("post");
   const consequence = find("consequence");
+  const verdictButton = find("verdict-button");
+  const verdictLabel = find("verdict-label");
+  const verdictDot = find("verdict-dot");
 
   consequence.classList.remove("is-warn");
   consequence.textContent = "";
@@ -129,11 +161,19 @@ function drawVerdict(app) {
   const verdict = pull ? app.queries.verdictFor(app.source, pull, app.login) : "";
   const chosen = app.dismissing ? DISMISS : verdict;
 
-  for (const choice of find("verdicts").children) {
+  for (const choice of find("verdict-popover").children) {
     choice.hidden = choiceHidden(choice.dataset.event, own);
     choice.setAttribute("aria-pressed", String(choice.dataset.event === chosen));
-    choice.disabled = !pull;
   }
+
+  verdictButton.disabled = !pull;
+  verdictLabel.textContent = VERDICT_LABEL[chosen] || (chosen === DISMISS ? "Dismiss" : "Comment");
+
+  const dotTone = VERDICT_TONE[chosen];
+
+  verdictDot.style.borderColor = dotTone ? `var(--${dotTone === "ok" ? "green" : dotTone === "critical" ? "red" : "accent"})` : "";
+  verdictDot.style.borderWidth = chosen ? "3.5px" : "";
+  verdictDot.style.background = chosen ? "var(--bg)" : "";
 
   const commit = commitButton(pull, chosen, Boolean(pull) && app.queries.isPosted(app.source, pull));
 
