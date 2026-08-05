@@ -153,7 +153,7 @@ describe("Reading a review the agent drafted", () => {
   });
 
   test("the two sends on the screen say which is which", async () => {
-    assert.equal(await page.text("#post"), "Post review");
+    assert.equal(await page.text("#post"), "Comment");
     assert.match(
       await page.text("#tab-summary .finding:first-of-type .finding-actions"),
       /Post this comment/,
@@ -195,7 +195,7 @@ describe("Reading a review the agent drafted", () => {
       'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed") === "true"',
       "the verdict to be taken",
     );
-    assert.equal(await page.text("#consequence"), "blocks merge until resolved");
+    assert.equal(await page.text("#post"), "Request changes");
   });
 
   test("dismissing is offered on somebody else's pull request too", async () => {
@@ -654,7 +654,7 @@ describe("Dismissing your own pull request", () => {
   });
 
   test("there is nothing to post, because nothing was drafted", async () => {
-    assert.equal(await page.text("#post"), "Post review");
+    assert.equal(await page.text("#post"), "Comment");
     assert.equal(await page.eval('document.querySelector("#post").disabled'), true);
   });
 
@@ -669,8 +669,6 @@ describe("Dismissing your own pull request", () => {
       'document.querySelector("#verdict-popover button[data-event=DISMISS]").getAttribute("aria-pressed") === "true"',
       "dismissing to be taken",
     );
-
-    assert.equal(await page.text("#consequence"), "sends nothing and takes it off your queue");
 
     // One send button, saying what it would actually do. An undrafted review
     // cannot be posted, but it can be dismissed.

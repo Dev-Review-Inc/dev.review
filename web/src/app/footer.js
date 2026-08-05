@@ -1,7 +1,9 @@
 // The footer: what would be sent, what it would do, and the button that sends.
 //
-// Posting reads as a consequence of the verdict rather than as a fourth,
-// differently-coloured button, so the verdict tints the button.
+// The send button says which verdict it would send rather than a fixed
+// "Post review" - the word itself is the plainest report of what is about to
+// happen, ahead of tone or a second line of prose saying the same thing
+// again.
 
 import { find } from "./dom.js";
 import { button } from "../ui/button.js";
@@ -10,9 +12,7 @@ import { restyle } from "../ui/render.js";
 // Which tone each verdict carries, in the confirmation sheet and the footer.
 export const VERDICT_TONE = { APPROVE: "ok", COMMENT: "accent", REQUEST_CHANGES: "critical" };
 
-// The word on #verdict-button once a choice is made. Kept beside VERDICT_TONE
-// rather than read off the sheet's own buttons, so the chip can be drawn
-// before anything has ever been chosen.
+// The word on the send button once a choice is made.
 const VERDICT_LABEL = {
   APPROVE: "Approve",
   COMMENT: "Comment",
@@ -28,14 +28,6 @@ const VERDICT_LABEL = {
 // review this one" is a true answer regardless of who opened it - so unlike
 // the verdicts, it is never withheld for authorship.
 export const DISMISS = "DISMISS";
-
-// What each choice does to the pull request, stated once.
-const CONSEQUENCE = {
-  APPROVE: "approves for merge",
-  COMMENT: "leaves the PR unblocked",
-  REQUEST_CHANGES: "blocks merge until resolved",
-  DISMISS: "sends nothing and takes it off your queue",
-};
 
 /**
  * What the one send button says, and whether there is anything for it to do.
@@ -60,7 +52,7 @@ export function commitButton(pull, chosen, posted) {
   const needsFinish = chosen === "APPROVE";
   const notReady = !pull.draft || (needsFinish && !pull.draft.finishedAt);
 
-  return { label: "Post review", disabled: notReady || posted };
+  return { label: VERDICT_LABEL[chosen] || "Post review", disabled: notReady || posted };
 }
 
 /**
@@ -144,8 +136,6 @@ function drawVerdict(app) {
   const post = find("post");
   const consequence = find("consequence");
   const verdictButton = find("verdict-button");
-  const verdictLabel = find("verdict-label");
-  const verdictDot = find("verdict-dot");
 
   consequence.classList.remove("is-warn");
   consequence.textContent = "";
@@ -166,15 +156,6 @@ function drawVerdict(app) {
     choice.setAttribute("aria-pressed", String(choice.dataset.event === chosen));
   }
 
-  verdictButton.disabled = !pull;
-  verdictLabel.textContent = VERDICT_LABEL[chosen] || (chosen === DISMISS ? "Dismiss" : "Comment");
-
-  const dotTone = VERDICT_TONE[chosen];
-
-  verdictDot.style.borderColor = dotTone ? `var(--${dotTone === "ok" ? "green" : dotTone === "critical" ? "red" : "accent"})` : "";
-  verdictDot.style.borderWidth = chosen ? "3.5px" : "";
-  verdictDot.style.background = chosen ? "var(--bg)" : "";
-
   const commit = commitButton(pull, chosen, Boolean(pull) && app.queries.isPosted(app.source, pull));
 
   // The verdict tints the send button. "accent" is the primary's own fill, so
@@ -183,25 +164,42 @@ function drawVerdict(app) {
   // being a filled button repainted to look like it is not one.
   const tone = VERDICT_TONE[chosen] || "";
 
-  restyle(
-    button({
-      label: commit.label,
-      role: chosen === DISMISS ? "ghost" : "primary",
-      tone: tone === "accent" ? "" : tone,
-      disabled: commit.disabled,
-    }),
-    post,
-  );
+  const described = button({
+    label: commit.label,
+    role: chosen === DISMISS ? "ghost" : "primary",
+    tone: tone === "accent" ? "" : tone,
+    disabled: commit.disabled,
+  });
+
+  restyle(described, post);
+
+  // #post's own inline border-radius (see labelStyle() in ui/button.js) beats
+  // the stylesheet's .split #post { border-radius: 0 }, because an inline
+  // style always outranks a selector no matter how specific - restyle() sets
+  // it fresh on every draw, so it has to be squared off again here every time
+  // too, or the seam against the caret shows a rounded notch instead of a
+  // straight join.
+  post.style.borderTopRightRadius = "0";
+  post.style.borderBottomRightRadius = "0";
+
+  // The caret rides #post's own class rather than choosing a colour of its
+  // own, so the two read as one filled button wearing the verdict's tone
+  // instead of two buttons that happen to touch. Its disabled state does not
+  // follow #post's, though: commit.disabled covers "nothing drafted yet",
+  // which would otherwise lock a reader with nothing drafted out of ever
+  // reaching Dismiss - the one choice that never needs a draft.
+  verdictButton.className = described.className;
+  verdictButton.disabled = !pull;
 
   if (!pull || !chosen) return;
 
+  // The verdict's own word already says what would happen. The one thing it
+  // cannot say by itself is that approving here specifically overrides
+  // blocking comments still open - that is the one case worth a second line.
   const blocking = app.queries.blockingCount(app.source, pull);
 
   if (chosen === "APPROVE" && blocking) {
     consequence.textContent = `overrides ${blocking} blocking`;
     consequence.classList.add("is-warn");
-  } else {
-    consequence.textContent = CONSEQUENCE[chosen];
   }
-
 }

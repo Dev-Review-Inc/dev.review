@@ -1150,15 +1150,23 @@
 
   .fdivider { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
 
-  /* #verdict-button - what used to be a row of three or four always-visible
-     choices is one chip now, reading the same way the header's source and
-     destination chips already do: what is chosen, with a caret that opens the
-     rest. #verdict-dot borrows the same colour logic .verdict-sheet's own
-     dots use below, kept in sync by footer.js rather than CSS, since which
-     tone applies is the same decision commitButton already makes for #post. */
-  #verdict-dot {
-    width: 11px; height: 11px; border-radius: 50%;
-    border: 1.5px solid var(--dim2); flex-shrink: 0;
+  /* #post-split - what used to be a row of three or four always-visible
+     choices beside a separate send button is one button now: #post still
+     says and does exactly what it always did, and #verdict-button is a
+     caret riding its right edge that opens the rest. footer.js copies
+     #post's own computed class onto the caret every draw rather than this
+     sheet giving it a colour of its own, so the two read as one filled
+     button wearing the verdict's tone, not two buttons that happen to
+     touch. */
+  .split { display: flex; align-items: stretch; flex-shrink: 0; border-radius: var(--radius); overflow: hidden; }
+  .split #post { border-radius: 0; }
+
+  .split #verdict-button {
+    flex-shrink: 0; width: 30px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 0;
+    border-left: 1px solid rgba(0, 0, 0, .18);
+    font-size: var(--textSmall);
   }
 
   /* The choices themselves, opened from #verdict-button. A sheet rather than
@@ -1679,14 +1687,12 @@
          a failure is announced once wherever it was raised. -->
     <span id="status" role="status" aria-live="polite"></span>
     <span class="fdivider"></span>
-    <button class="chip" id="verdict-button" aria-expanded="false" disabled>
-      <span class="dot" id="verdict-dot"></span>
-      <span class="chip-value" id="verdict-label">Comment</span>
-      <span class="caret">&#9662;</span>
-    </button>
     <span class="consequence" id="consequence"></span>
     <span class="spacer"></span>
-    <button id="post" disabled>Post review</button>
+    <div class="split" id="post-split">
+      <button id="post" disabled>Post review</button>
+      <button id="verdict-button" aria-expanded="false" aria-label="Change what this would send" disabled>&#9662;</button>
+    </div>
   </footer>
 </div>
 
