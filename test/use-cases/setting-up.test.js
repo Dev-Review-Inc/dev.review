@@ -158,9 +158,10 @@ describe("Working through the queue", () => {
 
   test("posting one finding leaves it out of the review that follows", async () => {
     await app.select(app.queue()[0]);
-    const [finding] = app.queries.findingsForPull(app.source, app.selected);
+    const findings = app.queries.findingsForPull(app.source, app.selected);
 
-    await app.postFinding(finding);
+    for (const finding of findings) app.commands.includeFinding(app.source, app.selected, finding);
+    await app.postFinding(findings[0]);
 
     assert.deepEqual(
       app.queries.findingsToPost(app.source, app.selected).map((item) => item.id),
@@ -182,7 +183,7 @@ describe("Working through the queue", () => {
     await app.select(app.queue()[0]);
     const [finding] = app.queries.findingsForPull(app.source, app.selected);
 
-    app.commands.dropFinding(app.source, app.selected, finding);
+    app.commands.includeFinding(app.source, app.selected, finding);
     await app.commands.sync.push(app.source);
 
     const logs = await adapter.list(".reviewer/events/");

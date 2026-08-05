@@ -260,13 +260,17 @@ export class Queries {
   /**
    * The findings that would actually be posted with the review.
    *
+   * Opt-in: a finding the reader has not said yes to is exactly as absent
+   * from what gets sent as one the agent never drafted. Silence is never
+   * agreement here, the same way an unchecked box never submits a form.
+   *
    * @param {object} source the source being read
    * @param {object} pull the pull request
    * @returns {object[]} the findings to send
    */
   findingsToPost(source, pull) {
     return this.findingsForPull(source, pull).filter(
-      (finding) => !finding.droppedAt && !finding.postedAt,
+      (finding) => finding.includedAt && !finding.postedAt,
     );
   }
 
@@ -385,7 +389,7 @@ export class Queries {
       drafted: edited ? finding.body : null,
       body: edited ? decision.body : finding.body,
       editedAt: decision.editedAt || null,
-      droppedAt: decision.droppedAt || null,
+      includedAt: decision.includedAt || null,
       postedAt: decision.postedAt || null,
       postedUrl: decision.postedUrl || "",
       mine: false,
@@ -404,7 +408,7 @@ export class Queries {
         suggestion: null,
         drafted: null,
         ...finding,
-        droppedAt: finding.droppedAt || null,
+        includedAt: finding.includedAt || null,
         postedAt: finding.postedAt || null,
         postedUrl: finding.postedUrl || "",
         mine: true,

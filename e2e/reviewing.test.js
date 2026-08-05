@@ -92,7 +92,7 @@ describe("Arriving all at once", () => {
     assert.equal(await page.text("#source-name"), "Work");
     assert.equal(await page.text("#queue-waiting"), "1 to review");
     assert.equal(await page.text("#head-title"), "Re-root the errors onto a common base class");
-    assert.equal(await page.text("#staged"), "2 comments staged");
+    assert.equal(await page.text("#staged"), "0 comments staged");
 
     // The diff is the last thing to land, and the one the reader used to watch
     // appear a beat after everything else.
@@ -148,8 +148,8 @@ describe("Reading a review the agent drafted", () => {
   });
 
   test("the footer counts what would be sent, and what would block", async () => {
-    assert.equal(await page.text("#staged"), "2 comments staged");
-    assert.equal(await page.text("#counts"), "1 blocking · 1 note");
+    assert.equal(await page.text("#staged"), "0 comments staged");
+    assert.equal(await page.text("#counts"), "0 blocking · 0 notes");
   });
 
   test("the two sends on the screen say which is which", async () => {
@@ -160,28 +160,28 @@ describe("Reading a review the agent drafted", () => {
     );
   });
 
-  test("dropping a comment takes it out of what would be sent", async () => {
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+  test("including a comment puts it in what would be sent", async () => {
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
 
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the footer to drop a comment",
+      "the footer to include a comment",
     );
-    assert.equal(await page.text("#counts"), "0 blocking · 1 note");
+    assert.equal(await page.text("#counts"), "1 blocking · 0 notes");
 
-    // Dropped, not deleted: what the agent said is still readable.
-    assert.equal(await page.count("#tab-summary .finding.is-dropped"), 1);
-    assert.match(await page.text("#tab-summary .finding.is-dropped"), /never matches/);
+    // Included, not copied: what the agent said is the one thing being sent.
+    assert.equal(await page.count("#tab-summary .finding:first-of-type.is-included"), 1);
+    assert.match(await page.text("#tab-summary .finding:first-of-type"), /never matches/);
   });
 
-  test("restoring it puts it back", async () => {
-    await page.clickButton("#tab-summary .finding.is-dropped", "Restore");
+  test("excluding it takes it back out", async () => {
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
 
     await page.until(
-      'document.querySelector("#staged").textContent === "2 comments staged"',
-      "the footer to take the comment back",
+      'document.querySelector("#staged").textContent === "0 comments staged"',
+      "the footer to take the comment back out",
     );
-    assert.equal(await page.count("#tab-summary .finding.is-dropped"), 0);
+    assert.equal(await page.count("#tab-summary .finding:first-of-type.is-included"), 0);
   });
 
   test("the verdict the reader chooses is the one the footer stands behind", async () => {
@@ -206,20 +206,20 @@ describe("Reading a review the agent drafted", () => {
   });
 
   test("every decision survives the browser being closed", async () => {
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the drop to land",
+      "the include to land",
     );
 
     await page.go();
     await drawn(page);
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the reopened review to remember the drop",
+      "the reopened review to remember it",
     );
 
-    assert.equal(await page.count("#tab-summary .finding.is-dropped"), 1);
+    assert.equal(await page.count("#tab-summary .finding:first-of-type.is-included"), 1);
     assert.equal(
       await page.eval(
         'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed")',
@@ -360,11 +360,11 @@ describe("Writing the review's summary", () => {
 
     // The click that closes the editor is a click on something: it has to
     // arrive, rather than being spent on closing the box.
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
 
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the drop to land on the same click that closed the editor",
+      "the include to land on the same click that closed the editor",
     );
     assert.match(await page.text("#comment-body"), /And the first one is the worse\./);
   });
@@ -513,10 +513,10 @@ describe("Posting the review", () => {
   after(() => page.close());
 
   test("the sheet previews only what this send would do", async () => {
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the drop to land",
+      "the include to land",
     );
 
     await page.click("#post");
@@ -540,7 +540,7 @@ describe("Posting the review", () => {
     assert.equal(sent[0].body.body, "Two things worth a look before this goes in.");
     assert.deepEqual(
       sent[0].body.comments.map((comment) => comment.path),
-      ["spec/error_spec.rb"],
+      ["lib/error.rb"],
     );
   });
 
@@ -919,7 +919,13 @@ describe("One height for every button", () => {
   });
 
   test("a finding's actions stand the same height as each other", async () => {
-    const heights = await measure("#tab-summary .finding:first-of-type .ui-button");
+    // The include toggle is not a .ui-button - a different visual language on
+    // purpose, a box and a label rather than a filled control - but it sits
+    // in the same row as Edit and Post and has to stand the same height
+    // they do, so it is measured alongside them here rather than with them.
+    const heights = await measure(
+      "#tab-summary .finding:first-of-type .ui-button, #tab-summary .finding:first-of-type .finding-include",
+    );
 
     assert.ok(heights.length >= 3, `only ${heights.length} buttons`);
     assert.deepEqual([...new Set(heights)], [36]);

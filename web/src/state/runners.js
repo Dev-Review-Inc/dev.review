@@ -118,6 +118,14 @@ export default {
   // Keyed by "owner/repo#number:findingId", so the agent's own stable ids are
   // what carry a decision across a redraft, exactly as the schema promises.
 
+  "findings.include": moment("includedAt"),
+  "findings.exclude": moment("includedAt", null),
+
+  // Kept so a log written by an app version before this one still replays
+  // without a missing runner - drop/restore is nobody's current command, but
+  // an event already on a reader's own device is a fact about their history,
+  // not something this app gets to un-happen. droppedAt is not read anywhere
+  // any more; only includedAt decides what is sent.
   "findings.drop": moment("droppedAt"),
   "findings.restore": moment("droppedAt", null),
 

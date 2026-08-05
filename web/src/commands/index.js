@@ -242,23 +242,29 @@ export class Commands {
   // ---- Findings
 
   /**
+   * Opt a finding into the review. Nothing is sent until this is called: a
+   * finding starts out excluded, the same as one never drafted at all.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
    * @returns {void}
    */
-  dropFinding(source, pull, finding) {
-    this.track(source, "findings", this._finding(pull, finding), "drop");
+  includeFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "include");
   }
 
   /**
+   * Take a finding back out of what would be sent, whether it was ever opted
+   * in or came included by default under an app version before this one.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
    * @returns {void}
    */
-  restoreFinding(source, pull, finding) {
-    this.track(source, "findings", this._finding(pull, finding), "restore");
+  excludeFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "exclude");
   }
 
   /**

@@ -112,7 +112,7 @@ test("no button styles itself with a raw value", () => {
 // it. `.settings-kind` is here as the container it is: a segmented control,
 // which is not a button and still may not invent a height.
 const CONTROL =
-  /(^|[\s,>])(\.ui-button[\w-]*|\.ghost|#post|#confirm-post|#cheer-next|\.cheer-cta|\.settings-(?:button|choose|add|kind)|\.setup-edit|\.copy-url|\.clear-review)((\.|:|\[)[^\s,]*)?$/;
+  /(^|[\s,>])(\.ui-button[\w-]*|\.ghost|#post|#confirm-post|#cheer-next|\.cheer-cta|\.settings-(?:button|choose|add|kind)|\.setup-edit|\.copy-url|\.clear-review|\.finding-include)((\.|:|\[)[^\s,]*)?$/;
 
 test("no rule in the stylesheet gives a control a height of its own", () => {
   // This is the assertion the sheet could not carry before: every control rule
@@ -199,7 +199,7 @@ test("every font-size in the stylesheet is a type-scale token or a named excepti
 // selector-part matches only when one of these is the last class in it, the
 // same rule the height CONTROL regex above already follows, so a nested
 // child (.lens .glyph) is told apart from the row itself (.lens).
-const ROW_CONTROL = /(^|[\s,>])(\.chip|\.lens|\.file|\.diff-head|\.flag-toggle|\.viewed|\.verdict-sheet button)((\.|:|\[)[^\s,]*)?$/;
+const ROW_CONTROL = /(^|[\s,>])(\.chip|\.lens|\.file|\.diff-head|\.flag-toggle|\.viewed|\.verdict-sheet button|\.finding-include)((\.|:|\[)[^\s,]*)?$/;
 
 const PADDING_TOKEN = /^(0|var\(--space[1-6]\)|(0|var\(--space[1-6]\)) (0|var\(--space[1-6]\)))$/;
 

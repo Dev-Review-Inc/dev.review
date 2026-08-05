@@ -71,11 +71,11 @@ describe("A decision taken while reading", () => {
 
     const [finding] = app.queries.findingsForPull(app.source, app.selected);
 
-    app.commands.dropFinding(app.source, app.selected, finding);
+    app.commands.includeFinding(app.source, app.selected, finding);
     app.reselect();
 
     await beat();
-    assert.equal(redraws, 0, "the drop was drawn as taken before it was written down");
+    assert.equal(redraws, 0, "the decision was drawn as taken before it was written down");
 
     storage.release();
     await beat();
@@ -88,9 +88,9 @@ describe("A decision taken while reading", () => {
 
     const [finding] = app.queries.findingsForPull(app.source, app.selected);
 
-    app.commands.dropFinding(app.source, app.selected, finding);
+    app.commands.includeFinding(app.source, app.selected, finding);
 
-    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].droppedAt);
+    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].includedAt);
   });
 
   test("is drawn even when the write fails, or a bad disk would freeze the interface", async () => {
@@ -101,7 +101,7 @@ describe("A decision taken while reading", () => {
 
     const [finding] = app.queries.findingsForPull(app.source, app.selected);
 
-    app.commands.dropFinding(app.source, app.selected, finding);
+    app.commands.includeFinding(app.source, app.selected, finding);
     app.reselect();
 
     await beat();
