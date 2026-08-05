@@ -16,10 +16,15 @@ import { EventStoreEvent } from "../../web/src/state/event-store-event.js";
 import { theApp, aPull } from "../use-cases/helper.js";
 
 // The rule compares two clocks, so both are written down rather than left to
-// read "now" and race each other.
-const DISMISSED_AT = Date.parse("2026-07-29T12:00:00Z");
-const BEFORE = "2026-07-29T09:00:00Z";
-const AFTER = "2026-07-29T15:00:00Z";
+// read "now" and race each other. Relative to the real clock rather than a
+// fixed calendar date: DISMISSED_WINDOW (queries/index.js) measures against
+// the real Date.now(), so a hardcoded past date quietly ages out of it the
+// moment more real time separates "now" from that date than the window
+// allows - this file's own dates did exactly that.
+const HOUR = 60 * 60 * 1000;
+const DISMISSED_AT = Date.now() - HOUR;
+const BEFORE = new Date(DISMISSED_AT - HOUR).toISOString();
+const AFTER = new Date(DISMISSED_AT + HOUR).toISOString();
 
 /**
  * Dismiss a pull request at a definite moment, as the reader did then.
