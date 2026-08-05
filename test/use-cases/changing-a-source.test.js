@@ -35,11 +35,20 @@ describe("Choosing where drafts come from", () => {
     assert.equal(offered.includes("memory"), false);
   });
 
-  test("the native reader is listed but unusable outside the desktop build", () => {
-    const tauri = adapterTypes().find((entry) => entry.type === "tauri");
+  test("a folder on this computer is listed, unusable outside a Chromium tab or the desktop build", () => {
+    // Outside a browser entirely, which is what running under Node is, only
+    // filesystem is on offer - tauri and filesystem both mean "a folder on
+    // this computer" and adapterTypes() only ever shows the one that could
+    // actually work here. See adapterTypes()'s own comment for why.
+    const filesystem = adapterTypes().find((entry) => entry.type === "filesystem");
 
-    assert.ok(tauri, "dropping it would leave the reader nothing to look at");
-    assert.match(tauri.reason, /desktop app/i);
+    assert.ok(filesystem, "dropping it would leave the reader nothing to look at");
+    assert.match(filesystem.reason, /Chrom/i);
+    assert.equal(
+      adapterTypes().some((entry) => entry.type === "tauri"),
+      false,
+      "the same reader intent should not appear twice",
+    );
   });
 
   test("each backend says what it needs asking for, so no form knows a backend", () => {

@@ -127,12 +127,36 @@ describe("the storage backends a build offers", () => {
     const offered = adapterTypes();
 
     assert.match(offered.find((type) => type.type === "filesystem").reason, /Chrome|Chromium/);
-    assert.match(offered.find((type) => type.type === "tauri").reason, /desktop app/i);
     assert.equal(
       offered.find((type) => type.type === "s3").reason,
       "",
       "an S3 bucket works in every browser",
     );
+  });
+
+  // Filesystem and Tauri are the one exception to "keep it and say why not":
+  // both mean "a folder on this computer," and only one of them can ever act
+  // on that here, so the other is not a dead end with an exit - it is the
+  // same dead end wearing the other one's coat. See adapterTypes()'s own
+  // comment for why that pair, and only that pair, is dropped rather than
+  // greyed out.
+  test("offers only one of filesystem and tauri, never both", () => {
+    undo.push(stub("showDirectoryPicker", undefined));
+    undo.push(stub("isSecureContext", true));
+    undo.push(stub("navigator", {}));
+    undo.push(stub("__TAURI__", undefined));
+
+    const outsideTauri = adapterTypes().map((type) => type.type);
+
+    assert.ok(outsideTauri.includes("filesystem"));
+    assert.ok(!outsideTauri.includes("tauri"));
+
+    undo.push(stub("__TAURI__", { core: { invoke: () => {} } }));
+
+    const insideTauri = adapterTypes().map((type) => type.type);
+
+    assert.ok(insideTauri.includes("tauri"));
+    assert.ok(!insideTauri.includes("filesystem"));
   });
 
   test("keeps the in-memory backend off the list even so", () => {
