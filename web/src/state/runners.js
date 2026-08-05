@@ -99,6 +99,11 @@ export default {
   })),
   "pulls.resetComment": change(() => ({ comment: null, commentEditedAt: null })),
 
+  // Whether the body goes out at all, which is the reader's to say the same
+  // way each finding is.
+  "pulls.includeSummary": moment("summaryIncludedAt"),
+  "pulls.excludeSummary": moment("summaryIncludedAt", null),
+
   "pulls.chooseVerdict": change((data) => ({ verdict: data.event })),
 
   "pulls.post": change((data, event) => ({

@@ -202,6 +202,28 @@ export class Commands {
   }
 
   /**
+   * Put the review body in what gets sent. Like a finding, the summary the
+   * agent drafted is readable from the moment it lands and goes nowhere until
+   * the reader says it should.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  includeSummary(source, pull) {
+    this.track(source, "pulls", pull.key, "includeSummary");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  excludeSummary(source, pull) {
+    this.track(source, "pulls", pull.key, "excludeSummary");
+  }
+
+  /**
    * Put the review body back to what the agent drafted.
    *
    * @param {object} source the source being read

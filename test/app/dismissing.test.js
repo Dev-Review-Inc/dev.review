@@ -42,6 +42,17 @@ describe("with a verdict chosen", () => {
   test("has nothing to offer when nothing is open", () => {
     assert.equal(commitButton(null, "", false).disabled, true);
   });
+
+  // Everything the review carries is opted into one piece at a time, so
+  // "nothing opted in yet" is a state the reader can sit in - and a send
+  // button live over an empty review is one that fails when pressed.
+  test("will not send a review carrying nothing at all", () => {
+    assert.equal(commitButton(drafted, "COMMENT", false, false).disabled, true);
+  });
+
+  test("still offers to dismiss a review carrying nothing", () => {
+    assert.equal(commitButton(drafted, DISMISS, false, false).disabled, false);
+  });
 });
 
 // Approving implies having read the whole review, so it alone waits on the

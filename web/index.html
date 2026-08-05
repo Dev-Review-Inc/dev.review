@@ -759,6 +759,12 @@
     border-style: dashed; text-align: center;
   }
 
+  /* In the review, marked the way an included finding is - the same edge, so
+     "this is going out" reads once and means the same thing twice. */
+  .summary-box.is-included { box-shadow: inset 3px 0 0 var(--accent); }
+
+  .summary-actions { display: flex; font-family: var(--mono); }
+
   .summary-box .title { font-weight: 600; color: var(--dim); }
   .summary-box .text { font-size: var(--textSmall); color: var(--faint); }
 

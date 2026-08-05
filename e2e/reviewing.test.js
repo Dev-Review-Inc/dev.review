@@ -519,6 +519,12 @@ describe("Posting the review", () => {
       "the include to land",
     );
 
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until(
+      'document.querySelector(".summary-box.is-included")',
+      "the summary include to land",
+    );
+
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
 
@@ -603,6 +609,9 @@ describe("A draft whose url is not a web address", () => {
   });
 
   test("the record of a posted review stands without a link to it", async () => {
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until('document.querySelector(".summary-box.is-included")', "the summary to go in");
+
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
     await page.click("#confirm-post");
@@ -787,6 +796,9 @@ describe("A review request that comes back", () => {
     await attachStorage(page);
     await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
 
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until('document.querySelector(".summary-box.is-included")', "the summary to go in");
+
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
     await page.click("#confirm-post");
@@ -932,6 +944,11 @@ describe("One height for every button", () => {
   });
 
   test("the confirm sheet's way out and its send stand the same height", async () => {
+    // Nothing has been opted in on this page yet, and the send button is
+    // rightly dead until something is.
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until('document.querySelector(".summary-box.is-included")', "the summary to go in");
+
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
 

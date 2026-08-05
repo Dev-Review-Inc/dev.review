@@ -227,6 +227,29 @@ export class Queries {
   }
 
   /**
+   * Whether the reader has put the review body in what gets sent.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {boolean} whether the summary is included
+   */
+  isSummaryIncluded(source, pull) {
+    return Boolean(this._pullDecision(source, pull.key).summaryIncludedAt);
+  }
+
+  /**
+   * The review body this send would actually carry: the words on screen, or
+   * nothing at all while the reader has not opted them in.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {string} markdown
+   */
+  commentToPost(source, pull) {
+    return this.isSummaryIncluded(source, pull) ? this.commentFor(source, pull) : "";
+  }
+
+  /**
    * Whether the reader has edited the review body away from what was drafted.
    *
    * @param {object} source the source being read

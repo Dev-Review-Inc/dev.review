@@ -107,6 +107,39 @@ describe("Deciding what goes out", () => {
     assert.equal(app.queries.findingsForPull(app.source, pull)[0].includedAt, null);
   });
 
+  test("the summary is not sent until the reader opts it in, but is readable either way", () => {
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), false);
+    assert.match(app.queries.commentFor(app.source, pull), /\w/);
+    assert.equal(app.queries.commentToPost(app.source, pull), "");
+  });
+
+  test("including the summary is what puts it in what gets sent", () => {
+    app.commands.includeSummary(app.source, pull);
+
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), true);
+    assert.equal(
+      app.queries.commentToPost(app.source, pull),
+      app.queries.commentFor(app.source, pull),
+    );
+  });
+
+  test("an included summary can be excluded again", () => {
+    app.commands.includeSummary(app.source, pull);
+
+    app.commands.excludeSummary(app.source, pull);
+
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), false);
+    assert.equal(app.queries.commentToPost(app.source, pull), "");
+  });
+
+  test("an included summary carries the reader's edit, not the agent's words", () => {
+    app.commands.includeSummary(app.source, pull);
+
+    app.commands.editComment(app.source, pull, "Said my own way.");
+
+    assert.equal(app.queries.commentToPost(app.source, pull), "Said my own way.");
+  });
+
   test("editing a finding keeps what the agent wrote", () => {
     const [finding] = app.queries.findingsForPull(app.source, pull);
 
@@ -243,6 +276,7 @@ describe("Deciding what goes out", () => {
   test("what goes to the destination is exactly what the reader was shown", () => {
     const [, second] = app.queries.findingsForPull(app.source, pull);
     app.commands.includeFinding(app.source, pull, second);
+    app.commands.includeSummary(app.source, pull);
     app.commands.editComment(app.source, pull, "My words.");
 
     const payload = reviewPayload(
@@ -250,7 +284,7 @@ describe("Deciding what goes out", () => {
       {
         commitId: "e612b1b",
         dropped: new Set(),
-        body: app.queries.commentFor(app.source, pull),
+        body: app.queries.commentToPost(app.source, pull),
         event: app.queries.verdictFor(app.source, pull, "reader"),
       },
     );
