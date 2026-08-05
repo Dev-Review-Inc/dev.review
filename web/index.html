@@ -204,6 +204,7 @@
   /* The send button wears the verdict it would send. */
   .ui-button--primary.is-ok { background: var(--green); }
   .ui-button--primary.is-critical { background: var(--red); }
+  .ui-button--primary.is-neutral { background: var(--dim); }
 
   .ui-button--ghost:hover { border-color: var(--accent); color: var(--accent); }
   .ui-button--quiet:hover { color: var(--dim); }
@@ -1193,16 +1194,27 @@
   .split { display: flex; align-items: stretch; flex-shrink: 0; border-radius: var(--radius); overflow: hidden; }
   .split #post { border-radius: 0; }
 
-  /* box-shadow rather than border-left: a role that carries a real border
-     (ghost, for Dismiss) needs it on every side to read as bordered at all,
-     and border-left here would replace the shorthand border the copied
-     class already set rather than sit beside it. An inset shadow draws the
-     divider on top without touching border at all. */
+  /* The divider is a background image rather than a border-left or an inset
+     shadow, because both of those run the full height and a line from edge
+     to edge reads as two buttons pushed together rather than one button
+     with a caret on its end. Drawn short of the top and bottom instead, on
+     the fill the copied role class already painted - the id here outranks
+     that class, so the shorthand's background-image: none does not win.
+
+     Mixed off currentColor rather than a fixed black: the same caret sits on
+     dark ink over a light fill in the dark theme and light ink over a dark
+     one in the light theme, and a black line is invisible on the second. */
   .split #verdict-button {
     flex-shrink: 0; width: 30px; padding: 0;
     display: flex; align-items: center; justify-content: center;
     border-radius: 0;
-    box-shadow: inset 1px 0 0 rgba(0, 0, 0, .18);
+    background-image: linear-gradient(
+      color-mix(in srgb, currentColor 22%, transparent),
+      color-mix(in srgb, currentColor 22%, transparent)
+    );
+    background-size: 1px 18px;
+    background-position: left center;
+    background-repeat: no-repeat;
     font-size: var(--textSmall);
   }
 

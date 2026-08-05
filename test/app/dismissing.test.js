@@ -11,7 +11,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { choiceHidden, commitButton, DISMISS } from "../../web/src/app/footer.js";
+import { choiceHidden, commitButton, commitLook, DISMISS } from "../../web/src/app/footer.js";
 import { aPull, theApp } from "../use-cases/helper.js";
 
 const drafted = { draft: { finishedAt: "2026-07-29T15:41:10Z" } };
@@ -83,6 +83,24 @@ describe("with dismiss chosen", () => {
   test("can be pressed with no draft at all, which is the whole point", () => {
     assert.equal(commitButton(undrafted, DISMISS, false).disabled, false);
     assert.equal(commitButton(drafting, DISMISS, false).disabled, false);
+  });
+
+  // It is the same button as the send, wearing a verdict that sends nothing:
+  // grey rather than the accent, so the row says which of the two this is
+  // without the button changing shape underneath the reader.
+  test("wears a grey fill, not the send colour", () => {
+    assert.deepEqual(commitLook(DISMISS), { role: "primary", tone: "neutral" });
+  });
+});
+
+describe("what the send button wears", () => {
+  test("the accent, said by naming no tone at all", () => {
+    assert.deepEqual(commitLook("COMMENT"), { role: "primary", tone: "" });
+  });
+
+  test("the verdict's own colour, when it has one", () => {
+    assert.deepEqual(commitLook("APPROVE"), { role: "primary", tone: "ok" });
+    assert.deepEqual(commitLook("REQUEST_CHANGES"), { role: "primary", tone: "critical" });
   });
 });
 

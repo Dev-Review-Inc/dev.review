@@ -65,6 +65,27 @@ export function commitButton(pull, chosen, posted, carrying = true) {
 }
 
 /**
+ * What the send button is painted as.
+ *
+ * One control whatever is chosen: the verdict changes its colour and nothing
+ * else, because a button that changes shape underneath the reader is a
+ * different button. Dismissing sends nothing anywhere, so it is the one
+ * choice that does not wear a verdict's colour - grey says "this is still the
+ * action" without claiming to be one.
+ *
+ * @param {string} chosen a verdict, or DISMISS
+ * @returns {{role: string, tone: string}} how to describe it
+ */
+export function commitLook(chosen) {
+  if (chosen === DISMISS) return { role: "primary", tone: "neutral" };
+
+  // "accent" is the primary's own fill, so it is said by saying nothing.
+  const tone = VERDICT_TONE[chosen] || "";
+
+  return { role: "primary", tone: tone === "accent" ? "" : tone };
+}
+
+/**
  * Whether a choice in the verdict sheet is offered.
  *
  * The destination refuses an approval or a change request on your own pull
@@ -178,16 +199,9 @@ function drawVerdict(app) {
     carrying,
   );
 
-  // The verdict tints the send button. "accent" is the primary's own fill, so
-  // it is said by saying nothing. Dismissing sends nothing at all, so it does
-  // not wear the send colour: it steps down to an ordinary action rather than
-  // being a filled button repainted to look like it is not one.
-  const tone = VERDICT_TONE[chosen] || "";
-
   const described = button({
     label: commit.label,
-    role: chosen === DISMISS ? "ghost" : "primary",
-    tone: tone === "accent" ? "" : tone,
+    ...commitLook(chosen),
     disabled: commit.disabled,
   });
 

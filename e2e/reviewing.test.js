@@ -930,6 +930,33 @@ describe("One height for every button", () => {
     assert.deepEqual(await measure("#post, #verdict-button"), [36, 36]);
   });
 
+  // The caret is not a second button standing next to the send button, it is
+  // the same button's other half: one fill, no seam between them, and the
+  // divider that tells them apart is drawn short of the edges so the pair
+  // still reads as one shape.
+  test("the send button and its caret read as one control", async () => {
+    const found = await page.eval(`(() => {
+      const post = document.querySelector("#post");
+      const caret = document.querySelector("#verdict-button");
+      const one = post.getBoundingClientRect();
+      const two = caret.getBoundingClientRect();
+
+      return JSON.stringify({
+        fills: [getComputedStyle(post).backgroundColor, getComputedStyle(caret).backgroundColor],
+        gap: Math.round(two.left - one.right),
+        divider: getComputedStyle(caret).backgroundSize,
+        outer: getComputedStyle(document.querySelector(".split")).borderRadius,
+      });
+    })()`);
+
+    const { fills, gap, divider, outer } = JSON.parse(found);
+
+    assert.equal(fills[0], fills[1], "the two halves are painted differently");
+    assert.equal(gap, 0, "there is a seam between the two halves");
+    assert.match(divider, /^1px \d/, `the divider runs the whole height: ${divider}`);
+    assert.match(outer, /^6px$/, `the pair is not one rounded shape: ${outer}`);
+  });
+
   test("a finding's actions stand the same height as each other", async () => {
     // The include toggle is not a .ui-button - a different visual language on
     // purpose, a box and a label rather than a filled control - but it sits
