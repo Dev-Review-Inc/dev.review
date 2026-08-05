@@ -1161,13 +1161,25 @@
   .split { display: flex; align-items: stretch; flex-shrink: 0; border-radius: var(--radius); overflow: hidden; }
   .split #post { border-radius: 0; }
 
+  /* box-shadow rather than border-left: a role that carries a real border
+     (ghost, for Dismiss) needs it on every side to read as bordered at all,
+     and border-left here would replace the shorthand border the copied
+     class already set rather than sit beside it. An inset shadow draws the
+     divider on top without touching border at all. */
   .split #verdict-button {
     flex-shrink: 0; width: 30px; padding: 0;
     display: flex; align-items: center; justify-content: center;
-    border: none; border-radius: 0;
-    border-left: 1px solid rgba(0, 0, 0, .18);
+    border-radius: 0;
+    box-shadow: inset 1px 0 0 rgba(0, 0, 0, .18);
     font-size: var(--textSmall);
   }
+
+  /* The caret stays clickable even when #post is disabled (see footer.js -
+     Dismiss must stay reachable with nothing drafted), but two segments at
+     two different opacities read as a button that is half broken rather
+     than half disabled. Dimmed the same amount instead, without :disabled
+     actually taking the click away from it. */
+  .split #post:disabled ~ #verdict-button { opacity: .4; }
 
   /* The choices themselves, opened from #verdict-button. A sheet rather than
      a popover anchored under the chip: the footer it would anchor to is a
