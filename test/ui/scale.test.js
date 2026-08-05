@@ -109,10 +109,10 @@ test("no button styles itself with a raw value", () => {
 
 // Selectors naming something a reader presses, matched at the end of a
 // selector so a rule about a control is told apart from one about a dot inside
-// it. `.verdicts` and `.settings-kind` are here as the containers they are:
-// segmented controls, which are not buttons and still may not invent a height.
+// it. `.settings-kind` is here as the container it is: a segmented control,
+// which is not a button and still may not invent a height.
 const CONTROL =
-  /(^|[\s,>])(\.ui-button[\w-]*|\.ghost|#post|#confirm-post|#cheer-next|\.cheer-cta|\.settings-(?:button|choose|add|kind)|\.setup-edit|\.copy-url|\.clear-review|\.verdicts)((\.|:|\[)[^\s,]*)?$/;
+  /(^|[\s,>])(\.ui-button[\w-]*|\.ghost|#post|#confirm-post|#cheer-next|\.cheer-cta|\.settings-(?:button|choose|add|kind)|\.setup-edit|\.copy-url|\.clear-review)((\.|:|\[)[^\s,]*)?$/;
 
 test("no rule in the stylesheet gives a control a height of its own", () => {
   // This is the assertion the sheet could not carry before: every control rule
@@ -153,7 +153,7 @@ test("no rule in the stylesheet gives a control a typeface of its own", () => {
 //
 // Scope is deliberately narrow: font-size and the padding of the row-style
 // controls the mismatch was actually reported on (chips, lens/file rows,
-// diff-head, the verdicts buttons). It does not touch line-height,
+// diff-head, the verdict sheet's buttons). It does not touch line-height,
 // letter-spacing, border-radius, icon dimensions, gap, or panel/prose
 // padding - those were never the complaint, and a blanket ban on every
 // literal px in the sheet would just as happily fail on a border-radius as
@@ -199,7 +199,7 @@ test("every font-size in the stylesheet is a type-scale token or a named excepti
 // selector-part matches only when one of these is the last class in it, the
 // same rule the height CONTROL regex above already follows, so a nested
 // child (.lens .glyph) is told apart from the row itself (.lens).
-const ROW_CONTROL = /(^|[\s,>])(\.chip|\.lens|\.file|\.diff-head|\.flag-toggle|\.viewed|\.verdicts button)((\.|:|\[)[^\s,]*)?$/;
+const ROW_CONTROL = /(^|[\s,>])(\.chip|\.lens|\.file|\.diff-head|\.flag-toggle|\.viewed|\.verdict-sheet button)((\.|:|\[)[^\s,]*)?$/;
 
 const PADDING_TOKEN = /^(0|var\(--space[1-6]\)|(0|var\(--space[1-6]\)) (0|var\(--space[1-6]\)))$/;
 

@@ -1150,43 +1150,62 @@
 
   .fdivider { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
 
-  /* A segmented control, not a button: one control holding three or four
-     choices, dividing itself between the ones on show. It borrows the standard
-     height so the footer has one, and nothing else. */
-  .verdicts {
-    display: flex; height: var(--ctlStandard);
-    border: 1px solid var(--faint2); border-radius: 7px;
-    background: var(--panel2); overflow: hidden;
-    white-space: nowrap; flex-shrink: 0;
-  }
-
-  .verdicts button {
-    display: flex; align-items: center; gap: 7px;
-    padding: 0 var(--space4);
-    border: none;
-    background: transparent; color: var(--text);
-    font-family: var(--mono); font-size: var(--textSmall); font-weight: 500;
-    white-space: nowrap;
-  }
-
-  /* A divider between the buttons on show. Which those are changes with whose
-     pull request it is, so the rule follows the ones still standing rather
-     than counting on the first and last never being hidden. */
-  .verdicts button:not([hidden]) ~ button:not([hidden]) {
-    border-left: 1px solid var(--faint2);
-  }
-
-  .verdicts .dot {
+  /* #verdict-button - what used to be a row of three or four always-visible
+     choices is one chip now, reading the same way the header's source and
+     destination chips already do: what is chosen, with a caret that opens the
+     rest. #verdict-dot borrows the same colour logic .verdict-sheet's own
+     dots use below, kept in sync by footer.js rather than CSS, since which
+     tone applies is the same decision commitButton already makes for #post. */
+  #verdict-dot {
     width: 11px; height: 11px; border-radius: 50%;
     border: 1.5px solid var(--dim2); flex-shrink: 0;
   }
 
-  .verdicts button[aria-pressed="true"] {
+  /* The choices themselves, opened from #verdict-button. A sheet rather than
+     a popover anchored under the chip: the footer it would anchor to is a
+     horizontal scroller on mobile (see the mobile media query's overflow-x
+     on footer), and an ancestor with either overflow axis not visible clips
+     an absolutely positioned descendant on the other axis too - upward, the
+     one direction this needs. Fixed to the viewport instead, sitting above
+     everything the same way #confirm's sheet does, sidesteps that clipping
+     rather than fighting it. */
+  .scrim2 {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(0, 0, 0, .35);
+  }
+
+  .verdict-sheet {
+    position: fixed; z-index: 90;
+    left: 0; right: 0; bottom: 0; margin: 0 auto;
+    max-width: 320px;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom));
+    border: 1px solid var(--border); border-radius: 12px 12px 0 0;
+    background: var(--panel);
+    box-shadow: 0 -18px 44px var(--shadow);
+  }
+
+  .verdict-sheet button {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; min-height: var(--ctlCompact); padding: 0 var(--space4);
+    border: none; border-radius: 7px;
+    background: none; color: var(--text); text-align: left;
+    font-family: var(--mono); font-size: var(--textSmall); font-weight: 500;
+  }
+
+  .verdict-sheet button:hover { background: var(--panel2); }
+
+  .verdict-sheet .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 1.5px solid var(--dim2); flex-shrink: 0;
+  }
+
+  .verdict-sheet button[aria-pressed="true"] {
     background: color-mix(in srgb, var(--accent) 18%, var(--panel2));
     color: var(--bright);
   }
 
-  .verdicts button[aria-pressed="true"] .dot {
+  .verdict-sheet button[aria-pressed="true"] .dot {
     border-width: 3.5px; border-color: var(--accent); background: var(--bg);
   }
 
@@ -1497,15 +1516,12 @@
 
     #confirm, .scrim { padding: 12px; }
 
-    .verdicts { height: var(--ctlCompact); }
-    .verdicts button { gap: 5px; padding: 0 var(--space3); font-size: var(--textSmall); }
-
     /* Touch targets and type, scaled up for a finger rather than a cursor.
        Desktop keeps its own sizing untouched above; this block is the only
        place any of it changes. Three heights become the touch-friendly
        trio Apple and Google both call the floor for a tappable control -
-       every button already built on them (ROLES in button.js, the verdicts
-       segmented control, the chips) grows with no rule but this one.
+       every button already built on them (ROLES in button.js, the chips)
+       grows with no rule but this one.
 
        Type moves the same way: every selector in this sheet already reads
        its size off --textMicro/Small/Body/Lead/Display, so raising the five
@@ -1521,6 +1537,7 @@
     }
 
     .chip { min-height: 44px; }
+    .verdict-sheet button { min-height: 44px; }
     .lens, .file, .diff-head { min-height: 44px; }
     .flag-toggle, .viewed { min-height: 44px; }
 
@@ -1662,16 +1679,28 @@
          a failure is announced once wherever it was raised. -->
     <span id="status" role="status" aria-live="polite"></span>
     <span class="fdivider"></span>
-    <div class="verdicts" id="verdicts">
-      <button data-event="APPROVE" aria-pressed="false"><span class="dot"></span>Approve</button>
-      <button data-event="COMMENT" aria-pressed="false"><span class="dot"></span>Comment</button>
-      <button data-event="REQUEST_CHANGES" aria-pressed="false"><span class="dot"></span>Request changes</button>
-      <button data-event="DISMISS" aria-pressed="false" hidden><span class="dot"></span>Dismiss</button>
-    </div>
+    <button class="chip" id="verdict-button" aria-expanded="false" disabled>
+      <span class="dot" id="verdict-dot"></span>
+      <span class="chip-value" id="verdict-label">Comment</span>
+      <span class="caret">&#9662;</span>
+    </button>
     <span class="consequence" id="consequence"></span>
     <span class="spacer"></span>
     <button id="post" disabled>Post review</button>
   </footer>
+</div>
+
+<!-- The verdict picker: at body level rather than inside the footer, the same
+     reason the settings panel below is - a popover positioned inside the
+     footer would be clipped by the footer's own overflow-x:auto (see the
+     mobile media query), which computes overflow-y:auto right along with it
+     the moment either axis is not visible. -->
+<div class="scrim2" id="verdict-backdrop" hidden></div>
+<div class="verdict-sheet" id="verdict-popover" hidden>
+  <button data-event="APPROVE" aria-pressed="false"><span class="dot"></span>Approve</button>
+  <button data-event="COMMENT" aria-pressed="false"><span class="dot"></span>Comment</button>
+  <button data-event="REQUEST_CHANGES" aria-pressed="false"><span class="dot"></span>Request changes</button>
+  <button data-event="DISMISS" aria-pressed="false" hidden><span class="dot"></span>Dismiss</button>
 </div>
 
 <div id="celebrate" class="scrim" hidden>
