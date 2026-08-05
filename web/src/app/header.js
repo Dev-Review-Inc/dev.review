@@ -309,13 +309,24 @@ function drawDismissed(app) {
     const line = document.createElement("div");
     line.className = "setup-line";
 
-    const row = document.createElement("div");
+    // Openable, like every other pull request in this popover. Dismissing
+    // answers "I am not reviewing this", which is not "I never want to look
+    // at it again" - and restoring it to the queue is a heavier answer than
+    // another look asks for.
+    const row = document.createElement("button");
+
     row.className = "setup-row";
+    row.type = "button";
+    row.title = "Open this pull request without putting it back on the queue";
     row.append(
       element("div", "top", ""),
       element("div", "dir mono", `${entry.owner}/${entry.repo}#${entry.number}`),
     );
     row.firstChild.append(element("span", "name", entry.title));
+    row.addEventListener("click", () => {
+      closeQueue();
+      app.select(entry).catch((failure) => say(failure.message, "error"));
+    });
 
     // `restore` says whatever went wrong itself, so the promise a listener
     // cannot return is one nothing is waiting on rather than one nobody holds.

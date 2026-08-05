@@ -726,6 +726,24 @@ describe("Dismissing your own pull request", () => {
     assert.deepEqual(await page.eval("globalThis.__world.sent"), []);
   });
 
+  // Dismissing answers "I am not reviewing this", not "I never want to see
+  // it again". The only thing the list offered was putting it back on the
+  // queue, which is a heavier answer than a reader who just wants another
+  // look is asking for.
+  test("a dismissed pull request can still be opened, without coming back", async () => {
+    await page.click("#cheer-close");
+    await page.click("#queue-button");
+    await page.until('document.querySelector("#dismissed .setup-row")', "the dismissed list");
+
+    await page.click("#dismissed .setup-row");
+
+    await page.until(
+      'document.querySelector("#head-title").textContent !== ""',
+      "the dismissed pull request to open",
+    );
+    assert.equal(await page.text("#queue-waiting"), "nothing to review");
+  });
+
   test("the dismissal outlives the browser being closed", async () => {
     await page.go();
     await drawn(page);
