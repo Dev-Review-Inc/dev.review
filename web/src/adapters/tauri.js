@@ -100,7 +100,11 @@ export async function chooseRoot() {
 
 export class TauriAdapter extends Adapter {
   static type = "tauri";
-  static label = "This computer";
+  // Matches FilesystemAdapter's own label deliberately: adapterTypes() only
+  // ever offers one of the two, so whichever one it is should read the same
+  // "a folder on this computer" the reader already understands, not a second
+  // phrase for the same idea.
+  static label = "A folder on this computer";
 
   // The folder is chosen through the native dialog, so there is nothing to ask.
   static fields = [];

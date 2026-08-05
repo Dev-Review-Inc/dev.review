@@ -87,6 +87,19 @@ const AVAILABILITY = {
  * better than a dead end you cannot see: the form greys it out and says what
  * would make it work.
  *
+ * Filesystem and Tauri are the one deliberate exception to that, because they
+ * are not two different things: both mean "a folder on this computer," and
+ * which of them can act on that is decided entirely by where this build
+ * happens to be running, not by anything the reader could do. A Chromium tab
+ * cannot gain Tauri's picker and the desktop app's WKWebView cannot gain File
+ * System Access, so showing the one that never works here is not a dead end
+ * with an exit - it is a dead end wearing the other one's coat, and the two
+ * looking almost, not quite, alike ("A folder on this computer" beside "This
+ * computer") is exactly how a reader who picked the wrong one keeps failing to
+ * notice a right one was sitting beside it. Only whichever one actually works
+ * here is offered, so there is only ever one "a folder on this computer" to
+ * find.
+ *
  * A backend that must never be offered is dropped. The in-memory reader keeps
  * nothing and the demo reader holds sample data the app attaches itself, so
  * attaching either by hand would produce a source that looks like it works
@@ -101,12 +114,17 @@ const AVAILABILITY = {
  * @returns {{type: string, label: string, fields: object[], reason: string, hint: string}[]} what can be attached, and what cannot
  */
 export function adapterTypes() {
-  return TYPES.filter((Adapter) => Adapter.selectable !== false).map((Adapter) => ({
-    type: Adapter.type,
-    label: Adapter.label || Adapter.type,
-    fields: Adapter.fields || [],
-    ...AVAILABILITY[Adapter.type](),
-  }));
+  const localFolder = inTauri() ? TauriAdapter : FilesystemAdapter;
+  const isLocalFolderPair = (Adapter) => Adapter === FilesystemAdapter || Adapter === TauriAdapter;
+
+  return TYPES.filter((Adapter) => Adapter.selectable !== false)
+    .filter((Adapter) => !isLocalFolderPair(Adapter) || Adapter === localFolder)
+    .map((Adapter) => ({
+      type: Adapter.type,
+      label: Adapter.label || Adapter.type,
+      fields: Adapter.fields || [],
+      ...AVAILABILITY[Adapter.type](),
+    }));
 }
 
 /**
