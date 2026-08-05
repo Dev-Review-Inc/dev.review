@@ -534,6 +534,31 @@ describe("Posting the review", () => {
     assert.equal(await page.text("#confirm-note"), "nothing has been sent yet");
   });
 
+  // The sheet is the last look at the review, which is exactly where a
+  // reader notices the sentence they want to change. Sending them back to
+  // the page to fix it and then asking them to open the sheet again is a
+  // round trip for something they are already looking at.
+  test("the summary can still be written in, from the sheet itself", async () => {
+    await page.clickWhere('document.querySelector("#confirm-preview .summary-box")', "the summary");
+    await page.until(
+      'document.querySelector("#confirm-preview textarea")',
+      "the summary to open for writing",
+    );
+
+    await page.fill("#confirm-preview textarea", " Read the second one first.");
+    await page.clickWhere('document.querySelector("#confirm-count")', "the sheet, away from the box");
+
+    await page.until(
+      'document.querySelector("#confirm-preview .summary-box")',
+      "the summary to go back to being read",
+    );
+    assert.match(await page.text("#confirm-preview"), /Read the second one first\./);
+
+    // The sheet redraws under the cursor when the box gives its edit up, and
+    // the release that follows must not read as a click on the backdrop.
+    assert.equal(await page.eval('document.querySelector("#confirm").hidden'), false);
+  });
+
   test("what leaves is exactly what was previewed", async () => {
     await page.click("#confirm-post");
     await page.until('!document.querySelector("#celebrate").hidden', "the review to land");
@@ -543,7 +568,10 @@ describe("Posting the review", () => {
     assert.equal(sent.length, 1);
     assert.equal(sent[0].what, "review");
     assert.equal(sent[0].body.event, "COMMENT");
-    assert.equal(sent[0].body.body, "Two things worth a look before this goes in.");
+    assert.equal(
+      sent[0].body.body,
+      "Two things worth a look before this goes in. Read the second one first.",
+    );
     assert.deepEqual(
       sent[0].body.comments.map((comment) => comment.path),
       ["lib/error.rb"],

@@ -51,6 +51,9 @@ const app = new App({
 // rather than in a second state object the panes would have to keep in step.
 app.editing = false;
 app.editingFinding = null;
+// The confirmation sheet's own summary editor, which is not the pane's: the
+// pane's sits behind the sheet, where nothing can be typed into it.
+app.editingConfirm = false;
 app.addingAt = null;
 // Mobile-only: whether the left pane's content is folded away under its own
 // bar. Meaningless at desktop width, where the pane is always open, but kept
@@ -184,6 +187,7 @@ function restorePlace(places) {
 function open(pull) {
   app.editing = false;
   app.editingFinding = null;
+  app.editingConfirm = false;
   app.addingAt = null;
   say("");
 
@@ -266,9 +270,20 @@ find("verdict-popover").addEventListener("click", (event) => {
 find("confirm-post").addEventListener("click", () => post(app));
 find("confirm-cancel").addEventListener("click", () => closeConfirm(app));
 
-find("confirm").addEventListener("click", (event) => {
-  // Clicking the backdrop is a way out, but a click inside the sheet is not.
-  if (event.target === find("confirm")) closeConfirm(app);
+// Clicking the backdrop is a way out, but a click inside the sheet is not -
+// and which one happened is decided by where the press landed, not where the
+// release did. A click event's target is the ancestor the two have in common,
+// so a press inside the sheet that releases over the backdrop reports the
+// backdrop: dragging a selection out of the sheet, or letting go after the
+// sheet has redrawn under the cursor, used to close it.
+let pressedOnBackdrop = false;
+
+find("confirm").addEventListener("mousedown", (event) => {
+  pressedOnBackdrop = event.target === find("confirm");
+});
+
+find("confirm").addEventListener("click", () => {
+  if (pressedOnBackdrop) closeConfirm(app);
 });
 
 find("cheer-close").addEventListener("click", () => (find("celebrate").hidden = true));
