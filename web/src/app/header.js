@@ -26,6 +26,20 @@ const TYPE_WORDS = {
   git: "git repo",
 };
 
+// Where each backend's full setup page lives on the marketing site - the
+// fields here are only ever the ones the form needs, not the CORS rule or the
+// token scope a reader hits trouble without. Two adapter types share a page
+// because the app already offers them as one option, "a folder on this
+// computer" (see adapterTypes() in ../adapters/index.js).
+const ADAPTER_DOCS = {
+  filesystem: "folder",
+  tauri: "folder",
+  icloud: "icloud",
+  github: "github",
+  git: "git",
+  s3: "s3",
+};
+
 /**
  * A blank source form.
  *
@@ -1214,6 +1228,22 @@ function drawSourceForm(app) {
 
   if (usable && !fields.length) {
     grid.append(element("span", "mono settings-key", "Folder"), folderRow(app, setup, editing));
+  }
+
+  // What a field list cannot carry: the CORS rule a bucket needs, the token
+  // scope GitHub wants, which of these need the desktop app. One line to the
+  // page that does, for whichever backend is chosen right now.
+  const docSlug = ADAPTER_DOCS[setup.type];
+
+  if (docSlug) {
+    const link = document.createElement("a");
+
+    link.className = "settings-doc-link mono";
+    link.href = `https://dev.review/adapters/${docSlug}`;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = `Full setup for ${chosen?.label || setup.type} →`;
+    grid.append(link);
   }
 
   body.append(grid);
