@@ -1200,13 +1200,10 @@ function drawSourceForm(app) {
     }),
   );
 
-  // Where to go and switch a backend on, for the one case that has such a
-  // place. It sits under the picker rather than inside the option because an
-  // option is a line of text and this is a sentence with a url in it. At most
-  // one backend has a hint, so this is one line, not a list of caveats.
-  for (const type of types) {
-    if (type.hint) grid.append(element("div", "mono settings-hint", `${type.label}: ${type.hint}`));
-  }
+  // The caveat for whichever backend is chosen, not for whichever one
+  // happens to have one - a reader picking GitHub was reading git's CORS
+  // warning, because this used to loop every type instead of the chosen one.
+  if (chosen?.hint) grid.append(element("div", "mono settings-hint", `${chosen.label}: ${chosen.hint}`));
 
   for (const field of fields) {
     grid.append(
