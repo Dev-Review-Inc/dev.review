@@ -489,6 +489,13 @@
   .settings-fields select { width: 260px; max-width: 100%; font-family: var(--mono); font-size: var(--textSmall); }
   .settings-hint { grid-column: 2; font-size: var(--textSmall); line-height: 1.55; color: var(--setFaint); }
 
+  /* The doc link rides the hint row's own column and size, so it reads as
+     part of the same line of small print rather than a second control -
+     .accent rather than .setFaint is the one thing that says it goes
+     somewhere, the same way .pull-link already marks an outbound link. */
+  .settings-doc-link { grid-column: 2; font-size: var(--textSmall); color: var(--accent); text-decoration: none; }
+  .settings-doc-link:hover { text-decoration: underline; }
+
   /* A segmented control rather than a button: a bordered group whose children
      divide it and whose pressed one fills. It is not built on button() - it
      borrows the height, so the settings panel still has one. */

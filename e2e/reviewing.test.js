@@ -60,6 +60,34 @@ describe("Arriving with nothing attached", () => {
     assert.ok(!offered.includes("memory"));
   });
 
+  // The CORS-proxy caveat and the "full setup" doc link both describe one
+  // specific backend, so showing them regardless of which one is chosen is
+  // wrong in exactly the case that matters: a reader picking GitHub reading
+  // a warning about git's browser proxy, right above GitHub's own fields.
+  test("the hint and the doc link belong to whichever backend is chosen, not whichever one has a hint", async () => {
+    // Left open by the test above, on the add-source form nothing attached
+    // starts on.
+    await page.choose("#source-form select", "git");
+    await page.until(
+      'document.querySelector("#source-form .settings-hint")?.textContent.includes("cors proxy")',
+      "the git hint to show",
+    );
+    assert.match(
+      await page.eval('document.querySelector("#source-form .settings-doc-link")?.href || ""'),
+      /\/adapters\/git$/,
+    );
+
+    await page.choose("#source-form select", "s3");
+    await page.until(
+      '!document.querySelector("#source-form .settings-hint")',
+      "the git hint to go with the git backend it described",
+    );
+    assert.match(
+      await page.eval('document.querySelector("#source-form .settings-doc-link")?.href || ""'),
+      /\/adapters\/s3$/,
+    );
+  });
+
   test("nothing went wrong on the way in", () => {
     assert.deepEqual(page.complaints, []);
   });
