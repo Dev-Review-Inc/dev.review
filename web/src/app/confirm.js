@@ -82,6 +82,17 @@ export function openConfirm(app) {
   const preview = find("confirm-preview");
 
   preview.replaceChildren();
+
+  // Said once here rather than woven into the summary box or each finding
+  // card: both stay editable text below, the reader's own words exactly as
+  // typed, and the prefix is not a word of theirs - it is stitched on where
+  // reviewPayload builds what actually goes out, not before.
+  const prefix = app.queries.commentPrefixFor(app.source);
+
+  if (prefix && (summary || posting.length)) {
+    preview.append(element("div", "confirm-prefix mono", `Sent with "${prefix}" ahead of the summary and every comment.`));
+  }
+
   if (summary) preview.append(summaryBox(app, pull, summary));
 
   for (const finding of posting) {
@@ -201,6 +212,7 @@ export async function post(app) {
         dropped: new Set(),
         body: app.queries.commentToPost(app.source, pull),
         event,
+        prefix: app.queries.commentPrefixFor(app.source),
       },
     );
 

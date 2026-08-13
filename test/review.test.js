@@ -98,3 +98,22 @@ test("keeps a suggestion's trailing newline, which GitHub needs to apply it", ()
 
   assert.strictEqual(body.comments[0].body, "x\n\n```suggestion\none\ntwo\n```");
 });
+
+test("puts a prefix ahead of the review body and every comment", () => {
+  const body = payload({ prefix: "[bot-assisted]" });
+
+  assert.strictEqual(body.body, "[bot-assisted] **Requesting changes** — one blocker.");
+  assert.strictEqual(body.comments[0].body, "[bot-assisted] never matches");
+  assert.strictEqual(
+    body.comments[1].body,
+    "[bot-assisted] cannot fail\n\n```suggestion\nexpect(x).to be < Y\n```",
+  );
+});
+
+test("leaves an unprefixed send exactly as it was", () => {
+  assert.strictEqual(payload({ prefix: "" }).body, payload().body);
+});
+
+test("does not prefix a review body the reader opted out of", () => {
+  assert.strictEqual(payload({ prefix: "[bot-assisted]", body: "" }).body, "");
+});

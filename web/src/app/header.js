@@ -550,6 +550,7 @@ function drawSettings(app) {
   const selection = app.settingsSelection || { kind: "" };
 
   drawNav(app, sources, destinations, selection);
+  drawCommentPrefix(app);
 
   const add = find("settings-add");
 
@@ -583,6 +584,27 @@ function drawSettings(app) {
   find("destination-form").hidden =
     !(selection.kind === "destination" ||
       (selection.kind === "add" && selection.adding === "destination"));
+}
+
+/**
+ * Keep the prefix field in step with what is stored, without clobbering a
+ * value the reader is mid-typing.
+ *
+ * Blur is where it saves - see the listener in view.js - so nothing here
+ * writes anything down, the same reasoning {@link closeEditor} gives for the
+ * summary box: there is no save button, and an edit is never left sitting.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+function drawCommentPrefix(app) {
+  const field = find("comment-prefix");
+
+  field.disabled = !app.source;
+
+  if (document.activeElement !== field) {
+    field.value = app.source ? app.queries.commentPrefixFor(app.source) : "";
+  }
 }
 
 // ---- The nav

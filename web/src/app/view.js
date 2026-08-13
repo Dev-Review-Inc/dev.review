@@ -208,6 +208,15 @@ find("files-flagged").addEventListener("click", () => {
   app.changed();
 });
 
+find("comment-prefix").addEventListener("blur", () => {
+  const field = find("comment-prefix");
+
+  if (!app.source || field.value === app.queries.commentPrefixFor(app.source)) return;
+
+  app.commands.setCommentPrefix(app.source, field.value);
+  app.changed();
+});
+
 find("pane-toggle").addEventListener("click", () => {
   togglePaneCollapsed(app);
   app.changed();

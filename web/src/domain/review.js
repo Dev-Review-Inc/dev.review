@@ -28,6 +28,19 @@ export function bodyOf(finding) {
 }
 
 /**
+ * Put the reader's prefix ahead of something about to be sent.
+ *
+ * @param {string} prefix what the reader configured, empty when they have not
+ * @param {string} body the markdown it would lead
+ * @returns {string} the markdown to send
+ */
+export function withPrefix(prefix, body) {
+  const trimmed = (prefix || "").trim();
+
+  return trimmed && body ? `${trimmed} ${body}` : body;
+}
+
+/**
  * Build the request body for posting a review.
  *
  * @param {object} draft the draft being posted
@@ -36,6 +49,7 @@ export function bodyOf(finding) {
  * @param {Set<string>} options.dropped ids of findings not to post
  * @param {string} [options.body] the review body, if it was edited
  * @param {string} [options.event] the verdict, if it was overridden
+ * @param {string} [options.prefix] the reader's prefix, ahead of the body and every comment
  * @returns {object} the body for POST /repos/{owner}/{repo}/pulls/{n}/reviews
  * @throws {Error} if there is nothing to post at all, or the verdict is not an event
  */
@@ -54,7 +68,7 @@ export function reviewPayload(draft, options) {
       line: finding.line,
       // Findings anchor to the file's new state, which is GitHub's RIGHT side.
       side: "RIGHT",
-      body: bodyOf(finding),
+      body: withPrefix(options.prefix, bodyOf(finding)),
     }));
 
   // An empty body is fine when the findings carry the review; a review with
@@ -63,9 +77,11 @@ export function reviewPayload(draft, options) {
     throw new Error("refusing to post an empty review");
   }
 
+  const prefixedBody = withPrefix(options.prefix, body);
+
   // An empty comments array is rejected, so a review with nothing inline is
   // sent as a plain review instead of one carrying no comments.
   return comments.length
-    ? { body, event, commit_id: options.commitId, comments }
-    : { body, event, commit_id: options.commitId };
+    ? { body: prefixedBody, event, commit_id: options.commitId, comments }
+    : { body: prefixedBody, event, commit_id: options.commitId };
 }

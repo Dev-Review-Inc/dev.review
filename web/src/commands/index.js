@@ -384,6 +384,17 @@ export class Commands {
     this.track(source, "preferences", READING, only ? "flagOnly" : "showAll");
   }
 
+  /**
+   * Put a prefix ahead of the review body and every comment this source sends.
+   *
+   * @param {object} source the source being read
+   * @param {string} prefix what to lead with, or "" to stop
+   * @returns {void}
+   */
+  setCommentPrefix(source, prefix) {
+    this.track(source, "preferences", READING, "setCommentPrefix", { prefix });
+  }
+
   // ---- Reading the diff
 
   /**
