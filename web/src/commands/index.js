@@ -192,6 +192,9 @@ export class Commands {
   }
 
   /**
+   * Rewriting the summary is opting it in - a reader does not bother wording a
+   * summary they do not intend to send.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {string} body the review body as the reader wants it
@@ -199,6 +202,7 @@ export class Commands {
    */
   editComment(source, pull, body) {
     this.track(source, "pulls", pull.key, "editComment", { body });
+    this.track(source, "pulls", pull.key, "includeSummary");
   }
 
   /**
@@ -290,6 +294,8 @@ export class Commands {
   }
 
   /**
+   * Rewriting a finding is opting it in, the same reasoning as {@link editComment}.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
@@ -298,6 +304,7 @@ export class Commands {
    */
   editFinding(source, pull, finding, body) {
     this.track(source, "findings", this._finding(pull, finding), "editBody", { body });
+    this.track(source, "findings", this._finding(pull, finding), "include");
   }
 
   /**
