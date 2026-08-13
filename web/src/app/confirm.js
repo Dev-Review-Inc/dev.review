@@ -1,7 +1,7 @@
 // The last look before a review leaves, and the moment after it has.
 
 import { renderBody } from "../domain/render.js";
-import { reviewPayload } from "../domain/review.js";
+import { reviewPayload, withPrefix } from "../domain/review.js";
 import { element, find, say } from "./dom.js";
 import { button } from "../ui/button.js";
 import { restyle } from "../ui/render.js";
@@ -83,20 +83,16 @@ export function openConfirm(app) {
 
   preview.replaceChildren();
 
-  // Said once here rather than woven into the summary box or each finding
-  // card: both stay editable text below, the reader's own words exactly as
-  // typed, and the prefix is not a word of theirs - it is stitched on where
-  // reviewPayload builds what actually goes out, not before.
+  // Shown with the prefix already leading it, because this is the one place
+  // that promises to say exactly what would be sent - the summary box still
+  // edits the reader's own words alone, unprefixed, so saving an edit here
+  // can never write the prefix into the stored comment.
   const prefix = app.queries.commentPrefixFor(app.source);
 
-  if (prefix && (summary || posting.length)) {
-    preview.append(element("div", "confirm-prefix mono", `Sent with "${prefix}" ahead of the summary and every comment.`));
-  }
-
-  if (summary) preview.append(summaryBox(app, pull, summary));
+  if (summary) preview.append(summaryBox(app, pull, summary, prefix));
 
   for (const finding of posting) {
-    preview.append(findingCard(app, pull, finding, { snippet: true, actions: false }));
+    preview.append(findingCard(app, pull, finding, { snippet: true, actions: false, prefix }));
   }
 
   find("confirm-note").textContent = postNote(app);
@@ -114,9 +110,12 @@ export function openConfirm(app) {
  * @param {object} app the application
  * @param {object} pull the pull request being posted
  * @param {string} summary the body as it stands
+ * @param {string} prefix the reader's prefix, shown leading the read-only box only -
+ *   the editor beneath it edits the reader's own words alone, so saving it can
+ *   never write the prefix into the stored comment
  * @returns {HTMLElement} the box, or the editor open over it
  */
-function summaryBox(app, pull, summary) {
+function summaryBox(app, pull, summary, prefix) {
   if (app.editingConfirm) {
     const editor = document.createElement("textarea");
 
@@ -141,7 +140,7 @@ function summaryBox(app, pull, summary) {
   const box = document.createElement("div");
 
   box.className = "summary-box";
-  box.innerHTML = renderBody(summary);
+  box.innerHTML = renderBody(withPrefix(prefix, summary));
   box.role = "button";
   box.tabIndex = 0;
   box.title = "Click to write in the summary";
