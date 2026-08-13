@@ -155,7 +155,52 @@ test("raises GitHub's own message rather than a status code", async () => {
   await assert.rejects(reviewQueue("nope"), /Bad credentials/);
 });
 
+// GitHub allows exactly one review in progress per pull request per reviewer.
+// A comment left on github.com's Files tab starts one without saying so, so a
+// reader can hit this without ever having pressed "Start a review" themselves
+// - the message has to explain that, not just repeat GitHub's generic
+// "Validation Failed", which says nothing about what to do next.
+test("explains a pending review already open on GitHub, rather than 'Validation Failed'", async () => {
+  stub(
+    {
+      message: "Validation Failed",
+      errors: [
+        {
+          resource: "PullRequestReview",
+          code: "custom",
+          field: "pull_request_review",
+          message: "A review cannot be created because a pending review already exists",
+        },
+      ],
+      documentation_url: "https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request",
+    },
+    { ok: false, status: 422 },
+  );
 
+  await assert.rejects(
+    postReview("t", { owner: "o", repo: "r", number: 1 }, { body: "b", event: "COMMENT", commit_id: "abc" }),
+    /already (has|have) a review (in progress|pending)/i,
+  );
+});
+
+// A validation failure's real reason lives in errors[], not in the generic
+// top-level message sitting above it - surfacing only that line turns every
+// 422 into the same unhelpful sentence regardless of what actually went
+// wrong.
+test("prefers the specific reason in errors[] over the generic top-level message", async () => {
+  stub(
+    {
+      message: "Validation Failed",
+      errors: [{ resource: "PullRequestReview", code: "custom", message: "Cannot approve your own pull request" }],
+    },
+    { ok: false, status: 422 },
+  );
+
+  await assert.rejects(
+    postReview("t", { owner: "o", repo: "r", number: 1 }, { body: "b", event: "APPROVE", commit_id: "abc" }),
+    /Cannot approve your own pull request/,
+  );
+});
 
 test("asks for the files a pull request changes", async () => {
   const calls = stub([]);

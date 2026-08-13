@@ -29,6 +29,38 @@ export function parseRepository(url) {
   return { owner: match[1], repo: match[2] };
 }
 
+// GitHub allows exactly one review in progress per pull request per
+// reviewer. Leaving a comment on the Files tab of github.com starts one
+// without saying so, so a reader can hit this without ever having pressed
+// "Start a review" themselves - the generic "Validation Failed" GitHub
+// answers with says nothing about what actually happened or what to do.
+const PENDING_REVIEW = /pending review already exists/i;
+
+/**
+ * The clearest thing GitHub said about why a call failed.
+ *
+ * A validation failure's real reason lives in `errors[]`, one line per field,
+ * not in the generic `message` sitting above it - a caller that reads only
+ * that top line turns every 422 into the same unhelpful sentence regardless
+ * of which field actually failed and why.
+ *
+ * @param {object} payload GitHub's decoded response body
+ * @param {number} status the HTTP status, said only once nothing else was
+ * @returns {string} what to show the reader
+ */
+function reasonFor(payload, status) {
+  const detail = (payload.errors || [])
+    .map((error) => error.message)
+    .filter(Boolean)
+    .join(" ");
+
+  if (PENDING_REVIEW.test(detail)) {
+    return "GitHub already has a review in progress for this pull request - started on github.com, or opened by a comment left there. Finish or dismiss it on GitHub, then post again from here.";
+  }
+
+  return detail || payload.message || `GitHub responded ${status}`;
+}
+
 /**
  * Call the GitHub API.
  *
@@ -36,7 +68,7 @@ export function parseRepository(url) {
  * @param {string} path the path, e.g. "/user"
  * @param {object} [options] fetch options; a body is sent as JSON
  * @returns {Promise<object>} the decoded response
- * @throws {Error} carrying GitHub's own message when the call fails
+ * @throws {Error} carrying the clearest reason GitHub gave when the call fails
  */
 async function call(token, path, options = {}) {
   const response = await fetch(`${API}${path}`, {
@@ -53,7 +85,7 @@ async function call(token, path, options = {}) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(payload.message || `GitHub responded ${response.status}`);
+    throw new Error(reasonFor(payload, response.status));
   }
 
   return payload;
