@@ -303,6 +303,10 @@ function drawQueue(app) {
  * is absent entirely when nothing has been dismissed lately, so the common case
  * is not asked to carry a heading about a decision nobody made.
  *
+ * Labelled "history" rather than "dismissed": what lands here is whatever the
+ * reader has resolved, posted reviews included, and a posted review is the
+ * decision this section exists to show back to them - "dismissed" undersold it.
+ *
  * @param {object} app the running app
  * @returns {void}
  */
@@ -316,7 +320,7 @@ function drawDismissed(app) {
   if (!entries.length) return;
 
   section.append(
-    element("div", "popover-head", `dismissed · ${entries.length}`),
+    element("div", "popover-head", `history · ${entries.length}`),
   );
 
   for (const entry of entries) {

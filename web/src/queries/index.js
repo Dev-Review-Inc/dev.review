@@ -24,6 +24,33 @@ const DISMISSED_WINDOW = 7 * 24 * 60 * 60 * 1000;
 // There is one of these per source, so it needs a name rather than an id.
 export const READING = "reading";
 
+/**
+ * A pull request's identity, recovered from the key its decisions are filed
+ * under, for one the destination has stopped listing.
+ *
+ * Owner, repository and number are all a diff or a head commit ever asks of a
+ * pull request, so the title going unknown does not stop either from loading -
+ * only the row loses a name until the reader opens it.
+ *
+ * @param {string} key what {@link draftKey} produced
+ * @returns {object} enough of a pull request to read
+ */
+function pullFromKey(key) {
+  const [, owner, repo, number] = /^(.+)\/(.+)#(\d+)$/.exec(key) || [];
+
+  return {
+    owner,
+    repo,
+    number: Number(number),
+    title: "",
+    author: "",
+    url: `https://github.com/${owner}/${repo}/pull/${number}`,
+    updatedAt: "",
+    createdAt: "",
+    isRequested: false,
+  };
+}
+
 export class Queries {
   /**
    * @param {object} options what to read from
@@ -94,6 +121,12 @@ export class Queries {
    * mis-hit sometimes, and a row that simply vanishes leaves a reader with
    * nothing to undo.
    *
+   * Read from what this app decided, not from the destination's own queue.
+   * Answering a review request is exactly what takes a pull request off that
+   * queue, so filtering the destination's list the way {@link queue} does
+   * would drop a pull request from this one the moment it is dismissed the
+   * way most of them are: by posting.
+   *
    * Newest first: the one to put back is almost always the one just dismissed.
    *
    * Only the last week of them. A dismissal older than that is a decision the
@@ -105,15 +138,18 @@ export class Queries {
    * keeps its pull request out of {@link queue} for good.
    *
    * @param {object} source the source being read
-   * @param {object[]} pulls what the destination said is waiting
+   * @param {object[]} pulls what the destination said is waiting, for whichever
+   *   of these it still lists
    * @param {number} [now] the moment to measure the week back from
    * @returns {object[]} the recently dismissed ones, each carrying its state
    */
   dismissed(source, pulls, now = Date.now()) {
     const since = now - DISMISSED_WINDOW;
+    const live = new Map(pulls.map((pull) => [draftKey(pull.owner, pull.repo, pull.number), pull]));
 
-    return pulls
-      .map((pull) => this.pullState(source, pull))
+    return this.state
+      .findAll(source.id, "pulls")
+      .map((decision) => this.pullState(source, live.get(decision.id) || pullFromKey(decision.id)))
       .filter((entry) => entry.dismissedAt && entry.dismissedAt > since)
       .sort((a, b) => b.dismissedAt - a.dismissedAt);
   }
