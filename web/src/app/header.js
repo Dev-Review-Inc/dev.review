@@ -346,19 +346,28 @@ function drawDismissed(app) {
       app.select(entry).catch((failure) => say(failure.message, "error"));
     });
 
-    // `restore` says whatever went wrong itself, so the promise a listener
-    // cannot return is one nothing is waiting on rather than one nobody holds.
-    const edit = render(
-      button({
-        label: "Restore",
-        compact: true,
-        title: "Put this pull request back on the queue",
-        onClick: () => restore(app, entry),
-      }),
-    );
+    line.append(row);
 
-    edit.classList.add("setup-edit");
-    line.append(row, edit);
+    // Restoring means putting a pull request back on the queue, and there is
+    // nowhere to put one back once the destination has stopped listing it -
+    // offering the button anyway would let a click clear the one field
+    // keeping the row in this list, with nothing to show for it afterward.
+    if (entry.restorable) {
+      // `restore` says whatever went wrong itself, so the promise a listener
+      // cannot return is one nothing is waiting on rather than one nobody holds.
+      const edit = render(
+        button({
+          label: "Restore",
+          compact: true,
+          title: "Put this pull request back on the queue",
+          onClick: () => restore(app, entry),
+        }),
+      );
+
+      edit.classList.add("setup-edit");
+      line.append(edit);
+    }
+
     section.append(line);
   }
 }

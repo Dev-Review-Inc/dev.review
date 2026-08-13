@@ -55,3 +55,42 @@ describe("a pull request the reader dismissed", () => {
     assert.deepEqual(app.dismissed().map((one) => one.number), [2]);
   });
 });
+
+describe("a pull request restored after its review was posted", () => {
+  // Posting is what dismissed it in the first place, and the banner saying so
+  // is what stops a reader sending a second review by mistake. Asking for it
+  // back is asking to send another one on purpose, so the banner has to go
+  // with the restore rather than outlive it and block the thing the reader
+  // just asked for.
+  test("no longer reads as posted, so it can be sent again", async () => {
+    const pull = aPull();
+    const app = await theApp({ pulls: [pull] });
+    const entry = app.queue()[0];
+
+    await app.commands.recordPostedReview(app.source, entry, {
+      url: "https://github.com/org/app/pull/42#pullrequestreview-1",
+      event: "COMMENT",
+    });
+
+    app.commands.restorePull(app.source, entry);
+
+    assert.equal(app.queries.isPosted(app.source, entry), false);
+  });
+
+  // Restoring one that was only ever dismissed, never posted, has nothing to
+  // clear - the same command has to leave that case exactly as it was.
+  test("a pull request only ever dismissed is unaffected", async () => {
+    const pull = aPull();
+    const app = await theApp({ pulls: [pull] });
+    const entry = app.queue()[0];
+
+    app.commands.dismissPull(app.source, entry);
+    app.commands.restorePull(app.source, entry);
+
+    assert.equal(app.queries.isPosted(app.source, entry), false);
+    assert.deepEqual(
+      app.queue().map((one) => one.number),
+      [pull.number],
+    );
+  });
+});

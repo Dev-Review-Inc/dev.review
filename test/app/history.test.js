@@ -57,4 +57,31 @@ describe("a pull request the destination has stopped listing", () => {
 
     assert.equal(app.selected.number, pull.number);
   });
+
+  // Restoring means putting a pull request back on the queue, and there is no
+  // queue to put one back on once the destination has stopped listing it -
+  // restoring it anyway clears the one thing keeping it in this list, with
+  // nowhere else for it to reappear. It has to say so rather than let the row
+  // offer a way out that quietly deletes the row instead.
+  test("cannot be restored, since there is nowhere left to restore it to", async () => {
+    const pull = aPull();
+    const app = await theApp({ pulls: [pull] });
+    app.commands.dismissPull(app.source, app.queue()[0]);
+
+    const [entry] = app.queries.dismissed(app.source, [], Date.now());
+
+    assert.equal(entry.restorable, false);
+  });
+});
+
+describe("a dismissed pull request the destination still lists", () => {
+  test("can be restored", async () => {
+    const pull = aPull();
+    const app = await theApp({ pulls: [pull] });
+    app.commands.dismissPull(app.source, app.queue()[0]);
+
+    const [entry] = app.queries.dismissed(app.source, [pull], Date.now());
+
+    assert.equal(entry.restorable, true);
+  });
 });

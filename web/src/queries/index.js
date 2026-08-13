@@ -137,6 +137,12 @@ export class Queries {
    * expire the dismissal: the event stays in the log, still syncs, and still
    * keeps its pull request out of {@link queue} for good.
    *
+   * Each entry carries `restorable`: whether the destination still lists the
+   * pull request anywhere this app could put it back on the queue. Restoring
+   * clears the one field keeping a pull request in this list, so restoring
+   * one the destination has stopped listing would not put it back on the
+   * queue - it would only make it disappear from here too, with no way back.
+   *
    * @param {object} source the source being read
    * @param {object[]} pulls what the destination said is waiting, for whichever
    *   of these it still lists
@@ -149,7 +155,11 @@ export class Queries {
 
     return this.state
       .findAll(source.id, "pulls")
-      .map((decision) => this.pullState(source, live.get(decision.id) || pullFromKey(decision.id)))
+      .map((decision) => {
+        const pull = live.get(decision.id);
+
+        return { ...this.pullState(source, pull || pullFromKey(decision.id)), restorable: Boolean(pull) };
+      })
       .filter((entry) => entry.dismissedAt && entry.dismissedAt > since)
       .sort((a, b) => b.dismissedAt - a.dismissedAt);
   }
