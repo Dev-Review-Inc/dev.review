@@ -156,6 +156,10 @@ export default {
   "preferences.flagOnly": moment("flaggedOnlyAt"),
   "preferences.showAll": moment("flaggedOnlyAt", null),
 
+  // What the reader wants ahead of everything sent - a tag their team reads
+  // as "an agent had a hand in this," a name, whatever they configure.
+  "preferences.setCommentPrefix": change((data) => ({ commentPrefix: data.prefix })),
+
   // ---- How far through the diff the reader has got.
 
   "files.markViewed": moment("viewedAt"),

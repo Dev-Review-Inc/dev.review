@@ -8,7 +8,7 @@
 // draft mid-read without touching what the reader decided.
 
 import { draftKey } from "../domain/draft-path.js";
-import { bodyOf } from "../domain/review.js";
+import { bodyOf, withPrefix } from "../domain/review.js";
 
 // A finding the reader wrote themselves belongs to the pull request it names.
 const SORT_BY_NAME = (a, b) => String(a.name || "").localeCompare(String(b.name || ""));
@@ -287,6 +287,11 @@ export class Queries {
    * The review body this send would actually carry: the words on screen, or
    * nothing at all while the reader has not opted them in.
    *
+   * Without the reader's prefix, on purpose: this is also what {@link
+   * reviewPayload} takes as `options.body`, and that is where the prefix is
+   * applied - to it and to every comment alike, in the one place responsible
+   * for both. Applying it here too would send it twice.
+   *
    * @param {object} source the source being read
    * @param {object} pull the pull request
    * @returns {string} markdown
@@ -351,11 +356,12 @@ export class Queries {
    * must say the same thing. A committable suggestion is the difference between
    * a comment someone reads and a fix they apply in one click.
    *
+   * @param {object} source the source being read
    * @param {object} finding the finding being posted
    * @returns {string} the markdown to send
    */
-  bodyToPost(finding) {
-    return bodyOf(finding);
+  bodyToPost(source, finding) {
+    return withPrefix(this.commentPrefixFor(source), bodyOf(finding));
   }
 
   /**
@@ -399,6 +405,17 @@ export class Queries {
    */
   isFlaggedOnly(source) {
     return Boolean(this._object(source, "preferences", READING).flaggedOnlyAt);
+  }
+
+  /**
+   * What the reader wants ahead of the review body and every comment, empty
+   * when they have not configured one.
+   *
+   * @param {object} source the source being read
+   * @returns {string} the prefix
+   */
+  commentPrefixFor(source) {
+    return this._object(source, "preferences", READING).commentPrefix || "";
   }
 
   /**

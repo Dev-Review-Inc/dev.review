@@ -725,7 +725,7 @@ export class App {
       commitId,
       path: finding.path,
       line: finding.line,
-      body: this.queries.bodyToPost(finding),
+      body: this.queries.bodyToPost(this.source, finding),
     });
 
     this.commands.recordPostedFinding(this.source, pull, finding, posted);
