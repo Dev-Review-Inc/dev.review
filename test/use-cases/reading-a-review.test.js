@@ -151,6 +151,33 @@ describe("Deciding what goes out", () => {
     assert.ok(edited.editedAt);
   });
 
+  test("rewriting a finding is opting it in - the reader would not bother otherwise", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.editFinding(app.source, pull, finding, "Say it more kindly.");
+
+    const [edited] = app.queries.findingsForPull(app.source, pull);
+    assert.ok(edited.includedAt);
+  });
+
+  test("editing an excluded finding opts it back in", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.includeFinding(app.source, pull, finding);
+    app.commands.excludeFinding(app.source, pull, finding);
+
+    app.commands.editFinding(app.source, pull, finding, "Once more, differently.");
+
+    const [reincluded] = app.queries.findingsForPull(app.source, pull);
+    assert.ok(reincluded.includedAt);
+  });
+
+  test("rewriting the summary is opting it in - the reader would not bother otherwise", () => {
+    app.commands.editComment(app.source, pull, "Said my own way.");
+
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), true);
+    assert.equal(app.queries.commentToPost(app.source, pull), "Said my own way.");
+  });
+
   test("an edit can be put back to what was drafted", () => {
     const [finding] = app.queries.findingsForPull(app.source, pull);
     app.commands.editFinding(app.source, pull, finding, "Say it more kindly.");
