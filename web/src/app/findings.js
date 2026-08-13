@@ -6,6 +6,7 @@
 
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
+import { withPrefix } from "../domain/review.js";
 import { arm, element, say } from "./dom.js";
 import { includeToggle } from "./include.js";
 import { button } from "../ui/button.js";
@@ -106,12 +107,13 @@ function editorFor(app, holder, key) {
  * @param {object} app the application
  * @param {object} pull the pull request the finding belongs to
  * @param {object} finding a finding as the reader sees it
- * @param {{snippet?: boolean, actions?: boolean}} [options] `snippet` brings the
- *   code context along; `actions: false` makes the card read-only, for surfaces
- *   that only preview
+ * @param {{snippet?: boolean, actions?: boolean, prefix?: string}} [options] `snippet` brings
+ *   the code context along; `actions: false` makes the card read-only, for surfaces
+ *   that only preview; `prefix` leads the read-only body with the reader's configured
+ *   prefix, for the one surface promising to show exactly what would be sent
  * @returns {HTMLElement} the card
  */
-export function findingCard(app, pull, finding, { snippet = false, actions = true } = {}) {
+export function findingCard(app, pull, finding, { snippet = false, actions = true, prefix = "" } = {}) {
   const card = document.createElement("div");
   card.className = `finding is-${finding.color}${finding.includedAt ? " is-included" : ""}`;
 
@@ -160,7 +162,7 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
   }
 
   const prose = document.createElement("div");
-  prose.innerHTML = renderBody(finding.body);
+  prose.innerHTML = renderBody(withPrefix(prefix, finding.body));
   body.append(prose);
 
   if (finding.suggestion) {
