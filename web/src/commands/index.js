@@ -163,12 +163,18 @@ export class Commands {
   /**
    * Put a dismissed pull request back.
    *
+   * Posting is what dismisses most of these, so most of what comes back this
+   * way was posted - and the banner saying so exists to stop a second review
+   * going out by accident, not to stop the one the reader just asked for by
+   * restoring it on purpose. The posted record goes with the dismissal.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @returns {Promise<void>} when it is in local storage
    */
   restorePull(source, pull) {
     this.track(source, "pulls", pull.key, "restore");
+    this.track(source, "pulls", pull.key, "redraft");
 
     return this.state.settled();
   }
