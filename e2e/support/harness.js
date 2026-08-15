@@ -77,6 +77,83 @@ export function aDraft(overrides = {}) {
 }
 
 /**
+ * The ticket as the reporter wrote it, and the body the agent proposes instead.
+ *
+ * Shaped as a pair on purpose: the diff between them is exactly two hunks, the
+ * title line and the tail, with the reporter's middle untouched - so a test can
+ * reject one hunk and state the resulting body literally.
+ *
+ * @returns {string} the live body
+ */
+export function theIssueBody() {
+  return [
+    "export is broken, please fix today",
+    "",
+    "Steps:",
+    "1. Open the orders page",
+    '2. Click "Export CSV"',
+    "3. Wait",
+    "",
+    "The spinner runs forever and nothing downloads.",
+    "It worked before the last deploy.",
+  ].join("\n");
+}
+
+/**
+ * @returns {string} the proposed replacement body
+ */
+export function theProposedBody() {
+  return [
+    'Orders export: "Export CSV" spins forever and no file downloads',
+    ...theIssueBody().split("\n").slice(1),
+    "",
+    "Expected: a CSV of the listed orders downloads.",
+  ].join("\n");
+}
+
+/**
+ * A triage draft as the agent would have written one: no verdict, a proposed
+ * replacement body, and the comment that goes under the rewrite.
+ *
+ * @param {object} [overrides] fields to change
+ * @returns {object} a schema 3 draft
+ */
+export function anIssueDraft(overrides = {}) {
+  return {
+    schema: 3,
+    owner: "org",
+    repo: "app",
+    number: 7,
+    title: "Export never finishes",
+    url: "https://github.com/org/app/issues/7",
+    finishedAt: "2026-07-29T16:05:00Z",
+    summary: "The report is real; the title and the tail bury it.",
+    description: theProposedBody(),
+    comment: "Retitled to the symptom and added the expected result. Your steps are untouched.",
+    ...overrides,
+  };
+}
+
+/**
+ * An issue as the GitHub search API reports one.
+ *
+ * @param {object} [overrides] fields to change
+ * @returns {object} one search result
+ */
+export function anIssue(overrides = {}) {
+  return {
+    number: 7,
+    title: "Export never finishes",
+    repository_url: "https://api.github.com/repos/org/app",
+    user: { login: "sofia" },
+    html_url: "https://github.com/org/app/issues/7",
+    updated_at: "2026-07-29T16:00:00Z",
+    created_at: "2026-07-29T10:00:00Z",
+    ...overrides,
+  };
+}
+
+/**
  * A pull request as the GitHub search API reports one.
  *
  * @param {object} [overrides] fields to change
@@ -161,7 +238,9 @@ export function written(draft) {
  * @param {string} origin where the interface is served
  * @param {object} [world] what the storage holds and what GitHub would say
  * @param {object} [world.objects] object key to contents
- * @param {object[]} [world.pulls] what the queue search returns
+ * @param {object[]} [world.pulls] what the review-requested search returns
+ * @param {object[]} [world.issues] what the assignee search returns
+ * @param {object} [world.issueBodies] each issue's live body, keyed "owner/repo#n"
  * @param {string} [world.login] who the token belongs to
  * @returns {Promise<object>} the page, loaded and idle
  */
@@ -173,6 +252,8 @@ export async function openApp(browser, origin, world = {}) {
     bucket: BUCKET,
     login: world.login || "reader",
     pulls: world.pulls || [aPull()],
+    issues: world.issues || [],
+    issueBodies: world.issueBodies || {},
     headCommit: "e612b1b",
     files: theFiles(),
     objects: world.objects || written(aDraft()),

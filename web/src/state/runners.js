@@ -101,6 +101,18 @@ export default {
 
   "pulls.chooseVerdict": change((data) => ({ verdict: data.event })),
 
+  // The ticket body. Null means the reader has not touched it and the kept
+  // hunks decide what it says.
+  "pulls.editDescription": change((data, event) => ({
+    description: data.body,
+    descriptionEditedAt: event.time,
+  })),
+  "pulls.resetDescription": change(() => ({ description: null, descriptionEditedAt: null })),
+
+  // The proposed close, which the reader can leave out of the triage.
+  "pulls.dropClose": moment("closeDroppedAt"),
+  "pulls.restoreClose": moment("closeDroppedAt", null),
+
   "pulls.post": change((data, event) => ({
     postedAt: event.time,
     postedUrl: data.url || "",
@@ -114,6 +126,14 @@ export default {
 
   "findings.drop": moment("droppedAt"),
   "findings.restore": moment("droppedAt", null),
+
+  // ---- What the reader decided about one hunk of a proposed ticket body.
+  //
+  // Keyed by "owner/repo#number:hunkId", the differ's content-derived id, so a
+  // rejection survives the agent redrafting around it.
+
+  "hunks.reject": moment("rejectedAt"),
+  "hunks.restore": moment("rejectedAt", null),
 
   "findings.editBody": change((data, event) => ({ body: data.body, editedAt: event.time })),
   "findings.resetBody": change(() => ({ body: null, editedAt: null })),

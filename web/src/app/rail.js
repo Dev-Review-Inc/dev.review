@@ -69,7 +69,7 @@ function drawBlurb(app) {
 
   // Nothing to copy, so nothing offering to. A button that put a url the
   // reader cannot follow on their clipboard would be offering a dead end.
-  if (address) line.append(copyButton(address));
+  if (address) line.append(copyButton(address, Boolean(pull.isIssue)));
 
   // Only where there is a document to throw away. With nothing written yet the
   // pull request is already waiting to be picked up, and a button offering to
@@ -115,11 +115,16 @@ function pullName(pull, address) {
  * Put the pull request's url on the clipboard.
  *
  * @param {string} address the url, already checked
+ * @param {boolean} isIssue whether the open thing is an issue rather than a pull request
  * @returns {HTMLElement} the button
  */
-function copyButton(address) {
+function copyButton(address, isIssue) {
   const copy = render(
-    button({ role: "icon", icon: COPY_ICON, title: "Copy the pull request url" }),
+    button({
+      role: "icon",
+      icon: COPY_ICON,
+      title: isIssue ? "Copy the issue url" : "Copy the pull request url",
+    }),
   );
 
   copy.classList.add("copy-url");
@@ -234,6 +239,20 @@ function drawSections(app) {
           label: section.label,
           count: String(count),
           onClick: () => app.show("summary", { section: section.key }),
+        }),
+      );
+    }
+
+    // The proposed rewrite of the ticket's body, where the draft carries one.
+    if (draft.description) {
+      rows.append(
+        tabRow({
+          active: app.tab === "description",
+          tone: "accent",
+          glyph: GLYPH.accent,
+          label: "Description",
+          count: "",
+          onClick: () => app.show("description"),
         }),
       );
     }

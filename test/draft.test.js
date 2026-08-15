@@ -127,7 +127,69 @@ test("refuses a schema this client does not know how to read", () => {
 
 test("refuses a verdict that is not a GitHub review event", () => {
   assert.throws(() => draft({ verdict: "LGTM" }), /verdict/);
-  assert.throws(() => draft({ verdict: undefined }), /verdict/);
+});
+
+test("accepts a draft with no verdict when it proposes a comment", () => {
+  assert.strictEqual(draft({ verdict: undefined }).verdict, "");
+  assert.strictEqual(draft({ verdict: "" }).verdict, "");
+});
+
+test("accepts a draft proposing only a ticket description", () => {
+  const parsed = draft({ verdict: undefined, comment: "", description: "New body." });
+
+  assert.strictEqual(parsed.verdict, "");
+  assert.strictEqual(parsed.description, "New body.");
+});
+
+test("treats a non-string description as absent", () => {
+  assert.strictEqual(draft({ description: 42 }).description, "");
+  assert.strictEqual(parseDraft(DRAFT).description, "");
+});
+
+test("refuses a draft that proposes nothing at all", () => {
+  assert.throws(() => draft({ verdict: undefined, comment: "" }), /proposes nothing/);
+  assert.throws(() => draft({ verdict: undefined, comment: "  ", description: " " }), /proposes nothing/);
+});
+
+test("carries a proposal to close the ticket", () => {
+  assert.deepStrictEqual(draft({ close: { reason: "not_planned" } }).close, {
+    reason: "not_planned",
+    of: null,
+  });
+  assert.deepStrictEqual(draft({ close: { reason: "completed" } }).close, {
+    reason: "completed",
+    of: null,
+  });
+});
+
+test("reads an absent close as no proposal at all", () => {
+  assert.strictEqual(parseDraft(DRAFT).close, null);
+  assert.strictEqual(draft({ close: null }).close, null);
+});
+
+test("refuses a close reason GitHub would not accept", () => {
+  assert.throws(() => draft({ close: { reason: "wontfix" } }), /close reason/);
+  assert.throws(() => draft({ close: {} }), /close reason/);
+});
+
+test("a duplicate must name the ticket it duplicates", () => {
+  assert.deepStrictEqual(draft({ close: { reason: "duplicate", of: 41 } }).close, {
+    reason: "duplicate",
+    of: 41,
+  });
+  assert.throws(() => draft({ close: { reason: "duplicate" } }), /duplicates/);
+  assert.throws(() => draft({ close: { reason: "duplicate", of: 0 } }), /duplicates/);
+  assert.throws(() => draft({ close: { reason: "duplicate", of: "41" } }), /duplicates/);
+});
+
+test("other reasons ignore whatever of says", () => {
+  assert.strictEqual(draft({ close: { reason: "completed", of: 41 } }).close.of, null);
+});
+
+test("accepts a draft proposing only a close", () => {
+  const parsed = draft({ verdict: undefined, comment: "", close: { reason: "not_planned" } });
+
+  assert.deepStrictEqual(parsed.close, { reason: "not_planned", of: null });
 });
 
 test("accepts each verdict a review can carry", () => {

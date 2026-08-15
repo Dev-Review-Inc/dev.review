@@ -47,6 +47,8 @@ describe("a demo destination with sample data behind it", () => {
 
     assert.equal(queue.length, 1);
     assert.equal(queue[0].number, 1);
+    // Seeds predate issues, so an entry that does not say is a pull request.
+    assert.equal(queue[0].isIssue, false);
   });
 
   test("answers the diff and the head commit for a pull request it holds", async () => {
@@ -91,6 +93,50 @@ describe("a demo destination with sample data behind it", () => {
     assert.deepEqual(comment, { url: "https://github.com/org/app/pull/1" });
     assert.deepEqual(review, { url: "https://github.com/org/app/pull/1" });
     assert.deepEqual(asked, [], "posting must never reach the network");
+  });
+
+  test("answers an issue's live body out of its seed", async () => {
+    const seed = {
+      ...aSeed(),
+      issues: { "org/app#1": "the export is broken, please fix" },
+    };
+    const destination = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(seed) });
+    const target = { ...aPull(), title: "Export broken", url: "https://github.com/org/app/issues/1" };
+
+    const answered = await destination.issue(target);
+
+    assert.equal(answered.body, "the export is broken, please fix");
+    assert.equal(answered.title, "Export broken");
+    assert.equal(answered.isPull, false);
+    assert.equal(answered.url, "https://github.com/org/app/issues/1");
+  });
+
+  test("answers a canned body for an issue its seed does not carry", async () => {
+    const destination = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(aSeed()) });
+
+    const answered = await destination.issue(aPull());
+
+    assert.ok(answered.body);
+    assert.ok(answered.title);
+    assert.equal(answered.isPull, false);
+  });
+
+  test("takes issue writes nowhere, without so much as fetching", async () => {
+    const asked = [];
+    const destination = new DemoDestination({
+      seed: "/demo/queue.json",
+      fetch: serving(aSeed(), asked),
+    });
+    const target = { ...aPull(), url: "https://github.com/org/app/issues/1" };
+
+    const patched = await destination.patchDescription(target, "rewritten");
+    const commented = await destination.commentOnIssue(target, "a comment");
+    const closed = await destination.closeIssue(target, "not_planned");
+
+    assert.deepEqual(patched, { url: "https://github.com/org/app/issues/1" });
+    assert.deepEqual(commented, { url: "https://github.com/org/app/issues/1" });
+    assert.deepEqual(closed, { url: "https://github.com/org/app/issues/1" });
+    assert.deepEqual(asked, [], "issue writes must never reach the network");
   });
 
   test("says plainly that nothing is sent", () => {

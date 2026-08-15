@@ -233,6 +233,51 @@ export class Queries {
     return Boolean(this._pullDecision(source, pull.key).commentEditedAt);
   }
 
+  // ---- Triaging an issue
+
+  /**
+   * The hunks of the proposed ticket body the reader has rejected.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {Set<string>} the differ's ids for the rejected hunks
+   */
+  rejectedHunks(source, pull) {
+    const prefix = `${pull.key}:`;
+
+    return new Set(
+      this.state
+        .findAll(source.id, "hunks")
+        .filter((hunk) => hunk.rejectedAt && hunk.id.startsWith(prefix))
+        .map((hunk) => hunk.id.slice(prefix.length)),
+    );
+  }
+
+  /**
+   * The ticket body as the reader rewrote it, or null while the kept hunks
+   * still decide what it says.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {string|null} the reader's body, or null to derive it from hunks
+   */
+  descriptionFor(source, pull) {
+    const edited = this._pullDecision(source, pull.key).description;
+
+    return edited === null || edited === undefined ? null : edited;
+  }
+
+  /**
+   * Whether the reader has left the proposed close out of the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {boolean} whether the close was dropped
+   */
+  closeDropped(source, pull) {
+    return Boolean(this._pullDecision(source, pull.key).closeDroppedAt);
+  }
+
   // ---- Findings
 
   /**

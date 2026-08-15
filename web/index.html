@@ -666,7 +666,7 @@
   /* A comfortable reading measure - roughly 70 characters - rather than
      lines that run the full width of a wide window. Every tab holds it, so
      switching between summary, diff and QA never reflows the eye. */
-  #tab-summary, #tab-diff, #tab-qa { max-width: 44rem; }
+  #tab-summary, #tab-diff, #tab-description, #tab-qa { max-width: 44rem; }
 
   /* Editing sits in flow beside the prose it edits - nothing can cover
      it, and it takes no space at all while hidden. */
@@ -756,7 +756,35 @@
   .prose a { color: var(--accent); }
   .prose strong { color: var(--bright); }
 
-  #editor {
+  /* The proposed rewrite of a ticket's body, hunk by hunk. The hunks borrow
+     the diff's grammar wholesale; what is this pane's own is the rejected
+     state, the toggle, and the result box below. */
+  .description-hunk { margin: 14px 20px; }
+  .description-hunk.is-rejected .hunk-lines { opacity: .4; }
+  .description-hunk .hunk-head { display: flex; align-items: center; gap: 8px; }
+
+  .hunk-toggle {
+    border: 1px solid var(--border); border-radius: 5px; background: var(--panel2);
+    color: var(--dim); font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; cursor: pointer;
+  }
+  .hunk-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+  .description-result { margin: 14px 20px; display: grid; gap: 8px; }
+  .description-result .head { font-size: 11px; color: var(--dim2); }
+  .description-result .body { white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+
+  .description-reset {
+    justify-self: start;
+    border: 1px solid var(--border); border-radius: 5px; background: var(--panel2);
+    color: var(--dim); font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; cursor: pointer;
+  }
+  .description-reset:hover { color: var(--accent); border-color: var(--accent); }
+
+  .description-plan { margin-top: 12px; color: var(--dim2); font-size: 11.5px; }
+
+  #editor, #description-editor {
     width: calc(100% - 40px);
     margin: 16px 20px;
     min-height: 60vh;
@@ -1313,6 +1341,7 @@
   .sheet-body,
   #comment,
   #editor,
+  #description-editor,
   .finding-code,
   .finding-body pre,
   .prose pre:not(.finding-code):not(.suggestion pre) {
@@ -1394,6 +1423,7 @@
     .settings-fields select,
     .settings-fields input.mono,
     #editor,
+    #description-editor,
     .finding-editor {
       font-size: 16px;
     }
@@ -1479,6 +1509,11 @@
 
       <div id="tab-diff" hidden>
         <div id="diff"></div>
+      </div>
+
+      <div id="tab-description" hidden>
+        <div id="description"></div>
+        <textarea id="description-editor" hidden spellcheck="false"></textarea>
       </div>
 
       <div id="tab-qa" hidden>

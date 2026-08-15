@@ -137,6 +137,8 @@ export async function anApp({ adapter = new MemoryAdapter(), deviceId = "device-
  *   that cares when a write lands
  * @param {(message: string, tone: string) => void} [options.report] how the app
  *   tells the reader something, standing in for the footer
+ * @param {object} [options.destination] destination methods to lay over the
+ *   stubs, for a test that watches or breaks one
  * @returns {Promise<object>} the app, booted, with a destination and a source
  */
 export async function theApp({
@@ -144,6 +146,7 @@ export async function theApp({
   pulls = [aPull()],
   database = () => new MemoryKeyValueStore(),
   report,
+  destination = {},
 } = {}) {
   const app = new App({
     database,
@@ -154,7 +157,12 @@ export async function theApp({
       queue: async () => pulls,
       files: async () => [],
       headCommit: async () => "e612b1b",
+      issue: async () => ({ body: "", title: "", isPull: false, url: "" }),
+      patchDescription: async () => ({ url: "" }),
+      commentOnIssue: async () => ({ url: "" }),
+      closeIssue: async () => ({ url: "" }),
       emptyQueueHint: () => "",
+      ...destination,
     }),
   });
 

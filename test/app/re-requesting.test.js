@@ -16,10 +16,12 @@ import { EventStoreEvent } from "../../web/src/state/event-store-event.js";
 import { theApp, aPull } from "../use-cases/helper.js";
 
 // The rule compares two clocks, so both are written down rather than left to
-// read "now" and race each other.
-const DISMISSED_AT = Date.parse("2026-07-29T12:00:00Z");
-const BEFORE = "2026-07-29T09:00:00Z";
-const AFTER = "2026-07-29T15:00:00Z";
+// race each other. They anchor to now rather than the calendar because the
+// dismissed listing measures a real week back from the moment it is drawn -
+// a date written out would age past that window and expire the test.
+const DISMISSED_AT = Date.now() - 3 * 60 * 60 * 1000;
+const BEFORE = new Date(DISMISSED_AT - 60 * 60 * 1000).toISOString();
+const AFTER = new Date(DISMISSED_AT + 60 * 60 * 1000).toISOString();
 
 /**
  * Dismiss a pull request at a definite moment, as the reader did then.

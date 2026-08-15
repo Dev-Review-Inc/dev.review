@@ -16,6 +16,7 @@ import { dirname, resolve } from "node:path";
 import { parseDraft } from "../src/domain/draft.js";
 import { draftPath, draftKey } from "../src/domain/draft-path.js";
 import { parsePatch } from "../src/domain/diff.js";
+import { diffText } from "../src/domain/text-diff.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -77,6 +78,27 @@ export function check() {
     if (derived !== path) problems.push(`${path}: draft says it belongs at ${derived}`);
 
     const key = draftKey(payload.owner, payload.repo, payload.number);
+    const entry = (queue.pulls || []).find(
+      (pull) => draftKey(pull.owner, pull.repo, pull.number) === key,
+    );
+
+    if (!entry) problems.push(`${path}: the queue has no pull request ${key}`);
+
+    // An issue draft has no diff to anchor into; its counterpart is the live
+    // body the description will be cut into hunks against, which must exist and
+    // must actually differ, or the pane comes up saying nothing would change.
+    if (entry?.isIssue) {
+      const body = (queue.issues || {})[key];
+
+      if (typeof body !== "string") {
+        problems.push(`${path}: the queue has no live body for issue ${key}`);
+      } else if (!diffText(body, draft.description).length) {
+        problems.push(`${path}: the description proposes no change to ${key}`);
+      }
+
+      continue;
+    }
+
     const files = (queue.files || {})[key];
 
     if (!files) {
@@ -85,12 +107,8 @@ export function check() {
       continue;
     }
 
-    if (!(queue.pulls || []).some((pull) => draftKey(pull.owner, pull.repo, pull.number) === key)) {
-      problems.push(`${path}: the queue has no pull request ${key}`);
-    }
-
     for (const finding of draft.findings) {
-      const file = files.find((entry) => entry.filename === finding.path);
+      const file = files.find((candidate) => candidate.filename === finding.path);
 
       if (!file) {
         problems.push(`${key} ${finding.id}: ${finding.path} is not a file in this pull request`);

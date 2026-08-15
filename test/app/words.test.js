@@ -41,6 +41,22 @@ describe("the words on the send", () => {
     assert.equal(postLabel({ destination: null }), "Post review");
     assert.equal(postNote({ destination: null }), "nothing has been sent yet");
   });
+
+  test("calls a triage a triage, never a review", () => {
+    const issue = { isIssue: true };
+
+    // A destination that names itself says something true of a triage too, so
+    // its word stands; only the generic claim of a review gives way.
+    assert.equal(
+      postLabel({ destination: new GitHubDestination({ token: "x" }), selected: issue }),
+      "Post to GitHub",
+    );
+    assert.equal(
+      postLabel({ destination: new DemoDestination({ seed: "/demo/queue.json" }), selected: issue }),
+      "Post triage",
+    );
+    assert.equal(postLabel({ destination: null, selected: issue }), "Post triage");
+  });
 });
 
 // The send on a single comment, which sits beside Edit and Drop on the card and

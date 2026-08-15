@@ -53,6 +53,27 @@ describe("EventStore", () => {
     );
   });
 
+  // The key leads with the time, so pin/update/pin inside one millisecond would
+  // otherwise collapse to one key and replay as pin/update.
+  test("the same decision twice in one millisecond is two events, in order", async () => {
+    const db = new MemoryKeyValueStore();
+    const state = store(db);
+    state.track("notes", "abc", "create", { body: "hi" });
+    state.track("notes", "abc", "pin");
+    state.track("notes", "abc", "update", { body: "ho" });
+    state.track("notes", "abc", "pin");
+
+    assert.equal(state.allEvents().length, 4);
+    await state.settled();
+
+    const replayed = store(db);
+    await replayed.restore();
+
+    const [note] = replayed.findAll("notes");
+    assert.equal(note.body, "ho");
+    assert.ok(note.pinnedAt > note.updatedAt);
+  });
+
   test("generates an id when the caller has none", () => {
     const state = store();
 

@@ -1,9 +1,11 @@
 // The contract between the review sweep and this interface.
 //
 // A draft is a JSON document written to the drafts directory. It is not parsed
-// out of prose: the sweep states its verdict and hands over the exact comment
-// it would post, so rewording the review template can never change what this
-// client believes a review says.
+// out of prose: the sweep states what it would post — a review verdict, a
+// replacement ticket description, a comment, a closing of the ticket — so
+// rewording the template can never change what this client believes a draft
+// says. A draft must propose at least one of those; one with none of them has
+// nothing this client can post.
 //
 // The section bodies and the comment are markdown, rendered by render.js.
 
@@ -17,6 +19,37 @@ const VERDICTS = ["APPROVE", "COMMENT", "REQUEST_CHANGES"];
 // The colours a section may pick. Named rather than free: the app maps these
 // onto its own palette, so no draft can produce an unreadable pane.
 const COLORS = ["neutral", "ok", "warn", "critical", "accent"];
+
+// The reasons GitHub accepts for closing an issue, and the only ones a draft
+// may propose.
+const REASONS = ["duplicate", "not_planned", "completed"];
+
+/**
+ * Check the proposal to close the ticket.
+ *
+ * @param {*} close the close field of a draft
+ * @returns {{reason: string, of: number|null}|null} the proposal, or null when there is none
+ * @throws {Error} if the reason is not one GitHub accepts, or a duplicate names no ticket
+ */
+function closeOf(close) {
+  if (close === undefined || close === null) return null;
+
+  const source = typeof close === "object" ? close : {};
+
+  if (!REASONS.includes(source.reason)) {
+    throw new Error(`draft close reason ${source.reason} is not a reason GitHub accepts`);
+  }
+
+  if (source.reason !== "duplicate") return { reason: source.reason, of: null };
+
+  // A duplicate closed without saying of what leaves the reporter nowhere to
+  // follow, so the ticket it duplicates is part of the proposal.
+  if (!Number.isInteger(source.of) || source.of < 1) {
+    throw new Error("draft close must name the ticket it duplicates");
+  }
+
+  return { reason: source.reason, of: source.of };
+}
 
 // What a QA scenario can report. Anything else, including nothing, is a skip:
 // silence is not a pass.
@@ -262,8 +295,8 @@ function qaOf(qa) {
  * Read a draft written by the review sweep.
  *
  * @param {object} payload the decoded JSON document
- * @returns {{title: string, url: string, reviewedAt: string, draftedAt: string, verdict: string, summary: string, sections: object[], comment: string}}
- * @throws {Error} if the draft is not a shape this client can act on
+ * @returns {{title: string, url: string, reviewedAt: string, draftedAt: string, verdict: string, description: string, summary: string, sections: object[], comment: string}}
+ * @throws {Error} if the draft is not a shape this client can act on, or proposes nothing
  */
 export function parseDraft(payload) {
   const draft = payload || {};
@@ -272,8 +305,20 @@ export function parseDraft(payload) {
     throw new Error(`draft schema ${draft.schema} is not readable by this client`);
   }
 
-  if (!VERDICTS.includes(draft.verdict)) {
+  // A review draft carries a verdict; an issue draft carries none. The target
+  // says which kind this is, so the draft does not.
+  const verdict = draft.verdict ?? "";
+
+  if (verdict !== "" && !VERDICTS.includes(verdict)) {
     throw new Error(`draft verdict ${draft.verdict} is not a review event`);
+  }
+
+  const description = typeof draft.description === "string" ? draft.description : "";
+  const comment = typeof draft.comment === "string" ? draft.comment : "";
+  const close = closeOf(draft.close);
+
+  if (!verdict && !description.trim() && !comment.trim() && !close) {
+    throw new Error("draft proposes nothing this client can post");
   }
 
   const findings = findingsOf(draft.findings);
@@ -288,7 +333,11 @@ export function parseDraft(payload) {
     // record of what was sent, rather than vanishing.
     postedAt: typeof draft.postedAt === "string" ? draft.postedAt : "",
     postedUrl: typeof draft.postedUrl === "string" ? draft.postedUrl : "",
-    verdict: draft.verdict,
+    verdict,
+    // The full body an issue draft would put in place of the ticket's own.
+    description,
+    // The proposal to close the ticket, or null when the draft makes none.
+    close,
     summary: draft.summary || "",
     findings,
     qa: qaOf(draft.qa),
@@ -296,6 +345,6 @@ export function parseDraft(payload) {
     kinds: kindsOf(draft.kinds),
     progress: progressOf(draft.progress),
     // Empty is a legitimate summary: the findings can be the whole review.
-    comment: typeof draft.comment === "string" ? draft.comment : "",
+    comment,
   };
 }

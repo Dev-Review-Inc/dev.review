@@ -7,10 +7,13 @@
 
 const API = "https://api.github.com";
 
-// Open pull requests waiting on the signed-in user, and their own — search
-// qualifiers cannot be OR-ed, so the queue is two searches merged.
+// Open pull requests waiting on the signed-in user, their own, and the issues
+// on their plate — search qualifiers cannot be OR-ed, so the queue is four
+// searches merged.
 const REQUESTED = "is:open is:pr review-requested:@me archived:false";
 const MINE = "is:open is:pr author:@me archived:false";
+const ASSIGNED = "is:open is:issue assignee:@me archived:false";
+const MENTIONED = "is:open is:issue mentions:@me archived:false";
 
 /**
  * Owner and repository of an API repository url.
@@ -70,18 +73,19 @@ export function viewer(token) {
 }
 
 /**
- * Pull requests awaiting the signed-in user's review, and their own, across
- * every repository.
+ * Pull requests awaiting the signed-in user's review, their own, and the
+ * issues assigned to or mentioning them, across every repository.
  *
- * Review requests come first; a pull request that is both — a review asked
- * of you on your own work — appears once.
+ * Review requests come first; an entry answering more than one search — a
+ * review asked of you on your own work, an assigned issue that also mentions
+ * you — appears once, in the earliest search it answered.
  *
  * @param {string} token a personal access token
- * @returns {Promise<object[]>} one entry per pull request
+ * @returns {Promise<object[]>} one entry per pull request or issue
  */
 export async function reviewQueue(token) {
-  const [requested, mine] = await Promise.all(
-    [REQUESTED, MINE].map((query) =>
+  const [requested, mine, assigned, mentioned] = await Promise.all(
+    [REQUESTED, MINE, ASSIGNED, MENTIONED].map((query) =>
       call(token, `/search/issues?q=${encodeURIComponent(query)}&per_page=50`),
     ),
   );
@@ -90,11 +94,14 @@ export async function reviewQueue(token) {
   const queue = [];
 
   // Which search an entry came out of is the one thing the merge would lose,
-  // and it is what says a review is being waited on. Requested is walked first
-  // so a pull request answering both keeps that.
+  // and it is what says the reader is being waited on. Requested is walked
+  // first so a pull request answering both keeps that, and for issues it is
+  // the assignee search that means waited on rather than merely named.
   const searches = [
-    { items: requested.items || [], isRequested: true },
-    { items: mine.items || [], isRequested: false },
+    { items: requested.items || [], isRequested: true, isIssue: false },
+    { items: mine.items || [], isRequested: false, isIssue: false },
+    { items: assigned.items || [], isRequested: true, isIssue: true },
+    { items: mentioned.items || [], isRequested: false, isIssue: true },
   ];
 
   for (const search of searches) {
@@ -115,6 +122,9 @@ export async function reviewQueue(token) {
         updatedAt: item.updated_at,
         createdAt: item.created_at,
         isRequested: search.isRequested,
+        // The item's own pull_request key outranks which search answered it: a
+        // pull request that mentions the reader must not turn into an issue.
+        isIssue: search.isIssue && !item.pull_request,
       });
     }
   }
@@ -142,6 +152,65 @@ export function pullRequest(token, { owner, repo, number }) {
  */
 export function pullFiles(token, { owner, repo, number }) {
   return call(token, `/repos/${owner}/${repo}/pulls/${number}/files?per_page=100`);
+}
+
+/**
+ * An issue's detail, for the live body a triage draft will be applied to.
+ *
+ * GitHub answers this endpoint for pull requests too — a `pull_request` key on
+ * the response is what marks the number as a pull request rather than an issue.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} issue which issue
+ * @returns {Promise<object>} the issue
+ */
+export function issue(token, { owner, repo, number }) {
+  return call(token, `/repos/${owner}/${repo}/issues/${number}`);
+}
+
+/**
+ * Rewrite an issue's body, and only its body.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} issue which issue
+ * @param {string} body the new body
+ * @returns {Promise<object>} the patched issue
+ */
+export function patchIssueBody(token, { owner, repo, number }, body) {
+  return call(token, `/repos/${owner}/${repo}/issues/${number}`, {
+    method: "PATCH",
+    body: { body },
+  });
+}
+
+/**
+ * Close an issue, saying why the way GitHub says it.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} issue which issue
+ * @param {string} reason "duplicate", "not_planned" or "completed"
+ * @returns {Promise<object>} the closed issue
+ */
+export function closeIssue(token, { owner, repo, number }, reason) {
+  return call(token, `/repos/${owner}/${repo}/issues/${number}`, {
+    method: "PATCH",
+    body: { state: "closed", state_reason: reason },
+  });
+}
+
+/**
+ * Post one comment on an issue.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} issue which issue
+ * @param {string} body what to say
+ * @returns {Promise<object>} the created comment
+ */
+export function postIssueComment(token, { owner, repo, number }, body) {
+  return call(token, `/repos/${owner}/${repo}/issues/${number}/comments`, {
+    method: "POST",
+    body: { body },
+  });
 }
 
 /**

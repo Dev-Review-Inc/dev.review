@@ -13,6 +13,10 @@ import {
   pullFiles,
   postComment,
   postReview,
+  issue as issueDetail,
+  patchIssueBody,
+  postIssueComment,
+  closeIssue,
 } from "./github.js";
 
 export class GitHubDestination {
@@ -113,6 +117,65 @@ export class GitHubDestination {
    */
   async review(pull, payload) {
     const posted = await postReview(this.token, pull, payload);
+
+    return { url: posted.html_url || "" };
+  }
+
+  /**
+   * An issue's live body, and whether the number is really an issue.
+   *
+   * GitHub answers the same endpoint for pull requests, marking them with a
+   * `pull_request` key, so the caller can tell before writing anything.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{body: string, title: string, isPull: boolean, url: string}>} the issue
+   */
+  async issue(target) {
+    const detail = await issueDetail(this.token, target);
+
+    return {
+      body: detail.body || "",
+      title: detail.title || "",
+      isPull: Boolean(detail.pull_request),
+      url: detail.html_url || "",
+    };
+  }
+
+  /**
+   * Rewrite the issue's description.
+   *
+   * @param {object} target which issue
+   * @param {string} body the new body
+   * @returns {Promise<{url: string}>} where it lives
+   */
+  async patchDescription(target, body) {
+    const patched = await patchIssueBody(this.token, target, body);
+
+    return { url: patched.html_url || "" };
+  }
+
+  /**
+   * Close the issue, with the reason the draft proposed.
+   *
+   * @param {object} target which issue
+   * @param {string} reason "duplicate", "not_planned" or "completed"
+   * @returns {Promise<{url: string}>} where it lives
+   */
+  async closeIssue(target, reason) {
+    const closed = await closeIssue(this.token, target, reason);
+
+    return { url: closed.html_url || "" };
+  }
+
+  /**
+   * Post a comment on the issue.
+   *
+   * @param {object} target which issue
+   * @param {string} body what to say
+   * @returns {Promise<{url: string}>} where it landed
+   */
+  async commentOnIssue(target, body) {
+    const posted = await postIssueComment(this.token, target, body);
 
     return { url: posted.html_url || "" };
   }

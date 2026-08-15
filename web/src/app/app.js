@@ -90,6 +90,12 @@ export class App {
     this.files = [];
     this.headCommit = "";
 
+    // The live ticket, for an issue or a pull request whose draft proposes a
+    // new description. What it holds is what the reader read, so posting a
+    // rewrite checks the destination still agrees with it.
+    this.issue = null;
+    this.issueProblem = "";
+
     // Why the diff or the head commit is missing, when they were asked for and
     // did not come. Kept apart from `problems` because it belongs to the pull
     // request that is open rather than to the source or the destination, and is
@@ -609,6 +615,8 @@ export class App {
     this.selected = pull;
     this.files = [];
     this.headCommit = "";
+    this.issue = null;
+    this.issueProblem = "";
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
@@ -624,14 +632,26 @@ export class App {
 
     // The diff and the head commit are wanted but not required: a draft is
     // readable without them, and a destination that is rate limiting should not
-    // stop the reader reading.
-    const [files, commit] = await Promise.allSettled([
-      this.destination.files(pull),
-      this.destination.headCommit(pull),
+    // stop the reader reading. An issue has neither - asking /pulls/{n} for an
+    // issue number is a 404 - so it gets the live body instead, which a pull
+    // request only needs when its draft proposes rewriting one.
+    const isIssue = Boolean(this.selected.isIssue);
+    const wantsBody = isIssue || Boolean(this.selected.draft?.description);
+
+    const [files, commit, issue] = await Promise.allSettled([
+      isIssue ? [] : this.destination.files(pull),
+      isIssue ? "" : this.destination.headCommit(pull),
+      wantsBody ? this.destination.issue(pull) : null,
     ]);
 
     if (files.status === "fulfilled") this.files = files.value;
     if (commit.status === "fulfilled") this.headCommit = commit.value;
+    if (issue.status === "fulfilled") this.issue = issue.value;
+
+    this.issueProblem =
+      issue.status === "rejected"
+        ? issue.reason?.message || "the destination did not say why"
+        : "";
 
     // Not thrown, for the reason above, but not swallowed either. A diff that
     // could not be fetched draws exactly like a pull request that changed no
