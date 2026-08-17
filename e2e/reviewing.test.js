@@ -60,6 +60,34 @@ describe("Arriving with nothing attached", () => {
     assert.ok(!offered.includes("memory"));
   });
 
+  // The CORS-proxy caveat and the "full setup" doc link both describe one
+  // specific backend, so showing them regardless of which one is chosen is
+  // wrong in exactly the case that matters: a reader picking GitHub reading
+  // a warning about git's browser proxy, right above GitHub's own fields.
+  test("the hint and the doc link belong to whichever backend is chosen, not whichever one has a hint", async () => {
+    // Left open by the test above, on the add-source form nothing attached
+    // starts on.
+    await page.choose("#source-form select", "git");
+    await page.until(
+      'document.querySelector("#source-form .settings-hint")?.textContent.includes("cors proxy")',
+      "the git hint to show",
+    );
+    assert.match(
+      await page.eval('document.querySelector("#source-form .settings-doc-link")?.href || ""'),
+      /\/adapters\/git$/,
+    );
+
+    await page.choose("#source-form select", "s3");
+    await page.until(
+      '!document.querySelector("#source-form .settings-hint")',
+      "the git hint to go with the git backend it described",
+    );
+    assert.match(
+      await page.eval('document.querySelector("#source-form .settings-doc-link")?.href || ""'),
+      /\/adapters\/s3$/,
+    );
+  });
+
   test("nothing went wrong on the way in", () => {
     assert.deepEqual(page.complaints, []);
   });
@@ -92,7 +120,7 @@ describe("Arriving all at once", () => {
     assert.equal(await page.text("#source-name"), "Work");
     assert.equal(await page.text("#queue-waiting"), "1 to review");
     assert.equal(await page.text("#head-title"), "Re-root the errors onto a common base class");
-    assert.equal(await page.text("#staged"), "2 comments staged");
+    assert.equal(await page.text("#staged"), "0 comments staged");
 
     // The diff is the last thing to land, and the one the reader used to watch
     // appear a beat after everything else.
@@ -131,6 +159,16 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(await page.text("#queue-ready"), "1");
   });
 
+  // Sign out used to carry a label wide enough that, beside a long title, it
+  // wrapped clear off the header's own row. An icon has no such width to give
+  // back, and still needs to say who it is to someone who cannot see it.
+  test("sign out is an icon, not a label, and still has a name to a screen reader", async () => {
+    assert.equal(await page.text("#signout"), "");
+    assert.equal(await page.count("#signout svg"), 1);
+    assert.equal(await page.eval('document.querySelector("#signout").getAttribute("aria-label")'), "Sign out");
+    assert.equal(await page.eval('document.querySelector("#signout").title'), "Forget this destination's token and sign in again");
+  });
+
   test("the drafted review opens by itself, and shows what the agent wrote", async () => {
     assert.equal(await page.text("#head-title"), "Re-root the errors onto a common base class");
     assert.match(await page.text("#blurb"), /the family catch-all is now inert/);
@@ -138,80 +176,109 @@ describe("Reading a review the agent drafted", () => {
   });
 
   test("the footer counts what would be sent, and what would block", async () => {
-    assert.equal(await page.text("#staged"), "2 comments staged");
-    assert.equal(await page.text("#counts"), "1 blocking · 1 note");
+    assert.equal(await page.text("#staged"), "0 comments staged");
+    assert.equal(await page.text("#counts"), "0 blocking · 0 notes");
   });
 
   test("the two sends on the screen say which is which", async () => {
-    assert.equal(await page.text("#post"), "Post review");
+    assert.equal(await page.text("#post"), "Comment");
     assert.match(
       await page.text("#tab-summary .finding:first-of-type .finding-actions"),
       /Post this comment/,
     );
   });
 
-  test("dropping a comment takes it out of what would be sent", async () => {
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+  test("including a comment puts it in what would be sent", async () => {
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
 
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the footer to drop a comment",
+      "the footer to include a comment",
     );
-    assert.equal(await page.text("#counts"), "0 blocking · 1 note");
+    assert.equal(await page.text("#counts"), "1 blocking · 0 notes");
 
-    // Dropped, not deleted: what the agent said is still readable.
-    assert.equal(await page.count("#tab-summary .finding.is-dropped"), 1);
-    assert.match(await page.text("#tab-summary .finding.is-dropped"), /never matches/);
+    // Included, not copied: what the agent said is the one thing being sent.
+    assert.equal(await page.count("#tab-summary .finding:first-of-type.is-included"), 1);
+    assert.match(await page.text("#tab-summary .finding:first-of-type"), /never matches/);
   });
 
-  test("restoring it puts it back", async () => {
-    await page.clickButton("#tab-summary .finding.is-dropped", "Restore");
+  test("excluding it takes it back out", async () => {
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
 
     await page.until(
-      'document.querySelector("#staged").textContent === "2 comments staged"',
-      "the footer to take the comment back",
+      'document.querySelector("#staged").textContent === "0 comments staged"',
+      "the footer to take the comment back out",
     );
-    assert.equal(await page.count("#tab-summary .finding.is-dropped"), 0);
+    assert.equal(await page.count("#tab-summary .finding:first-of-type.is-included"), 0);
   });
 
   test("the verdict the reader chooses is the one the footer stands behind", async () => {
+    await page.clickWhere('document.querySelector("#verdict-button")', "the verdict button");
     await page.clickWhere(
-      'document.querySelector("#verdicts button[data-event=REQUEST_CHANGES]")',
-      "the request changes button",
+      'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]")',
+      "the request changes choice",
     );
 
     await page.until(
-      'document.querySelector("#verdicts button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed") === "true"',
+      'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed") === "true"',
       "the verdict to be taken",
     );
-    assert.equal(await page.text("#consequence"), "blocks merge until resolved");
+    assert.equal(await page.text("#post"), "Request changes");
+  });
+
+  // It used to slide up as a sheet from the bottom edge of the screen, which
+  // read as a different control entirely from the button that opened it. It
+  // has to look like it came out of that button: right-aligned to it and
+  // sitting just above it, not centred under the whole viewport.
+  test("the verdict choices open where the caret is, not centred on the screen", async () => {
+    await page.clickWhere('document.querySelector("#verdict-button")', "the verdict button");
+    await page.until('!document.querySelector("#verdict-popover").hidden', "the verdict sheet");
+
+    const gap = await page.eval(`(() => {
+      const anchor = document.querySelector("#verdict-button").getBoundingClientRect();
+      const sheet = document.querySelector("#verdict-popover").getBoundingClientRect();
+
+      return JSON.stringify({
+        rightEdges: Math.round(Math.abs(sheet.right - anchor.right)),
+        above: Math.round(anchor.top - sheet.bottom),
+        centred: Math.round(sheet.width) === Math.round(document.querySelector("#shell").clientWidth) ||
+          Math.round(sheet.left) === 0,
+      });
+    })()`);
+    const { rightEdges, above, centred } = JSON.parse(gap);
+
+    assert.ok(rightEdges <= 4, `the sheet's right edge sits ${rightEdges}px from the caret's`);
+    assert.ok(above >= 0 && above <= 16, `the sheet sits ${above}px above the caret`);
+    assert.equal(centred, false, "the sheet reads as a centred bottom sheet");
+
+    await page.clickWhere('document.querySelector("#verdict-backdrop")', "the backdrop");
   });
 
   test("dismissing is offered on somebody else's pull request too", async () => {
     assert.equal(
-      await page.eval('document.querySelector("#verdicts button[data-event=DISMISS]").hidden'),
+      await page.eval('document.querySelector("#verdict-popover button[data-event=DISMISS]").hidden'),
       false,
     );
   });
 
   test("every decision survives the browser being closed", async () => {
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the drop to land",
+      "the include to land",
     );
 
     await page.go();
     await drawn(page);
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the reopened review to remember the drop",
+      "the reopened review to remember it",
     );
 
-    assert.equal(await page.count("#tab-summary .finding.is-dropped"), 1);
+    assert.equal(await page.count("#tab-summary .finding:first-of-type.is-included"), 1);
     assert.equal(
       await page.eval(
-        'document.querySelector("#verdicts button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed")',
+        'document.querySelector("#verdict-popover button[data-event=REQUEST_CHANGES]").getAttribute("aria-pressed")',
       ),
       "true",
     );
@@ -349,11 +416,11 @@ describe("Writing the review's summary", () => {
 
     // The click that closes the editor is a click on something: it has to
     // arrive, rather than being spent on closing the box.
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
 
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the drop to land on the same click that closed the editor",
+      "the include to land on the same click that closed the editor",
     );
     assert.match(await page.text("#comment-body"), /And the first one is the worse\./);
   });
@@ -416,6 +483,25 @@ describe("Clearing a review that is open", () => {
 
   test("the rail says the same thing the pane does, rather than nothing", async () => {
     assert.equal(await page.text("#analysis .rail-waiting"), "not started");
+  });
+
+  test("the rail's Summary row still stands and still opens the pane, even with nothing drafted yet", async () => {
+    // On mobile this row is the only way out of an otherwise-empty drawer
+    // before a draft exists - a reader with no clickable row in it has no
+    // way to see the "not started" state this same rail already names.
+    assert.equal(await page.count("#analysis .lens"), 1);
+    assert.equal(await page.text("#analysis .lens .name"), "Summary");
+
+    // clickButton matches a button's exact text, and this one's real text is
+    // "☰Summary" - the tone glyph runs straight into the label with no space
+    // between them in the markup. The row is the only one here either way,
+    // so a plain selector says the same thing without repeating that detail.
+    await page.click("#analysis .lens");
+
+    await page.until(
+      'document.querySelector("#analysis .lens")?.getAttribute("aria-pressed") === "true"',
+      "the Summary row to take the click",
+    );
   });
 
   test("nothing went wrong along the way", () => {
@@ -483,10 +569,16 @@ describe("Posting the review", () => {
   after(() => page.close());
 
   test("the sheet previews only what this send would do", async () => {
-    await page.clickButton("#tab-summary .finding:first-of-type", "Drop");
+    await page.clickButton("#tab-summary .finding:first-of-type", "Include");
     await page.until(
       'document.querySelector("#staged").textContent === "1 comment staged"',
-      "the drop to land",
+      "the include to land",
+    );
+
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until(
+      'document.querySelector(".summary-box.is-included")',
+      "the summary include to land",
     );
 
     await page.click("#post");
@@ -498,6 +590,31 @@ describe("Posting the review", () => {
     assert.equal(await page.text("#confirm-note"), "nothing has been sent yet");
   });
 
+  // The sheet is the last look at the review, which is exactly where a
+  // reader notices the sentence they want to change. Sending them back to
+  // the page to fix it and then asking them to open the sheet again is a
+  // round trip for something they are already looking at.
+  test("the summary can still be written in, from the sheet itself", async () => {
+    await page.clickWhere('document.querySelector("#confirm-preview .summary-box")', "the summary");
+    await page.until(
+      'document.querySelector("#confirm-preview textarea")',
+      "the summary to open for writing",
+    );
+
+    await page.fill("#confirm-preview textarea", " Read the second one first.");
+    await page.clickWhere('document.querySelector("#confirm-count")', "the sheet, away from the box");
+
+    await page.until(
+      'document.querySelector("#confirm-preview .summary-box")',
+      "the summary to go back to being read",
+    );
+    assert.match(await page.text("#confirm-preview"), /Read the second one first\./);
+
+    // The sheet redraws under the cursor when the box gives its edit up, and
+    // the release that follows must not read as a click on the backdrop.
+    assert.equal(await page.eval('document.querySelector("#confirm").hidden'), false);
+  });
+
   test("what leaves is exactly what was previewed", async () => {
     await page.click("#confirm-post");
     await page.until('!document.querySelector("#celebrate").hidden', "the review to land");
@@ -507,10 +624,13 @@ describe("Posting the review", () => {
     assert.equal(sent.length, 1);
     assert.equal(sent[0].what, "review");
     assert.equal(sent[0].body.event, "COMMENT");
-    assert.equal(sent[0].body.body, "Two things worth a look before this goes in.");
+    assert.equal(
+      sent[0].body.body,
+      "Two things worth a look before this goes in. Read the second one first.",
+    );
     assert.deepEqual(
       sent[0].body.comments.map((comment) => comment.path),
-      ["spec/error_spec.rb"],
+      ["lib/error.rb"],
     );
   });
 
@@ -573,6 +693,9 @@ describe("A draft whose url is not a web address", () => {
   });
 
   test("the record of a posted review stands without a link to it", async () => {
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until('document.querySelector(".summary-box.is-included")', "the summary to go in");
+
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
     await page.click("#confirm-post");
@@ -608,7 +731,7 @@ describe("Dismissing your own pull request", () => {
     await page.until('document.querySelector("#queue .row")', "the queue to list it");
     await page.click("#queue .row");
     await page.until(
-      '!document.querySelector("#verdicts button[data-event=DISMISS]").hidden',
+      '!document.querySelector("#verdict-popover button[data-event=DISMISS]").hidden',
       "the pull request to open",
     );
   });
@@ -617,29 +740,28 @@ describe("Dismissing your own pull request", () => {
 
   test("only the verdict GitHub would take is offered, alongside dismissing", async () => {
     const offered = await page.eval(
-      '[...document.querySelectorAll("#verdicts button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
+      '[...document.querySelectorAll("#verdict-popover button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
     );
 
     assert.deepEqual(offered, ["COMMENT", "DISMISS"]);
   });
 
   test("there is nothing to post, because nothing was drafted", async () => {
-    assert.equal(await page.text("#post"), "Post review");
+    assert.equal(await page.text("#post"), "Comment");
     assert.equal(await page.eval('document.querySelector("#post").disabled'), true);
   });
 
   test("choosing dismiss says plainly that nothing will be sent", async () => {
+    await page.clickWhere('document.querySelector("#verdict-button")', "the verdict button");
     await page.clickWhere(
-      'document.querySelector("#verdicts button[data-event=DISMISS]")',
-      "the dismiss button",
+      'document.querySelector("#verdict-popover button[data-event=DISMISS]")',
+      "the dismiss choice",
     );
 
     await page.until(
-      'document.querySelector("#verdicts button[data-event=DISMISS]").getAttribute("aria-pressed") === "true"',
+      'document.querySelector("#verdict-popover button[data-event=DISMISS]").getAttribute("aria-pressed") === "true"',
       "dismissing to be taken",
     );
-
-    assert.equal(await page.text("#consequence"), "sends nothing and takes it off your queue");
 
     // One send button, saying what it would actually do. An undrafted review
     // cannot be posted, but it can be dismissed.
@@ -658,6 +780,24 @@ describe("Dismissing your own pull request", () => {
     // No confirmation sheet, because there is nothing to confirm sending.
     assert.equal(await page.eval('document.querySelector("#confirm").hidden'), true);
     assert.deepEqual(await page.eval("globalThis.__world.sent"), []);
+  });
+
+  // Dismissing answers "I am not reviewing this", not "I never want to see
+  // it again". The only thing the list offered was putting it back on the
+  // queue, which is a heavier answer than a reader who just wants another
+  // look is asking for.
+  test("a dismissed pull request can still be opened, without coming back", async () => {
+    await page.click("#cheer-close");
+    await page.click("#queue-button");
+    await page.until('document.querySelector("#dismissed .setup-row")', "the dismissed list");
+
+    await page.click("#dismissed .setup-row");
+
+    await page.until(
+      'document.querySelector("#head-title").textContent !== ""',
+      "the dismissed pull request to open",
+    );
+    assert.equal(await page.text("#queue-waiting"), "nothing to review");
   });
 
   test("the dismissal outlives the browser being closed", async () => {
@@ -757,6 +897,9 @@ describe("A review request that comes back", () => {
     page = await openApp(browser, site.origin, { objects: written(aDraft()) });
     await attachStorage(page);
     await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
+
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until('document.querySelector(".summary-box.is-included")', "the summary to go in");
 
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
@@ -883,20 +1026,58 @@ describe("One height for every button", () => {
 
   after(() => page.close());
 
-  test("the footer's send button and its verdicts stand the same height", async () => {
+  test("the footer's send button and its verdict chip stand the same height", async () => {
     // #post was 38 and the verdicts 34, either side of the 36 everything else
     // on the row was: two pixels each way, which reads as a row that slipped.
-    assert.deepEqual(await measure("#post, #verdicts"), [36, 36]);
+    assert.deepEqual(await measure("#post, #verdict-button"), [36, 36]);
+  });
+
+  // The caret is not a second button standing next to the send button, it is
+  // the same button's other half: one fill, no seam between them, and the
+  // divider that tells them apart is drawn short of the edges so the pair
+  // still reads as one shape.
+  test("the send button and its caret read as one control", async () => {
+    const found = await page.eval(`(() => {
+      const post = document.querySelector("#post");
+      const caret = document.querySelector("#verdict-button");
+      const one = post.getBoundingClientRect();
+      const two = caret.getBoundingClientRect();
+
+      return JSON.stringify({
+        fills: [getComputedStyle(post).backgroundColor, getComputedStyle(caret).backgroundColor],
+        gap: Math.round(two.left - one.right),
+        divider: getComputedStyle(caret).backgroundSize,
+        outer: getComputedStyle(document.querySelector(".split")).borderRadius,
+      });
+    })()`);
+
+    const { fills, gap, divider, outer } = JSON.parse(found);
+
+    assert.equal(fills[0], fills[1], "the two halves are painted differently");
+    assert.equal(gap, 0, "there is a seam between the two halves");
+    assert.match(divider, /^1px \d/, `the divider runs the whole height: ${divider}`);
+    assert.match(outer, /^6px$/, `the pair is not one rounded shape: ${outer}`);
   });
 
   test("a finding's actions stand the same height as each other", async () => {
-    const heights = await measure("#tab-summary .finding:first-of-type .ui-button");
+    // The include toggle is not a .ui-button - a different visual language on
+    // purpose, a box and a label rather than a filled control - but it sits
+    // in the same row as Edit and Post and has to stand the same height
+    // they do, so it is measured alongside them here rather than with them.
+    const heights = await measure(
+      "#tab-summary .finding:first-of-type .ui-button, #tab-summary .finding:first-of-type .finding-include",
+    );
 
     assert.ok(heights.length >= 3, `only ${heights.length} buttons`);
     assert.deepEqual([...new Set(heights)], [36]);
   });
 
   test("the confirm sheet's way out and its send stand the same height", async () => {
+    // Nothing has been opted in on this page yet, and the send button is
+    // rightly dead until something is.
+    await page.clickButton("#tab-summary .summary-actions", "Include");
+    await page.until('document.querySelector(".summary-box.is-included")', "the summary to go in");
+
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
 

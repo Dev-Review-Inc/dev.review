@@ -35,6 +35,7 @@ export class EventStore {
     this._keys = new Set();
     this._events = [];
     this._writing = new Set();
+    this._lastLocalTime = 0;
 
     // A collection exists because a runner names it. Declaring them anywhere
     // else would let a typo in a runner key create a silent second collection.
@@ -56,13 +57,14 @@ export class EventStore {
    * @see settled to wait for it to reach storage
    */
   track(collection, objectId, action, data, time) {
-    const event = new EventStoreEvent(
-      collection,
-      objectId || crypto.randomUUID(),
-      action,
-      data,
-      time,
-    );
+    // A key is time+collection+objectId+action, so the same action fired
+    // twice on the same object within one clock millisecond would otherwise
+    // collide with itself and the second one would vanish. Local events keep
+    // moving forward a tick instead; an explicit time, given when replaying
+    // another device's log, is left exactly as that device recorded it.
+    const when = time === undefined ? this._nextLocalTime() : time;
+
+    const event = new EventStoreEvent(collection, objectId || crypto.randomUUID(), action, data, when);
 
     // The key leads with the time, so two decisions in one millisecond would
     // share an identity and replay out of order: the local clock never repeats.
@@ -162,6 +164,18 @@ export class EventStore {
    */
   async teardown() {
     return this._db.teardown();
+  }
+
+  /**
+   * The time to stamp the next locally-generated event with: the clock, or
+   * one tick past the last local event if the clock has not moved since.
+   *
+   * @returns {number} strictly greater than every local event before it
+   */
+  _nextLocalTime() {
+    this._lastLocalTime = Math.max(Date.now(), this._lastLocalTime + 1);
+
+    return this._lastLocalTime;
   }
 
   _write(event) {

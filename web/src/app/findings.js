@@ -6,7 +6,9 @@
 
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
+import { withPrefix } from "../domain/review.js";
 import { arm, element, say } from "./dom.js";
+import { includeToggle } from "./include.js";
 import { button } from "../ui/button.js";
 import { render } from "../ui/render.js";
 import { commentWords } from "./words.js";
@@ -105,14 +107,15 @@ function editorFor(app, holder, key) {
  * @param {object} app the application
  * @param {object} pull the pull request the finding belongs to
  * @param {object} finding a finding as the reader sees it
- * @param {{snippet?: boolean, actions?: boolean}} [options] `snippet` brings the
- *   code context along; `actions: false` makes the card read-only, for surfaces
- *   that only preview
+ * @param {{snippet?: boolean, actions?: boolean, prefix?: string}} [options] `snippet` brings
+ *   the code context along; `actions: false` makes the card read-only, for surfaces
+ *   that only preview; `prefix` leads the read-only body with the reader's configured
+ *   prefix, for the one surface promising to show exactly what would be sent
  * @returns {HTMLElement} the card
  */
-export function findingCard(app, pull, finding, { snippet = false, actions = true } = {}) {
+export function findingCard(app, pull, finding, { snippet = false, actions = true, prefix = "" } = {}) {
   const card = document.createElement("div");
-  card.className = `finding is-${finding.color}${finding.droppedAt ? " is-dropped" : ""}`;
+  card.className = `finding is-${finding.color}${finding.includedAt ? " is-included" : ""}`;
 
   const head = document.createElement("div");
   head.className = "finding-head";
@@ -159,7 +162,7 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
   }
 
   const prose = document.createElement("div");
-  prose.innerHTML = renderBody(finding.body);
+  prose.innerHTML = renderBody(withPrefix(finding.editedAt ? "" : prefix, finding.body));
   body.append(prose);
 
   if (finding.suggestion) {
@@ -228,6 +231,29 @@ function editorActions(app, pull, finding) {
   return actions;
 }
 
+/**
+ * The opt-in control every finding carries: unchecked, and nothing this
+ * finding says goes out, until the reader says it should.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request the finding belongs to
+ * @param {object} finding the finding the toggle is for
+ * @returns {HTMLElement} the toggle
+ */
+function findingInclude(app, pull, finding) {
+  const included = Boolean(finding.includedAt);
+
+  return includeToggle(included, () => {
+    if (included) {
+      app.commands.excludeFinding(app.source, pull, finding);
+    } else {
+      app.commands.includeFinding(app.source, pull, finding);
+    }
+
+    app.reselect();
+  });
+}
+
 function cardActions(app, pull, finding) {
   const controls = document.createElement("div");
   controls.className = "finding-actions";
@@ -242,20 +268,7 @@ function cardActions(app, pull, finding) {
     }),
   );
 
-  const drop = render(
-    button({
-      label: finding.droppedAt ? "Restore" : "Drop",
-      onClick: () => {
-        if (finding.droppedAt) {
-          app.commands.restoreFinding(app.source, pull, finding);
-        } else {
-          app.commands.dropFinding(app.source, pull, finding);
-        }
-
-        app.reselect();
-      },
-    }),
-  );
+  const include = findingInclude(app, pull, finding);
 
   const words = commentWords(app);
   const send = render(button({ label: words.label, title: words.title, arms: true }));
@@ -276,11 +289,11 @@ function cardActions(app, pull, finding) {
     }
   });
 
-  controls.append(edit, send, element("span", "spacer", ""), drop);
+  controls.append(edit, send, element("span", "spacer", ""), include);
 
-  // A dropped comment of your own can go entirely - unlike the agent's, which
-  // stay readable so what it said is never lost.
-  if (finding.droppedAt && finding.mine) {
+  // An excluded comment of your own can go entirely - unlike the agent's,
+  // which stay readable so what it said is never lost.
+  if (!finding.includedAt && finding.mine) {
     const remove = render(
       button({
         label: "Delete",

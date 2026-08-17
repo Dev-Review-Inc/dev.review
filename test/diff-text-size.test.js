@@ -10,7 +10,7 @@ function fontSize(selector) {
   assert.notEqual(at, -1, `no rule for ${selector}`);
 
   const body = css.slice(at, css.indexOf("}", at));
-  const size = body.match(/font-size:\s*([\d.]+)px/);
+  const size = body.match(/font-size:\s*(var\(--\w+\)|[\d.]+px)/);
   assert.ok(size, `no font-size on ${selector}`);
 
   return size[1];

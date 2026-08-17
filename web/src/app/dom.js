@@ -27,6 +27,21 @@ export const REDRAFT_ICON =
 export const COPIED_ICON =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// A door with an arrow leaving it: the reader's own reading of "sign out".
+export const LEAVE_ICON =
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h7.5m0 0-2.5-2.5m2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// Three lines: a menu, not a chevron - the mobile header's own control for
+// the review pane, which now opens as a drawer over the page rather than
+// folding in place, so it reads as what it is.
+export const MENU_ICON =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+// An X: what the menu icon above becomes once the drawer it opens is open,
+// so the same control both opens and closes it.
+export const CLOSE_ICON =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
 /**
  * @param {string} id an element's id
  * @returns {HTMLElement} the element

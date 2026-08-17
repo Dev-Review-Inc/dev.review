@@ -68,7 +68,11 @@ export const ROLES = {
 // What a fill can say beyond "this is the action". The send button wears the
 // verdict it would send, and the verdict is the only thing allowed to change
 // the colour: not the height, not the padding, not the weight.
-export const TONES = { ok: "var(--green)", critical: "var(--red)" };
+// Grey is here for the one action on that row that sends nothing at all:
+// still the action being offered, and saying so without borrowing the colour
+// of a verdict it is not. --dim is light on the dark theme and dark on the
+// light one, which is the way round --accentFg needs it either way.
+export const TONES = { ok: "var(--green)", critical: "var(--red)", neutral: "var(--dim)" };
 
 const PROPS = new Set([
   "label",

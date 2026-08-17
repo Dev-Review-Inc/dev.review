@@ -163,17 +163,44 @@ export class Commands {
   /**
    * Put a dismissed pull request back.
    *
+   * Posting is what dismisses most of these, so most of what comes back this
+   * way was posted - and the banner saying so exists to stop a second review
+   * going out by accident, not to stop the one the reader just asked for by
+   * restoring it on purpose. The posted record goes with the dismissal.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @returns {Promise<void>} when it is in local storage
    */
   restorePull(source, pull) {
     this.track(source, "pulls", pull.key, "restore");
+    this.track(source, "pulls", pull.key, "redraft");
 
     return this.state.settled();
   }
 
   /**
+   * Forget that a review already went out for this pull request, because the
+   * reader just asked for a fresh one.
+   *
+   * Without this, a pull request the reader has already posted a review for
+   * stays locked as posted forever, even after the draft it described is
+   * gone and replaced - the buttons and the comment box read "already sent"
+   * against a review that, as far as the reader is concerned, has not
+   * happened yet.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  forgetPost(source, pull) {
+    this.track(source, "pulls", pull.key, "redraft");
+  }
+
+  /**
+   * Rewriting the summary is opting it in - a reader does not bother wording a
+   * summary they do not intend to send.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {string} body the review body as the reader wants it
@@ -181,6 +208,29 @@ export class Commands {
    */
   editComment(source, pull, body) {
     this.track(source, "pulls", pull.key, "editComment", { body });
+    this.track(source, "pulls", pull.key, "includeSummary");
+  }
+
+  /**
+   * Put the review body in what gets sent. Like a finding, the summary the
+   * agent drafted is readable from the moment it lands and goes nowhere until
+   * the reader says it should.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  includeSummary(source, pull) {
+    this.track(source, "pulls", pull.key, "includeSummary");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  excludeSummary(source, pull) {
+    this.track(source, "pulls", pull.key, "excludeSummary");
   }
 
   /**
@@ -311,26 +361,34 @@ export class Commands {
   // ---- Findings
 
   /**
+   * Opt a finding into the review. Nothing is sent until this is called: a
+   * finding starts out excluded, the same as one never drafted at all.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
    * @returns {void}
    */
-  dropFinding(source, pull, finding) {
-    this.track(source, "findings", this._finding(pull, finding), "drop");
+  includeFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "include");
   }
 
   /**
+   * Take a finding back out of what would be sent, whether it was ever opted
+   * in or came included by default under an app version before this one.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
    * @returns {void}
    */
-  restoreFinding(source, pull, finding) {
-    this.track(source, "findings", this._finding(pull, finding), "restore");
+  excludeFinding(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "exclude");
   }
 
   /**
+   * Rewriting a finding is opting it in, the same reasoning as {@link editComment}.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
@@ -339,6 +397,7 @@ export class Commands {
    */
   editFinding(source, pull, finding, body) {
     this.track(source, "findings", this._finding(pull, finding), "editBody", { body });
+    this.track(source, "findings", this._finding(pull, finding), "include");
   }
 
   /**
@@ -410,6 +469,17 @@ export class Commands {
    */
   showFlaggedOnly(source, only) {
     this.track(source, "preferences", READING, only ? "flagOnly" : "showAll");
+  }
+
+  /**
+   * Put a prefix ahead of the review body and every comment this source sends.
+   *
+   * @param {object} source the source being read
+   * @param {string} prefix what to lead with, or "" to stop
+   * @returns {void}
+   */
+  setCommentPrefix(source, prefix) {
+    this.track(source, "preferences", READING, "setCommentPrefix", { prefix });
   }
 
   // ---- Reading the diff

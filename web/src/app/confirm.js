@@ -1,7 +1,7 @@
 // The last look before a review leaves, and the moment after it has.
 
 import { renderBody } from "../domain/render.js";
-import { reviewPayload } from "../domain/review.js";
+import { reviewPayload, withPrefix } from "../domain/review.js";
 import { element, find, say } from "./dom.js";
 import { button } from "../ui/button.js";
 import { restyle } from "../ui/render.js";
@@ -45,6 +45,7 @@ export function settle(app) {
  */
 export function closeConfirm(app) {
   settle(app);
+  app.editingConfirm = false;
   find("confirm").hidden = true;
 }
 
@@ -78,19 +79,42 @@ export function openConfirm(app) {
   verdict.textContent = event.replace("_", " ");
   verdict.className = `verdict-badge mono is-${VERDICT_TONE[event] || "neutral"}`;
 
-  find("confirm-count").textContent = posting.length
-    ? `posts the summary and ${posting.length} line ${posting.length === 1 ? "comment" : "comments"}`
-    : "posts the summary only";
+  const summary = app.queries.commentToPost(app.source, pull);
 
-  // The preview is the summary page over again, read-only, and carries only
-  // what this send will actually do: a finding already posted on its own, or
-  // dropped, is not part of it.
+  // Said by listing what is actually in this send. A summary the reader never
+  // opted in is not in it, and a sheet that claims otherwise is describing a
+  // different review than the one about to go.
+  const carrying = [
+    summary ? "the summary" : "",
+    posting.length ? `${posting.length} line ${posting.length === 1 ? "comment" : "comments"}` : "",
+  ].filter(Boolean);
+
+  find("confirm-count").textContent = carrying.length
+    ? `posts ${carrying.join(" and ")}`
+    : "posts the verdict, with nothing written";
+
+  // The preview is the summary page over again, carrying only what this send
+  // will actually do: a finding already posted on its own, or never opted in,
+  // is not part of it. The findings are read-only here - the sheet is the last
+  // look, not a second place to work - but the summary is not, because the
+  // sentence a reader wants to change is the one they are reading right now.
   const preview = find("confirm-preview");
 
-  preview.innerHTML = renderBody(reviewText(app));
+  preview.replaceChildren();
+
+  // Shown with the prefix already leading it, because this is the one place
+  // that promises to say exactly what would be sent - the summary box still
+  // edits the reader's own words alone, unprefixed, so saving an edit here
+  // can never write the prefix into the stored comment. The prefix marks the
+  // agent's words, so a body the reader rewrote goes without it, and each
+  // finding decides for itself the same way.
+  const prefix = app.queries.commentPrefixFor(app.source);
+  const bodyPrefix = app.queries.isCommentEdited(app.source, pull) ? "" : prefix;
+
+  if (summary) preview.append(summaryBox(app, pull, summary, bodyPrefix));
 
   for (const finding of posting) {
-    preview.append(findingCard(app, pull, finding, { snippet: true, actions: false }));
+    preview.append(findingCard(app, pull, finding, { snippet: true, actions: false, prefix }));
   }
 
   find("confirm-note").textContent = postNote(app);
@@ -120,7 +144,10 @@ function openTriageConfirm(app) {
 
   const preview = find("confirm-preview");
 
-  preview.innerHTML = renderBody(comment);
+  // Shown with the prefix already leading it, the same promise the review
+  // sheet makes: this is exactly what would be sent - and an edited comment
+  // is the reader's own words, which the agent's mark does not lead.
+  preview.innerHTML = renderBody(withPrefix(triagePrefix(app, pull), comment));
   preview.append(element("div", "description-plan mono", planWords(plan)));
 
   if (close) preview.append(closeLine(app, pull, close, dropped));
@@ -128,6 +155,20 @@ function openTriageConfirm(app) {
   find("confirm-note").textContent = postNote(app);
   find("confirm").hidden = false;
   settle(app);
+}
+
+/**
+ * The prefix a triage send carries: the reader's, unless the comment is
+ * already the reader's own words.
+ *
+ * @param {object} app the application
+ * @param {object} pull the open issue
+ * @returns {string} the prefix, or nothing
+ */
+function triagePrefix(app, pull) {
+  return app.queries.isCommentEdited(app.source, pull)
+    ? ""
+    : app.queries.commentPrefixFor(app.source);
 }
 
 /**
@@ -169,6 +210,70 @@ function closeLine(app, pull, close, dropped) {
 }
 
 /**
+ * The review body in the sheet: read, until it is clicked, and then written.
+ *
+ * Its own editor rather than the summary pane's, which is behind the sheet and
+ * so cannot be typed into from here. Leaving the box is what keeps the edit,
+ * the same gesture the pane's box asks for.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request being posted
+ * @param {string} summary the body as it stands
+ * @param {string} prefix the reader's prefix, shown leading the read-only box only -
+ *   the editor beneath it edits the reader's own words alone, so saving it can
+ *   never write the prefix into the stored comment
+ * @returns {HTMLElement} the box, or the editor open over it
+ */
+function summaryBox(app, pull, summary, prefix) {
+  if (app.editingConfirm) {
+    const editor = document.createElement("textarea");
+
+    editor.className = "finding-editor mono";
+    editor.spellcheck = false;
+    editor.value = summary;
+    editor.addEventListener("blur", () => {
+      app.commands.editComment(app.source, pull, editor.value);
+      app.editingConfirm = false;
+      app.reselect();
+      openConfirm(app);
+    });
+
+    queueMicrotask(() => {
+      editor.focus();
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+    });
+
+    return editor;
+  }
+
+  const box = document.createElement("div");
+
+  box.className = "summary-box";
+  box.innerHTML = renderBody(withPrefix(prefix, summary));
+  box.role = "button";
+  box.tabIndex = 0;
+  box.title = "Click to write in the summary";
+
+  // Nobody expects the last look before sending to be a place they can write,
+  // so the box says so on hover the same way the pane's does. Hidden from a
+  // screen reader: the title already names what this decorates.
+  const hint = element("div", "summary-edit-hint", "click to edit");
+
+  hint.setAttribute("aria-hidden", "true");
+  box.append(hint);
+  box.addEventListener("click", (event) => {
+    // A link in the summary goes where it points; only the prose around it
+    // opens the editor.
+    if (event.target.closest("a")) return;
+
+    app.editingConfirm = true;
+    openConfirm(app);
+  });
+
+  return box;
+}
+
+/**
  * Send the review.
  *
  * @param {object} app the application
@@ -187,10 +292,16 @@ export async function post(app) {
   find("confirm-note").textContent = "sending…";
   say("posting…");
 
-  // An edit still sitting in the open editor is part of the review. Recording
+  // An edit still sitting in an open editor is part of the review. Recording
   // it before the send is what stops the destination and this app disagreeing
-  // about what was said.
-  if (app.editing) {
+  // about what was said. Either editor: the pane's, left open behind the
+  // sheet, and the sheet's own.
+  const open = app.editingConfirm ? find("confirm-preview").querySelector("textarea") : null;
+
+  if (open) {
+    app.commands.editComment(app.source, pull, open.value);
+    app.editingConfirm = false;
+  } else if (app.editing) {
     app.commands.editComment(app.source, pull, find("editor").value);
     app.editing = false;
   }
@@ -209,8 +320,10 @@ export async function post(app) {
       {
         commitId: app.headCommit,
         dropped: new Set(),
-        body: app.queries.commentFor(app.source, pull),
+        body: app.queries.commentToPost(app.source, pull),
         event,
+        prefix: app.queries.commentPrefixFor(app.source),
+        bodyEdited: app.queries.isCommentEdited(app.source, pull),
       },
     );
 
@@ -268,7 +381,13 @@ async function postTriage(app, pull) {
       patched = await app.destination.patchDescription(pull, plan.body);
     }
 
-    const comment = app.queries.commentFor(app.source, pull);
+    // The reader's prefix leads the triage comment the same way it leads the
+    // review body and every line comment: applied at the send, never stored -
+    // and never over an edited comment, which is the reader's own words.
+    const comment = withPrefix(
+      triagePrefix(app, pull),
+      app.queries.commentFor(app.source, pull),
+    );
 
     commentStaged = Boolean(comment.trim());
     commented = commentStaged ? await app.destination.commentOnIssue(pull, comment) : null;

@@ -20,6 +20,7 @@ import { buildAdapter, MemoryAdapter } from "../adapters/index.js";
 import { recallHandle, rememberHandle, forgetHandle } from "../adapters/filesystem.js";
 import { buildDestination } from "../destinations/index.js";
 import { remember } from "./theirs.js";
+import { syncWidget } from "./widget.js";
 
 // How often the queue is asked for again. The destination is the slow, rate limited
 // part of this app, and a review request does not arrive every second.
@@ -29,13 +30,14 @@ export class App {
   /**
    * @param {object} [options] what to build against, for tests
    * @param {(name: string) => object} [options.database] makes a local database
+   * @param {object} [options.secrets] where secrets specifically are kept, in place of the config store - see MultiEventStore
    * @param {(config: object, secret: object, handle: object) => object} [options.adapter] makes a reader
    * @param {(destination: object, secret: object) => object} [options.destination] makes a destination
    * @param {(app: App) => Promise<void>} [options.install] attaches something on a browser that has nothing
    * @param {{remember: Function, recall: Function, forget: Function}} [options.handles] where directory handles are kept
    * @param {(message: string, tone: string) => void} [options.report] tells the reader something
    */
-  constructor({ database, adapter, destination, install, handles, report } = {}) {
+  constructor({ database, secrets, adapter, destination, install, handles, report } = {}) {
     this._buildAdapterWith = adapter || buildAdapter;
     this._buildDestinationWith = destination || buildDestination;
     this._install = install || null;
@@ -57,6 +59,7 @@ export class App {
     this.state = new MultiEventStore({
       runners,
       database: database || ((name) => new IndexedDBKeyValueStore(name)),
+      secrets,
     });
 
     this.drafts = null;
@@ -531,6 +534,7 @@ export class App {
     if (!this.destination) {
       this.pulls = [];
       this.changed();
+      await syncWidget(0);
 
       return;
     }
@@ -550,6 +554,7 @@ export class App {
     // the way the watch does. Redrawing alone would leave the queue saying the
     // review is gone while the pane went on showing it.
     await this.reselect();
+    await syncWidget(this.queue().length);
   }
 
   /**
@@ -685,6 +690,15 @@ export class App {
     if (!pull || !this.drafts || !pull.draft) return;
 
     await this.drafts.clear(pull, pull.key);
+
+    // A review already posted for this pull request described the draft
+    // just thrown away, not whatever the agent writes next - so it stops
+    // counting as posted the moment a fresh one is asked for, rather than
+    // staying locked until the new draft happens to finish.
+    if (this.queries.isPosted(this.source, pull)) {
+      this.commands.forgetPost(this.source, pull);
+    }
+
     await this.reselect();
   }
 
@@ -731,7 +745,7 @@ export class App {
       commitId,
       path: finding.path,
       line: finding.line,
-      body: this.queries.bodyToPost(finding),
+      body: this.queries.bodyToPost(this.source, finding),
     });
 
     this.commands.recordPostedFinding(this.source, pull, finding, posted);
@@ -779,6 +793,12 @@ export class App {
     this.filter = same && Object.keys(filter).length
       ? { section: "", kind: "", path: "" }
       : { section: "", kind: "", path: "", ...filter };
+
+    // Meaningless at desktop width, where the pane never collapses in the
+    // first place - but on mobile, picking something in it is the reader
+    // saying what they want to look at next, and the drawer is now in the
+    // way of looking at it.
+    this.paneCollapsed = true;
 
     this.changed();
   }

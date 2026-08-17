@@ -99,6 +99,17 @@ describe("EventStore", () => {
     assert.doesNotThrow(() => state.track("notes", "abc", "shout"));
   });
 
+  test("the same action fired twice in a row is two events, not a duplicate", () => {
+    // Both calls land in the same millisecond, since nothing here waits
+    // between them - which local clocks cannot tell apart on their own.
+    const state = store();
+    state.track("notes", "abc", "pin");
+
+    state.track("notes", "abc", "pin");
+
+    assert.equal(state.allEvents().length, 2);
+  });
+
   test("restores the same state from what it persisted", async () => {
     const db = new MemoryKeyValueStore();
     const first = store(db);

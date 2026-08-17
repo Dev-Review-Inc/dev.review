@@ -38,6 +38,7 @@ function fakeDocument() {
 
   return {
     createElement: (tag) => stub(tag),
+    querySelector: () => null,
     getElementById(id) {
       if (!byId.has(id)) byId.set(id, stub());
 

@@ -21,10 +21,16 @@ import {
   inTauri,
   unavailability as tauriUnavailability,
 } from "./tauri.js";
+import {
+  ICloudAdapter,
+  icloudRoot,
+  unavailability as icloudUnavailability,
+} from "./icloud.js";
 
 const TYPES = [
   FilesystemAdapter,
   TauriAdapter,
+  ICloudAdapter,
   GitHubAdapter,
   GitAdapter,
   S3Adapter,
@@ -61,6 +67,7 @@ function gitCaveat() {
 const AVAILABILITY = {
   [FilesystemAdapter.type]: filesystemUnavailability,
   [TauriAdapter.type]: tauriUnavailability,
+  [ICloudAdapter.type]: icloudUnavailability,
   [GitHubAdapter.type]: WORKS,
   [GitAdapter.type]: gitCaveat,
   [S3Adapter.type]: WORKS,
@@ -80,6 +87,19 @@ const AVAILABILITY = {
  * better than a dead end you cannot see: the form greys it out and says what
  * would make it work.
  *
+ * Filesystem and Tauri are the one deliberate exception to that, because they
+ * are not two different things: both mean "a folder on this computer," and
+ * which of them can act on that is decided entirely by where this build
+ * happens to be running, not by anything the reader could do. A Chromium tab
+ * cannot gain Tauri's picker and the desktop app's WKWebView cannot gain File
+ * System Access, so showing the one that never works here is not a dead end
+ * with an exit - it is a dead end wearing the other one's coat, and the two
+ * looking almost, not quite, alike ("A folder on this computer" beside "This
+ * computer") is exactly how a reader who picked the wrong one keeps failing to
+ * notice a right one was sitting beside it. Only whichever one actually works
+ * here is offered, so there is only ever one "a folder on this computer" to
+ * find.
+ *
  * A backend that must never be offered is dropped. The in-memory reader keeps
  * nothing and the demo reader holds sample data the app attaches itself, so
  * attaching either by hand would produce a source that looks like it works
@@ -94,12 +114,17 @@ const AVAILABILITY = {
  * @returns {{type: string, label: string, fields: object[], reason: string, hint: string}[]} what can be attached, and what cannot
  */
 export function adapterTypes() {
-  return TYPES.filter((Adapter) => Adapter.selectable !== false).map((Adapter) => ({
-    type: Adapter.type,
-    label: Adapter.label || Adapter.type,
-    fields: Adapter.fields || [],
-    ...AVAILABILITY[Adapter.type](),
-  }));
+  const localFolder = inTauri() ? TauriAdapter : FilesystemAdapter;
+  const isLocalFolderPair = (Adapter) => Adapter === FilesystemAdapter || Adapter === TauriAdapter;
+
+  return TYPES.filter((Adapter) => Adapter.selectable !== false)
+    .filter((Adapter) => !isLocalFolderPair(Adapter) || Adapter === localFolder)
+    .map((Adapter) => ({
+      type: Adapter.type,
+      label: Adapter.label || Adapter.type,
+      fields: Adapter.fields || [],
+      ...AVAILABILITY[Adapter.type](),
+    }));
 }
 
 /**
@@ -111,11 +136,19 @@ export function adapterTypes() {
  * would offer the desktop dialog to a browser build that has nowhere to put
  * what it returns.
  *
+ * iCloud opens no dialog at all - there is nothing to choose, only this app's
+ * own fixed container to ask Rust for. See icloud.js for why that is a
+ * property of the backend and not a shortcut taken here.
+ *
  * @param {string} type the backend the form has selected
- * @returns {string} "native" for the desktop app's own dialog, "browser" otherwise
+ * @returns {string} "native" for the desktop app's own dialog, "auto" for one
+ *   resolved with nothing to ask, "browser" otherwise
  */
 export function folderChooser(type) {
-  return type === TauriAdapter.type ? "native" : "browser";
+  if (type === TauriAdapter.type) return "native";
+  if (type === ICloudAdapter.type) return "auto";
+
+  return "browser";
 }
 
 /**
@@ -139,6 +172,14 @@ export async function chooseFolder(type) {
     const root = await chooseRoot();
 
     return root ? { root } : null;
+  }
+
+  // Not a dismissal even when there is nothing to resolve yet - unlike a
+  // picker closed with nothing chosen, an unavailable iCloud container is
+  // attached anyway, and ready() is what explains why it cannot be read,
+  // the same as any other source with a real reason it is not working.
+  if (folderChooser(type) === "auto") {
+    return { root: (await icloudRoot()) || "" };
   }
 
   try {

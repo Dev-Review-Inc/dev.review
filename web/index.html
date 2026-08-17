@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <!-- The policy travels with the page.
      `serve/serve.go` sends this as a header, and the desktop build sends its
      own, but `web/` is a folder of files with no build step: it can be put on
@@ -79,10 +79,15 @@
        by 2px, which read as misalignment rather than as importance. */
     --ctlIcon:20px; --ctlCompact:30px; --ctlStandard:36px;
 
-    /* Five steps covering eighteen sizes. Every text size in use lands within
-       a pixel of one: 10.5, 11 and 12 fold into 11.5, 12.5 and 13.5 into 13,
-       14 and 16 into 15. The 8px and 9px marks are glyphs inside dots rather
-       than text, and belong to those components. */
+    /* Five steps covering what were eighteen sizes. Every font-size in this
+       sheet reads one of these off, which is the standard: a size changes
+       here or not at all, never on the selector that happened to need it
+       first. 10.5, 11 and 12 fold into 11.5, 12.5 and 13.5 into 13, 14 and
+       16 into 15. Test test/ui/scale.test.js enforces this: it fails on any
+       literal font-size in the stylesheet that is not one of these tokens,
+       the one 16px iOS-zoom-floor input rule, or a named glyph-in-a-dot/badge
+       exception (8px, 9px, 9.5px, the 34px cheer mark) - see the test's own
+       header for the full list and why each one is there. */
     --textMicro:10px; --textSmall:11.5px; --textBody:13px;
     --textLead:15px; --textDisplay:19px;
 
@@ -93,7 +98,16 @@
     --radiusTight:4px; --radius:6px; --radiusPanel:10px;
 
     /* The gaps and paddings actually in the sheet. 6 earns its place as the
-       most common gap of all; without it every dense row rounds to 4 or 8. */
+       most common gap of all; without it every dense row rounds to 4 or 8.
+       The sidebar's row controls (.chip, .lens, .file, .diff-head, the
+       verdicts buttons) size their padding off this scale rather than off
+       their own literal px, which is what let their padding drift out of
+       proportion with each other in the first place - see the padding rule
+       in test/ui/scale.test.js. Values that fell between two steps rounded
+       to the nearer one: .chip's 10px horizontal rounds down to space3,
+       .lens's 5px vertical rounds up to space2, .diff-head's 9px/14px both
+       round down to space3/space4 so it reads as one family with .file
+       underneath it. */
     --space1:4px; --space2:6px; --space3:8px;
     --space4:12px; --space5:16px; --space6:24px;
 
@@ -150,7 +164,7 @@
     background: var(--bg);
     color: var(--text);
     font-family: 'IBM Plex Sans', system-ui, sans-serif;
-    font-size: 13px;
+    font-size: var(--textBody);
   }
 
   /* Reset once, here, rather than per component: a rule that only overrides
@@ -190,6 +204,7 @@
   /* The send button wears the verdict it would send. */
   .ui-button--primary.is-ok { background: var(--green); }
   .ui-button--primary.is-critical { background: var(--red); }
+  .ui-button--primary.is-neutral { background: var(--dim); }
 
   .ui-button--ghost:hover { border-color: var(--accent); color: var(--accent); }
   .ui-button--quiet:hover { color: var(--dim); }
@@ -209,10 +224,20 @@
 
   /* Shell --------------------------------------------------------------- */
 
+  /* viewport-fit=cover (see the viewport meta tag) is what makes the two
+     env(safe-area-inset-*) references below report anything but 0 - without
+     it the page never claims the area under a notch/Dynamic Island in the
+     first place, so there is nothing for a webview to avoid. This app is
+     read inside a browser tab (which already keeps clear of the notch on
+     its own) as often as inside the native iOS shell's own full-bleed
+     WKWebView (which does not) - the row heights and header/footer padding
+     below grow by the inset on either, and are simply adding 0 on a
+     platform that already handled it upstream. */
   #shell {
     height: 100vh;
     display: grid;
-    grid-template-rows: 48px 1fr 56px;
+    grid-template-rows: calc(48px + env(safe-area-inset-top)) 1fr calc(56px + env(safe-area-inset-bottom));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   [hidden] { display: none !important; }
@@ -221,7 +246,7 @@
     display: flex;
     align-items: center;
     gap: 11px;
-    padding: 0 14px;
+    padding: env(safe-area-inset-top) 14px 0;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     min-width: 0;
@@ -247,31 +272,53 @@
 
   .chip {
     display: flex; align-items: center; gap: 9px;
-    min-height: 36px; padding: 4px 10px;
+    min-height: 36px; padding: var(--space1) var(--space3);
     border: 1px solid var(--border); border-radius: 6px;
     background: var(--panel2); color: var(--text);
     text-align: left; white-space: nowrap;
+    font-family: var(--mono);
   }
 
   /* The open pull request reads as header text beside the chips: slug,
      title, stats, one line. */
-  .head-open { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
-  .head-open .head-slug { font-size: 11px; flex-shrink: 0; }
-  .head-open .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .head-open .head-stats { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+  /* flex-basis: 0 rather than the default auto - a wrapping flex container
+     decides its line breaks off each item's hypothetical (un-shrunk) size,
+     and text-overflow:ellipsis only truncates at paint time, so the full,
+     untruncated title width was what got measured. Signout paid for that:
+     it read as not fitting the line and wrapped to its own, even though
+     head-open shrinks to nothing once actually placed. */
+  .head-open { display: flex; align-items: baseline; gap: 9px; flex: 1 1 0%; min-width: 0; }
+
+  /* The spacer between head-open and signout only exists to push signout to
+     the row's far side - it does not also need a share of the row's growth
+     to do that, and taking one anyway (flex:1, same as head-open) sat it
+     between the two, halving how far a short title got to extend before
+     ellipsis had any real reason to appear. Zeroed so head-open, the only
+     item actually meant to grow, gets all of what is left. */
+  header > .spacer { flex: 0; }
+
+  /* Not rendered unless the mobile media query below turns it into a line
+     break - see .row-break there for what it is doing and why. */
+  .row-break { flex-basis: 0; height: 0; }
+  .head-open .head-slug { font-size: var(--textSmall); flex-shrink: 0; }
+  .head-open .title {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;
+    flex: 1 1 auto;
+  }
+  .head-open .head-stats { font-size: var(--textSmall); white-space: nowrap; flex-shrink: 0; }
 
   .chip:hover { background: var(--panel3); }
   .chip[aria-expanded="true"] { border-color: var(--accent); }
 
-  .chip-value { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .chip-value { display: flex; align-items: center; gap: 6px; font-size: var(--textSmall); }
 
   .chip-count {
     padding: 0 5px; border-radius: 3px;
     background: var(--critBg); color: var(--red);
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
   }
 
-  .caret { color: var(--faint); font-size: 10px; }
+  .caret { color: var(--faint); font-size: var(--textMicro); }
 
   /* The backdrop makes clicking away a way out, without a document listener
      that would also fire on the button that opened it. */
@@ -289,10 +336,10 @@
     display: flex; align-items: center; gap: 8px;
     padding: 9px 12px; border-bottom: 1px solid var(--border2);
     background: var(--panel);
-    font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+    font-size: var(--textMicro); letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
   }
 
-  .popover-foot { padding: 12px; font-size: 10.5px; color: var(--faint); line-height: 1.6; }
+  .popover-foot { padding: 12px; font-size: var(--textSmall); color: var(--faint); line-height: 1.6; }
 
   .setup-row {
     display: grid; gap: 3px; width: 100%;
@@ -304,9 +351,9 @@
   .setup-row:hover { background: var(--panel2); }
   .setup-row[aria-current="true"] { border-left-color: var(--accent); background: var(--hl); }
   .setup-row .top { display: flex; align-items: center; gap: 8px; }
-  .setup-row .name { font-size: 13px; font-weight: 500; }
-  .setup-row .count { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--dim2); }
-  .setup-row .dir { font-family: var(--mono); font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .setup-row .name { font-size: var(--textBody); font-weight: 500; }
+  .setup-row .count { margin-left: auto; font-family: var(--mono); font-size: var(--textSmall); color: var(--dim2); }
+  .setup-row .dir { font-family: var(--mono); font-size: var(--textSmall); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* A row is a switch and an edit, so the row itself cannot be one button. */
   .setup-line { display: flex; align-items: stretch; border-bottom: 1px solid var(--border2); }
@@ -343,11 +390,11 @@
   .settings-group {
     display: flex; align-items: center; gap: 8px;
     padding: 12px 14px 8px;
-    font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .12em; text-transform: uppercase;
     color: var(--setFaint);
   }
 
-  .settings-none { padding: 2px 14px 10px; font-size: 10.5px; color: var(--setFaint); }
+  .settings-none { padding: 2px 14px 10px; font-size: var(--textSmall); color: var(--setFaint); }
 
   .settings-row {
     display: flex; align-items: center; gap: 10px; width: 100%;
@@ -357,10 +404,10 @@
   }
 
   .settings-row .text { display: grid; gap: 2px; min-width: 0; }
-  .settings-row .name { font-size: 13px; font-weight: 500; color: var(--setLabel); }
+  .settings-row .name { font-size: var(--textBody); font-weight: 500; color: var(--setLabel); }
 
   .settings-row .dir {
-    font-size: 10.5px; color: var(--setFaint);
+    font-size: var(--textSmall); color: var(--setFaint);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
@@ -386,6 +433,17 @@
   .settings-dot.is-bad { background: var(--setBad); }
   .settings-dot.is-hollow { background: none; border: 1px solid var(--setBorder); }
 
+  .settings-prefix { padding: 0 14px 12px; }
+
+  .settings-prefix input {
+    width: 100%; height: 34px; padding: 0 11px; min-width: 0;
+    border: 1px solid var(--setBorder); border-radius: 6px;
+    background: var(--setInput); color: var(--bright);
+    font-family: var(--mono); font-size: var(--textSmall);
+  }
+
+  .settings-prefix input:disabled { opacity: .5; }
+
   .settings-add { margin: 14px 12px 12px; }
 
   .settings-detail { display: grid; min-height: 0; }
@@ -399,21 +457,21 @@
   }
 
   .settings-head { display: flex; align-items: center; gap: 10px; }
-  .settings-title { font-size: 15px; font-weight: 600; color: var(--bright); }
+  .settings-title { font-size: var(--textLead); font-weight: 600; color: var(--bright); }
 
   .settings-state {
     display: flex; align-items: center; gap: 5px;
-    font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase;
   }
 
   .settings-state .settings-dot { width: 6px; height: 6px; }
 
   .settings-type {
-    font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase;
     color: var(--setFaint);
   }
 
-  .settings-remove { padding: 0; font-size: 11px; color: var(--setBad); flex-shrink: 0; }
+  .settings-remove { padding: 0; font-size: var(--textSmall); color: var(--setBad); flex-shrink: 0; }
   .settings-remove[data-armed="true"] { font-weight: 700; }
 
   .settings-fields {
@@ -423,7 +481,7 @@
   /* Each field is a label wrapping its caption and control, flattened into
      the grid so the two columns line up across every row. */
   .settings-fields label { display: contents; }
-  .settings-key { font-size: 11px; color: var(--dim); }
+  .settings-key { font-size: var(--textSmall); color: var(--dim); }
 
   .settings-set {
     margin-left: 6px; padding: 0 4px; border-radius: 3px;
@@ -435,12 +493,19 @@
     height: 34px; padding: 0 11px; min-width: 0;
     border: 1px solid var(--setBorder); border-radius: 6px;
     background: var(--setInput); color: var(--bright);
-    font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;
+    font-family: 'IBM Plex Sans', sans-serif; font-size: var(--textBody);
   }
 
-  .settings-fields input.mono { font-family: var(--mono); font-size: 12px; }
-  .settings-fields select { width: 260px; max-width: 100%; font-family: var(--mono); font-size: 12px; }
-  .settings-hint { grid-column: 2; font-size: 10.5px; line-height: 1.55; color: var(--setFaint); }
+  .settings-fields input.mono { font-family: var(--mono); font-size: var(--textSmall); }
+  .settings-fields select { width: 260px; max-width: 100%; font-family: var(--mono); font-size: var(--textSmall); }
+  .settings-hint { grid-column: 2; font-size: var(--textSmall); line-height: 1.55; color: var(--setFaint); }
+
+  /* The doc link rides the hint row's own column and size, so it reads as
+     part of the same line of small print rather than a second control -
+     .accent rather than .setFaint is the one thing that says it goes
+     somewhere, the same way .pull-link already marks an outbound link. */
+  .settings-doc-link { grid-column: 2; font-size: var(--textSmall); color: var(--accent); text-decoration: none; }
+  .settings-doc-link:hover { text-decoration: underline; }
 
   /* A segmented control rather than a button: a bordered group whose children
      divide it and whose pressed one fills. It is not built on button() - it
@@ -449,33 +514,33 @@
     display: flex; width: max-content; height: var(--ctlCompact);
     border: 1px solid var(--setBorder); border-radius: 6px; overflow: hidden;
   }
-  .settings-kind button { padding: 0 12px; font-size: 11.5px; color: var(--setFaint); }
+  .settings-kind button { padding: 0 12px; font-size: var(--textSmall); color: var(--setFaint); }
   .settings-kind button + button { border-left: 1px solid var(--setBorder); }
   .settings-kind button[aria-pressed="true"] { background: var(--hl); color: var(--bright); }
 
   .settings-folder { display: flex; align-items: center; gap: 9px; min-width: 0; }
 
   .settings-path {
-    font-size: 11.5px; color: var(--dim);
+    font-size: var(--textSmall); color: var(--dim);
     min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .settings-status { font-size: 10.5px; line-height: 1.6; color: var(--setFaint); }
+  .settings-status { font-size: var(--textSmall); line-height: 1.6; color: var(--setFaint); }
 
   /* The inventory of the source's folder, under the reading. Quieter than the
      status line because it never changes and never needs acting on: it is
      there to be checked once, not watched. */
   .settings-work { display: grid; gap: 3px; margin-top: -4px; }
-  .settings-work-at { font-size: 10px; letter-spacing: .04em; color: var(--faint2); }
+  .settings-work-at { font-size: var(--textMicro); letter-spacing: .04em; color: var(--faint2); }
   .settings-work-row { display: flex; align-items: baseline; gap: 10px; }
 
   .settings-work-path {
     flex-shrink: 0; width: 168px;
-    font-size: 10.5px; color: var(--setLabel);
+    font-size: var(--textSmall); color: var(--setLabel);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .settings-work-doing { font-size: 10.5px; line-height: 1.55; color: var(--faint); }
+  .settings-work-doing { font-size: var(--textSmall); line-height: 1.55; color: var(--faint); }
 
   .settings-foot {
     display: flex; align-items: center; gap: 10px;
@@ -484,15 +549,15 @@
     background: var(--setNav);
   }
 
-  .settings-word { font-size: 10.5px; color: var(--setFaint); }
+  .settings-word { font-size: var(--textSmall); color: var(--setFaint); }
 
-  .settings-blank { display: grid; place-items: center; padding: 40px; font-size: 11px; color: var(--setFaint); text-align: center; }
+  .settings-blank { display: grid; place-items: center; padding: 40px; font-size: var(--textSmall); color: var(--setFaint); text-align: center; }
 
   .settings-teach { display: grid; align-content: center; justify-content: center; padding: 26px 30px; overflow-y: auto; }
   .settings-teach { gap: 16px; max-width: 580px; }
   .teach-intro { display: grid; gap: 6px; }
-  .teach-title { font-size: 15px; font-weight: 600; color: var(--bright); }
-  .teach-text { font-size: 12.5px; line-height: 1.65; color: var(--dim); text-wrap: pretty; }
+  .teach-title { font-size: var(--textLead); font-weight: 600; color: var(--bright); }
+  .teach-text { font-size: var(--textBody); line-height: 1.65; color: var(--dim); text-wrap: pretty; }
 
   .teach-halves { display: grid; grid-template-columns: 1fr 22px 1fr; align-items: stretch; }
 
@@ -504,14 +569,14 @@
   }
 
   .teach-card .kicker { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--setFaint); }
-  .teach-card .what { font-size: 12.5px; font-weight: 500; color: var(--bright); }
-  .teach-card .how { font-size: 10.5px; line-height: 1.55; color: var(--dim); }
+  .teach-card .what { font-size: var(--textBody); font-weight: 500; color: var(--bright); }
+  .teach-card .how { font-size: var(--textSmall); line-height: 1.55; color: var(--dim); }
 
   .teach-joint { position: relative; }
   .teach-joint::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--setBorder); }
 
   .teach-actions { display: flex; align-items: center; gap: 9px; }
-  .teach-actions .either { font-size: 10.5px; color: var(--setFaint); }
+  .teach-actions .either { font-size: var(--textSmall); color: var(--setFaint); }
 
   main { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
 
@@ -521,9 +586,23 @@
     display: flex; align-items: center; gap: 8px;
     padding: 0 12px; height: 34px;
     border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 10px;
+    font-family: var(--mono); font-size: var(--textMicro);
     letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
     position: sticky; top: 0; background: var(--panel); z-index: 1;
+  }
+
+  /* #pane-toggle lives in the header, not the pane, so it stays reachable
+     however the pane itself is shown or hidden. It means nothing on a wide
+     screen, where the two-column layout never hides the pane, so it is off
+     there and only the mobile media query turns it on. Likewise the backdrop
+     it opens alongside: a drawer's own way out, meaningless where there is no
+     drawer. */
+  #pane-toggle { display: none; }
+
+  #pane-backdrop {
+    display: none;
+    position: fixed; inset: 0; z-index: 35;
+    background: rgba(0, 0, 0, .4);
   }
 
   /* Queue --------------------------------------------------------------- */
@@ -566,7 +645,7 @@
 
   .flag-toggle {
     display: flex; align-items: center; gap: 5px;
-    font-family: var(--mono); font-size: 9.5px;
+    font-family: var(--mono); font-size: var(--textSmall);
     letter-spacing: .08em; text-transform: uppercase; color: var(--dim2);
   }
 
@@ -578,10 +657,10 @@
   .flag-toggle[aria-pressed="true"] { color: var(--accent); }
   .flag-toggle[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); }
   .row-title { font-weight: 500; line-height: 1.35; text-wrap: pretty; }
-  .row-repo { font-family: var(--mono); font-size: 11px; color: var(--dim2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row-meta { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--dim2); }
+  .row-repo { font-family: var(--mono); font-size: var(--textSmall); color: var(--dim2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-meta { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: var(--textSmall); color: var(--dim2); }
 
-  .state { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+  .state { font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase; }
   .state.drafted { color: var(--green); }
   .state.approve { color: var(--green); }
   .state.comment { color: var(--accent); }
@@ -604,7 +683,7 @@
   .rail-summary .provenance { display: grid; gap: 3px; justify-items: start; }
   .rail-summary .provenance .summary-meta { white-space: nowrap; }
 
-  .card-head { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .card-head { font-family: var(--mono); font-size: var(--textMicro); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 
   /* Nothing has been drafted yet. Distinct from isDrafting, which means a
      draft exists and is still being written; this is the state before that,
@@ -615,10 +694,10 @@
      drafting agent picks; the app maps it here, so no draft can be unreadable. */
 
   .lens {
-    display: flex; gap: 8px; align-items: baseline; width: 100%;
-    padding: 5px 12px; border: none; border-left: 2px solid transparent;
+    display: flex; gap: 8px; align-items: center; width: 100%;
+    padding: var(--space2) var(--space4); border: none; border-left: 2px solid transparent;
     background: none; text-align: left;
-    font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
 
   .lens:hover { background: var(--panel2); }
@@ -636,8 +715,8 @@
   .card-head.is-ok, .card-head.is-warn,
   .card-head.is-critical, .card-head.is-accent { color: var(--tone); }
 
-  .summary { font-size: 12.5px; line-height: 1.55; color: var(--dim); text-wrap: pretty; padding-top: 2px; }
-  .summary-meta { font-size: 11px; color: var(--dim2); }
+  .summary { font-size: var(--textBody); line-height: 1.55; color: var(--dim); text-wrap: pretty; padding-top: 2px; }
+  .summary-meta { font-size: var(--textSmall); color: var(--dim2); }
   .pull-link { color: var(--accent); text-decoration: none; }
   .pull-link:hover { text-decoration: underline; }
   .pull-line { display: flex; align-items: center; gap: 6px; }
@@ -652,7 +731,7 @@
      a label because the square it grows out of is 20px. */
   .clear-review[data-armed="true"] { font-size: var(--textMicro); }
 
-  .lens-body { font-size: 12.5px; line-height: 1.6; color: var(--dim); }
+  .lens-body { font-size: var(--textBody); line-height: 1.6; color: var(--dim); }
   .lens-body ul, .lens-body ol { padding-left: 18px; margin: 6px 0; }
   .lens-body li { margin: 5px 0; }
   .lens-body strong { color: var(--bright); }
@@ -679,7 +758,7 @@
     margin-bottom: 14px; padding: 9px 12px;
     border: 1px solid var(--greenBd); border-radius: 6px;
     background: var(--okBg); color: var(--green);
-    font-size: 11px; text-decoration: none;
+    font-size: var(--textSmall); text-decoration: none;
   }
 
   .posted-note:hover { text-decoration: underline; }
@@ -699,8 +778,14 @@
     border-style: dashed; text-align: center;
   }
 
+  /* In the review, marked the way an included finding is - the same edge, so
+     "this is going out" reads once and means the same thing twice. */
+  .summary-box.is-included { box-shadow: inset 3px 0 0 var(--accent); }
+
+  .summary-actions { display: flex; font-family: var(--mono); }
+
   .summary-box .title { font-weight: 600; color: var(--dim); }
-  .summary-box .text { font-size: 12px; color: var(--faint); }
+  .summary-box .text { font-size: var(--textSmall); color: var(--faint); }
 
   .summary-box[role="button"], button.summary-box { cursor: text; }
 
@@ -715,7 +800,7 @@
      for the eye that is already looking. */
   .summary-edit-hint {
     position: absolute; top: 14px; right: 16px;
-    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    font-family: var(--mono); font-size: var(--textMicro); letter-spacing: .08em;
     text-transform: uppercase; color: var(--faint);
     opacity: 0; transition: opacity .15s ease; pointer-events: none;
   }
@@ -733,9 +818,9 @@
   #tab-summary:has(.empty) { max-width: none; height: 100%; }
   #comment-body:has(> .empty) { height: 100%; padding: 0; }
 
-  .prose { padding: 20px 24px; font-size: 13.5px; line-height: 1.65; }
+  .prose { padding: 20px 24px; font-size: var(--textBody); line-height: 1.65; }
 
-  .prose h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin: 26px 0 10px; }
+  .prose h3 { font-size: var(--textSmall); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin: 26px 0 10px; }
   .prose ol, .prose ul { padding-left: 20px; }
   .prose li { margin: 10px 0; }
   .prose code { font-family: var(--mono); font-size: .88em; background: color-mix(in srgb, currentColor 10%, transparent); padding: .15em .35em; border-radius: 4px; }
@@ -765,24 +850,24 @@
 
   .hunk-toggle {
     border: 1px solid var(--border); border-radius: 5px; background: var(--panel2);
-    color: var(--dim); font-family: var(--mono); font-size: 11px;
+    color: var(--dim); font-family: var(--mono); font-size: var(--textSmall);
     padding: 2px 8px; cursor: pointer;
   }
   .hunk-toggle:hover { color: var(--accent); border-color: var(--accent); }
 
   .description-result { margin: 14px 20px; display: grid; gap: 8px; }
-  .description-result .head { font-size: 11px; color: var(--dim2); }
-  .description-result .body { white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+  .description-result .head { font-size: var(--textSmall); color: var(--dim2); }
+  .description-result .body { white-space: pre-wrap; font-family: var(--mono); font-size: var(--textBody); line-height: 1.7; }
 
   .description-reset {
     justify-self: start;
     border: 1px solid var(--border); border-radius: 5px; background: var(--panel2);
-    color: var(--dim); font-family: var(--mono); font-size: 11px;
+    color: var(--dim); font-family: var(--mono); font-size: var(--textSmall);
     padding: 2px 8px; cursor: pointer;
   }
   .description-reset:hover { color: var(--accent); border-color: var(--accent); }
 
-  .description-plan { margin-top: 12px; color: var(--dim2); font-size: 11.5px; }
+  .description-plan { margin-top: 12px; color: var(--dim2); font-size: var(--textSmall); }
 
   #editor, #description-editor {
     width: calc(100% - 40px);
@@ -794,7 +879,7 @@
     background: var(--panel2);
     color: var(--text);
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: var(--textBody);
     line-height: 1.7;
     resize: vertical;
   }
@@ -812,10 +897,10 @@
     width: 40px; height: 40px; border-radius: 50%;
     border: 1px solid var(--border); background: var(--panel2);
     display: grid; place-items: center;
-    color: var(--dim2); font-family: var(--mono); font-size: 15px;
+    color: var(--dim2); font-family: var(--mono); font-size: var(--textLead);
   }
 
-  .empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .empty-title { font-size: var(--textLead); font-weight: 600; color: var(--text); }
 
   .progress {
     width: 220px; height: 4px; border-radius: 2px;
@@ -829,37 +914,42 @@
     display: flex; align-items: center; gap: 9px;
     margin-bottom: 14px; padding: 8px 12px;
     border: 1px dashed var(--border); border-radius: 6px;
-    font-size: 11px; color: var(--dim2);
+    font-size: var(--textSmall); color: var(--dim2);
   }
 
   .wip .progress { width: 120px; margin-left: auto; flex-shrink: 0; }
-  .empty-text { font-size: 13px; line-height: 1.6; color: var(--dim2); text-wrap: pretty; }
+  .empty-text { font-size: var(--textBody); line-height: 1.6; color: var(--dim2); text-wrap: pretty; }
 
   /* Files list ---------------------------------------------------------- */
 
   .file {
     display: flex; align-items: center; gap: 7px; width: 100%;
-    padding: 8px 12px; border: none; border-left: 2px solid transparent;
+    padding: var(--space3) var(--space4); border: none; border-left: 2px solid transparent;
     background: none; text-align: left;
-    font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
 
   .file:hover { background: var(--panel2); }
   .file[aria-pressed="true"] { border-left-color: var(--accent); background: var(--hl); color: var(--bright); }
-  .file .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Scrolled rather than clipped: a truncated path hides the one part of a
+     monorepo file that tells two "index.js" rows apart, with no way to read
+     the rest of it back. Universal rather than mobile-only - nothing here
+     relies on the old ellipsis, and a long path is exactly as unreadable on
+     a wide screen as on a narrow one. */
+  .file .path { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; }
   .file .n {
     margin-left: auto; flex-shrink: 0;
     padding: 0 5px; border-radius: 3px;
     background: var(--panel3); color: var(--tone, var(--dim2));
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
   }
 
   .file .n.is-critical { background: var(--critBg); }
   .file .n.is-warn { background: var(--warnBg); }
   .file .n.is-ok { background: var(--okBg); }
 
-  .file .adds { flex-shrink: 0; color: var(--green); font-size: 10px; }
-  .file .dels { flex-shrink: 0; color: var(--red); font-size: 10px; }
+  .file .adds { flex-shrink: 0; color: var(--green); font-size: var(--textMicro); }
+  .file .dels { flex-shrink: 0; color: var(--red); font-size: var(--textMicro); }
 
   .filter-hint .path { color: var(--faint); font-style: italic; }
   .filter-hint .show { flex-shrink: 0; color: var(--accent); }
@@ -871,12 +961,12 @@
   .diff-head {
     position: sticky; top: 0; z-index: 2;
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 9px 14px;
+    padding: var(--space3) var(--space4);
     border: none;
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
     background: var(--panel);
     text-align: left;
-    font-family: var(--mono); font-size: 11.5px; color: var(--bright);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--bright);
   }
 
   .diff-head:hover { background: var(--panel2); }
@@ -887,7 +977,7 @@
   .viewed {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
     padding: 0; border: none; background: none;
-    font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .viewed .box {
@@ -904,12 +994,12 @@
   .hunk-head {
     padding: 2px 14px;
     background: var(--hunk); color: var(--faint);
-    font-family: var(--mono); font-size: 11.5px;
+    font-family: var(--mono); font-size: var(--textSmall);
   }
 
   .line {
     display: grid; grid-template-columns: 46px 46px 1fr;
-    font-family: var(--mono); font-size: 11.5px; line-height: 1.7;
+    font-family: var(--mono); font-size: var(--textSmall); line-height: 1.7;
   }
 
   .line .old, .line .new {
@@ -936,24 +1026,50 @@
      spaced from each other but not indented. */
   .prose .finding { margin: 14px 0; }
 
-  .finding.is-dropped { opacity: .45; }
+  /* Opting a finding in marks it, rather than opting out dimming it. Nearly
+     every card starts out, so dimming the default would read as a list of
+     broken cards instead of a list of things to choose from. The accent edge
+     is the same one an anchored diff line wears. */
+  .finding.is-included { box-shadow: inset 3px 0 0 var(--accent); }
   .finding.is-critical { border-color: var(--redBd); }
   .finding.is-ok { border-color: var(--greenBd); }
+
+  /* The opt-in toggle every finding carries - the same recipe #files-flagged
+     already uses (a styled box beside a label), so "on or off" reads the
+     same wherever it shows up. height and padding match .ui-button's own
+     tokens rather than #files-flagged's literal sizing, because this one
+     sits in the same row as Edit and Post and has to stand the same height
+     they do. */
+  .finding-include {
+    display: flex; align-items: center; gap: 5px;
+    height: var(--ctlStandard); padding: 0 var(--space4);
+    border: none; background: none;
+    font-size: var(--textSmall);
+    color: var(--dim2);
+  }
+
+  .finding-include .box {
+    width: 11px; height: 11px; border-radius: 3px;
+    border: 1px solid var(--border); background: var(--panel2);
+  }
+
+  .finding-include[aria-pressed="true"] { color: var(--accent); }
+  .finding-include[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); }
 
   .finding-head {
     display: flex; align-items: center; gap: 9px;
     padding: 9px 12px; background: var(--panel3);
     border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--dim);
   }
 
-  .finding-head .sent { color: var(--green); font-size: 10px; }
+  .finding-head .sent { color: var(--green); font-size: var(--textMicro); }
 
   .finding.is-posted { opacity: .72; }
 
   .finding-head .kind {
     padding: 1px 6px; border-radius: 3px;
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
     background: var(--panel); color: var(--tone, var(--dim2));
   }
 
@@ -962,7 +1078,7 @@
   .finding-code {
     margin: 0; padding: 0;
     background: var(--code); border-bottom: 1px solid var(--border2);
-    font-size: 11.5px; line-height: 1.7; color: var(--dim);
+    font-size: var(--textSmall); line-height: 1.7; color: var(--dim);
     white-space: pre-wrap; overflow-x: auto;
   }
 
@@ -971,7 +1087,7 @@
   .finding-code .code-line.add { background: var(--addBg); color: var(--addText); }
   .finding-code .code-line.del { background: var(--delBg); color: var(--delText); }
 
-  .finding-body { padding: 11px 12px; display: grid; gap: 10px; font-size: 13px; line-height: 1.6; }
+  .finding-body { padding: 11px 12px; display: grid; gap: 10px; font-size: var(--textBody); line-height: 1.6; }
 
   /* Long unbroken content - env lines, checklists, urls - scrolls inside
      its block instead of stretching the card past its pane. Grid and flex
@@ -985,16 +1101,16 @@
   .prose { overflow-wrap: break-word; }
 
   .suggestion { border: 1px solid var(--border); border-radius: 5px; background: var(--code); overflow: hidden; }
-  .suggestion-head { padding: 5px 10px; border-bottom: 1px solid var(--border2); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-  .suggestion pre { margin: 0; padding: 6px 10px; background: var(--addBg); color: var(--addText); font-family: var(--mono); font-size: 11.5px; line-height: 1.7; white-space: pre-wrap; }
+  .suggestion-head { padding: 5px 10px; border-bottom: 1px solid var(--border2); font-family: var(--mono); font-size: var(--textMicro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .suggestion pre { margin: 0; padding: 6px 10px; background: var(--addBg); color: var(--addText); font-family: var(--mono); font-size: var(--textSmall); line-height: 1.7; white-space: pre-wrap; }
 
-  .finding-actions { display: flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: 11px; }
+  .finding-actions { display: flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: var(--textSmall); }
 
   .finding-editor {
     width: 100%; min-height: 18rem; padding: 9px 10px;
     border: 1px solid var(--accent); border-radius: 5px;
     background: var(--bg); color: var(--text);
-    font-size: 12.5px; line-height: 1.7; resize: vertical;
+    font-size: var(--textBody); line-height: 1.7; resize: vertical;
   }
 
   /* QA evidence ---------------------------------------------------------- */
@@ -1002,7 +1118,7 @@
   .qa-head {
     display: flex; align-items: center; gap: 10px;
     padding: 14px 16px 8px;
-    font-family: var(--mono); font-size: 10px;
+    font-family: var(--mono); font-size: var(--textMicro);
     letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
   }
 
@@ -1023,15 +1139,15 @@
   .scenario-head {
     display: flex; align-items: center; gap: 9px;
     padding: 9px 12px; border-bottom: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 11.5px;
+    font-family: var(--mono); font-size: var(--textSmall);
   }
 
   .scenario-head .glyph { color: var(--tone, var(--dim2)); flex-shrink: 0; }
   .scenario-head .url { color: var(--bright); }
-  .scenario-head .what { font-family: 'IBM Plex Sans', sans-serif; font-size: 12.5px; color: var(--dim); }
+  .scenario-head .what { font-family: 'IBM Plex Sans', sans-serif; font-size: var(--textBody); color: var(--dim); }
   .scenario-head .verdict {
     margin-left: auto; flex-shrink: 0;
-    font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); letter-spacing: .06em; text-transform: uppercase;
     color: var(--tone, var(--dim2));
   }
 
@@ -1040,13 +1156,13 @@
   .scenario-missing {
     height: 140px; display: grid; place-items: center;
     background: repeating-linear-gradient(135deg, var(--panel3) 0 8px, var(--panel2) 8px 16px);
-    font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .scenario-foot {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 12px; border-top: 1px solid var(--border2);
-    font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .add-comment {
@@ -1061,7 +1177,7 @@
     display: flex; align-items: center; gap: 9px;
     padding: 8px 12px;
     border: 1px dashed var(--border); border-radius: 7px;
-    font-family: var(--mono); font-size: 11px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
   }
 
   .add-hint .plus { color: var(--accent); }
@@ -1072,13 +1188,13 @@
     display: grid; gap: 6px;
   }
 
-  .filter-empty .title { font-size: 13px; font-weight: 500; }
-  .filter-empty .text { font-size: 12.5px; line-height: 1.6; color: var(--dim2); }
+  .filter-empty .title { font-size: var(--textBody); font-weight: 500; }
+  .filter-empty .text { font-size: var(--textBody); line-height: 1.6; color: var(--dim2); }
 
   /* The QA note reads as prose, like the summary - not a boxed aside. */
   .qa-note {
     margin: 0 0 40px; padding: 4px 24px;
-    font-size: 13.5px; line-height: 1.65; color: var(--text);
+    font-size: var(--textBody); line-height: 1.65; color: var(--text);
   }
 
   .qa-note code, .lens-body code {
@@ -1090,14 +1206,14 @@
   .finding-head .edited {
     padding: 1px 6px; border-radius: 3px;
     background: var(--warnBg); color: var(--amber);
-    font-size: 10px; font-weight: 700;
+    font-size: var(--textMicro); font-weight: 700;
   }
 
   /* Footer -------------------------------------------------------------- */
 
   footer {
     display: flex; align-items: center; gap: 12px;
-    padding: 0 16px;
+    padding: 0 16px env(safe-area-inset-bottom);
     border-top: 1px solid var(--border);
     background: var(--panel);
   }
@@ -1108,53 +1224,101 @@
     white-space: nowrap; flex-shrink: 0;
   }
 
-  .payload #staged { font-size: 11.5px; color: var(--dim); }
-  .payload #counts { font-size: 10.5px; color: var(--faint); }
+  .payload #staged { font-size: var(--textSmall); color: var(--dim); }
+  .payload #counts { font-size: var(--textSmall); color: var(--faint); }
 
   .fdivider { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
 
-  /* A segmented control, not a button: one control holding three or four
-     choices, dividing itself between the ones on show. It borrows the standard
-     height so the footer has one, and nothing else. */
-  .verdicts {
-    display: flex; height: var(--ctlStandard);
-    border: 1px solid var(--faint2); border-radius: 7px;
-    background: var(--panel2); overflow: hidden;
-    white-space: nowrap; flex-shrink: 0;
+  /* #post-split - what used to be a row of three or four always-visible
+     choices beside a separate send button is one button now: #post still
+     says and does exactly what it always did, and #verdict-button is a
+     caret riding its right edge that opens the rest. footer.js copies
+     #post's own computed class onto the caret every draw rather than this
+     sheet giving it a colour of its own, so the two read as one filled
+     button wearing the verdict's tone, not two buttons that happen to
+     touch. */
+  .split { display: flex; align-items: stretch; flex-shrink: 0; border-radius: var(--radius); overflow: hidden; }
+  .split #post { border-radius: 0; }
+
+  /* The divider is a background image rather than a border-left or an inset
+     shadow, because both of those run the full height and a line from edge
+     to edge reads as two buttons pushed together rather than one button
+     with a caret on its end. Drawn short of the top and bottom instead, on
+     the fill the copied role class already painted - the id here outranks
+     that class, so the shorthand's background-image: none does not win.
+
+     Mixed off currentColor rather than a fixed black: the same caret sits on
+     dark ink over a light fill in the dark theme and light ink over a dark
+     one in the light theme, and a black line is invisible on the second. */
+  .split #verdict-button {
+    flex-shrink: 0; width: 30px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 0;
+    background-image: linear-gradient(
+      color-mix(in srgb, currentColor 22%, transparent),
+      color-mix(in srgb, currentColor 22%, transparent)
+    );
+    background-size: 1px 18px;
+    background-position: left center;
+    background-repeat: no-repeat;
+    font-size: var(--textSmall);
   }
 
-  .verdicts button {
-    display: flex; align-items: center; gap: 7px;
-    padding: 0 12px;
-    border: none;
-    background: transparent; color: var(--text);
-    font-family: var(--mono); font-size: 12px; font-weight: 500;
-    white-space: nowrap;
+  /* The caret stays clickable even when #post is disabled (see footer.js -
+     Dismiss must stay reachable with nothing drafted), but two segments at
+     two different opacities read as a button that is half broken rather
+     than half disabled. Dimmed the same amount instead, without :disabled
+     actually taking the click away from it. */
+  .split #post:disabled ~ #verdict-button { opacity: .4; }
+
+  /* The choices themselves, opened from #verdict-button. Fixed rather than a
+     popover anchored under a relatively positioned parent - the footer it
+     would anchor to scrolls horizontally on a narrow viewport (see the mobile
+     media query's overflow-x on footer), and fixed positioning is the one
+     kind an ancestor's overflow never clips. footer.js measures the button
+     after this is un-hidden and places it from there, so it reads as coming
+     out of the caret rather than sliding up from the edge of the screen. */
+  .scrim2 {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(0, 0, 0, .35);
   }
 
-  /* A divider between the buttons on show. Which those are changes with whose
-     pull request it is, so the rule follows the ones still standing rather
-     than counting on the first and last never being hidden. */
-  .verdicts button:not([hidden]) ~ button:not([hidden]) {
-    border-left: 1px solid var(--faint2);
+  .verdict-sheet {
+    position: fixed; z-index: 90;
+    width: 224px;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 6px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--panel);
+    box-shadow: 0 18px 44px var(--shadow);
   }
 
-  .verdicts .dot {
+  .verdict-sheet button {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; min-height: var(--ctlCompact); padding: 0 var(--space4);
+    border: none; border-radius: 7px;
+    background: none; color: var(--text); text-align: left;
+    font-family: var(--mono); font-size: var(--textSmall); font-weight: 500;
+  }
+
+  .verdict-sheet button:hover { background: var(--panel2); }
+
+  .verdict-sheet .dot {
     width: 11px; height: 11px; border-radius: 50%;
     border: 1.5px solid var(--dim2); flex-shrink: 0;
   }
 
-  .verdicts button[aria-pressed="true"] {
+  .verdict-sheet button[aria-pressed="true"] {
     background: color-mix(in srgb, var(--accent) 18%, var(--panel2));
     color: var(--bright);
   }
 
-  .verdicts button[aria-pressed="true"] .dot {
+  .verdict-sheet button[aria-pressed="true"] .dot {
     border-width: 3.5px; border-color: var(--accent); background: var(--bg);
   }
 
   .consequence {
-    font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    font-family: var(--mono); font-size: var(--textSmall); color: var(--faint);
     white-space: nowrap;
   }
 
@@ -1175,15 +1339,15 @@
   }
 
   .cheer-mark { font-size: 34px; }
-  .cheer-title { font-size: 19px; font-weight: 700; color: var(--bright); }
-  .cheer-done { font-size: 11px; color: var(--dim2); }
-  #cheer-pr { font-size: 14px; color: var(--dim); max-width: 30rem; }
+  .cheer-title { font-size: var(--textDisplay); font-weight: 700; color: var(--bright); }
+  .cheer-done { font-size: var(--textSmall); color: var(--dim2); }
+  #cheer-pr { font-size: var(--textLead); color: var(--dim); max-width: 30rem; }
   /* Crossing it off is the "done, and gone" signal, so it is only worn by a
      review that actually left. */
   .cheer-struck { text-decoration: line-through; text-decoration-color: var(--green); text-decoration-thickness: 2px; }
-  .cheer-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+  .cheer-link { font-size: var(--textSmall); color: var(--accent); text-decoration: none; }
   .cheer-link:hover { text-decoration: underline; }
-  .cheer-note { font-size: 13px; color: var(--dim); max-width: 26rem; line-height: 1.5; }
+  .cheer-note { font-size: var(--textBody); color: var(--dim); max-width: 26rem; line-height: 1.5; }
 
   /* The invitation a destination that sent nothing offers instead of a link to
      what it did not send. It is the one thing being asked for on the page, so
@@ -1209,12 +1373,12 @@
 
   .sheet-head { padding: 14px 18px; border-bottom: 1px solid var(--border2); display: grid; gap: 5px; }
   .sheet-title { display: flex; align-items: center; gap: 10px; }
-  .sheet-title .h { font-size: 15px; font-weight: 600; }
-  .sheet-count { font-size: 11px; color: var(--dim2); }
+  .sheet-title .h { font-size: var(--textLead); font-weight: 600; }
+  .sheet-count { font-size: var(--textSmall); color: var(--dim2); }
 
   .verdict-badge {
     padding: 1px 7px; border-radius: 3px;
-    font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    font-size: var(--textMicro); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
     color: var(--tone, var(--dim)); border: 1px solid var(--tone, var(--border));
   }
 
@@ -1223,7 +1387,7 @@
     display: flex; align-items: center; gap: 10px; background: var(--panel3);
   }
 
-  #confirm-note { font-size: 10.5px; color: var(--faint); }
+  #confirm-note { font-size: var(--textSmall); color: var(--faint); }
 
   #confirm-post .spin {
     display: inline-block; vertical-align: -2px;
@@ -1254,11 +1418,11 @@
     width: 40px; height: 40px; border-radius: 50%;
     border: 1px solid var(--border); background: var(--panel2);
     display: grid; place-items: center;
-    color: var(--dim2); font-family: var(--mono); font-size: 15px;
+    color: var(--dim2); font-family: var(--mono); font-size: var(--textLead);
   }
 
   .curtain-word {
-    font-family: var(--mono); font-size: 10px;
+    font-family: var(--mono); font-size: var(--textMicro);
     letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
   }
 
@@ -1292,7 +1456,7 @@
 
   #confirm-post:disabled { opacity: .75; cursor: wait; }
 
-  #status { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  #status { font-family: var(--mono); font-size: var(--textSmall); color: var(--faint); }
   #status.error { color: var(--red); }
   #status.ok { color: var(--green); }
 
@@ -1302,7 +1466,7 @@
      carries the same report, in front of itself, and takes up no room until
      there is something to report. */
   #curtain-say, #celebrate-say, #confirm-say, #setup-say {
-    font-family: var(--mono); font-size: 11px; line-height: 1.55;
+    font-family: var(--mono); font-size: var(--textSmall); line-height: 1.55;
     color: var(--faint); text-align: center;
   }
 
@@ -1357,28 +1521,91 @@
     #shell { grid-template-rows: auto 1fr auto; }
 
     header, footer {
-      flex-wrap: wrap;
       height: auto;
       row-gap: 6px;
-      padding-top: 6px; padding-bottom: 6px;
     }
 
-    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    header {
+      flex-wrap: wrap;
+      padding-top: calc(6px + env(safe-area-inset-top)); padding-bottom: 6px;
+    }
+
+    /* Not flex-wrap here, unlike header: four verdict buttons (Approve,
+       Comment, Request changes, Dismiss - Dismiss is offered on every pull
+       request now, not just your own) plus the staged-comment tally and Post
+       review do not reliably fit one row on a phone, and everything in this
+       row is flex-shrink: 0 on purpose - none of it reads well shrunk. A
+       second row a reader has to notice exists is worse than a scrollable
+       first one; overflow-x here is the same call made for wide diff/code
+       content elsewhere; the row scrolls, the page body never does. */
+    footer {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom));
+    }
+
+    /* Signout sits at the header's own top-right corner, pinned there by
+       position rather than by flex order, so wherever the chips and the
+       title end up wrapping to, it never moves: it is reachable at a glance,
+       first thing, on the one row that is always on screen. The header's own
+       padding-right keeps flowed content (the chips, the title) from ever
+       running underneath it. */
+    header { position: relative; padding-right: 46px; }
+    #signout { position: absolute; top: 6px; right: 12px; margin: 0; }
+
+    /* #pane-toggle - the menu control that opens the review pane as a
+       drawer - sits in DOM order right where it is meant to show: beside
+       the title row, not the chips row. No explicit order needed here. */
+    #pane-toggle { display: inline-flex; align-items: center; }
+
+    /* The chips alone are wider than this line has room to also fit the
+       open pull request beside, so something has to move to a line of its
+       own. Forcing the break here instead, on a dedicated empty item, means
+       nothing else on the line is bumped down with it. */
+    .row-break { flex-basis: 100%; }
+
+    /* The title used to sit on one line, cut short with an ellipsis - a
+       compromise from when it had to share that line with signout. Signout
+       is pinned out of flow now, so the whole title fits on its own, given
+       room to wrap rather than clip. Stacked above the stats instead of
+       beside them: baseline-aligned side by side reads fine for one short
+       line, not for a title now free to run to two or three. Bigger too:
+       it is the one line on the page saying what is actually being read. */
+    .head-open { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .head-open .title { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--textLead); }
+
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+
+    /* The pane and the comment section share the same grid cell instead of
+       stacking in their own rows, so opening the pane lays it over the
+       comment beneath rather than pushing it down a page with no room to
+       spare - the drawer #pane-toggle promises, not a second panel to
+       scroll past to reach the diff. */
+    .pane, #comment { grid-row: 1; grid-column: 1; }
 
     .pane {
-      max-height: 40vh;
+      position: relative;
+      z-index: 36;
+      max-height: 70vh;
       overflow-y: auto;
       border-right: none;
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 16px 32px -12px rgba(0, 0, 0, .4);
     }
+
+    /* Hidden outright, not folded in place - the header's #pane-toggle is
+       now the only way back in, so there is nothing left inside the pane
+       itself that a collapsed reader needs kept in view. */
+    .pane.is-collapsed { display: none; }
+
+    #pane-backdrop:not([hidden]) { display: block; }
 
     /* A popover anchored to its own chip (left:0 of .popover-host) runs off
        the right edge of a phone screen the moment that chip is not itself
        flush with the left edge - which neither the source nor the queue chip
-       is. Anchoring to the header instead, which always spans the full
-       width, keeps every popover inside the viewport regardless of which
-       chip opened it. */
-    header { position: relative; }
+       is. Anchoring to the header instead, which already carries
+       position:relative for signout above, keeps every popover inside the
+       viewport regardless of which chip opened it. */
     .popover-host { position: static; }
 
     .popover {
@@ -1398,27 +1625,38 @@
 
     #confirm, .scrim { padding: 12px; }
 
-    .verdicts { height: var(--ctlCompact); }
-    .verdicts button { gap: 5px; padding: 0 8px; font-size: 11px; }
-
     /* Touch targets and type, scaled up for a finger rather than a cursor.
        Desktop keeps its own sizing untouched above; this block is the only
        place any of it changes. Three heights become the touch-friendly
        trio Apple and Google both call the floor for a tappable control -
-       every button already built on them (ROLES in button.js, the verdicts
-       segmented control, the chips) grows with no rule but this one. */
-    :root { --ctlIcon: 32px; --ctlCompact: 40px; --ctlStandard: 44px; }
+       every button already built on them (ROLES in button.js, the chips)
+       grows with no rule but this one.
+
+       Type moves the same way: every selector in this sheet already reads
+       its size off --textMicro/Small/Body/Lead/Display, so raising the five
+       here raises the whole app in one place instead of chasing one-off
+       rules per selector. The rows a thumb taps (.lens, .file, .diff-head)
+       are chrome, not prose - the same scale as the nav chips above them,
+       so a phone reading the pane sees one consistent control size rather
+       than the list quietly outgrowing the bar it scrolls beneath. */
+    :root {
+      --ctlIcon: 32px; --ctlCompact: 40px; --ctlStandard: 44px;
+      --textMicro: 12px; --textSmall: 13px; --textBody: 15px;
+      --textLead: 16px; --textDisplay: 19px;
+    }
 
     .chip { min-height: 44px; }
-    .lens, .file, .diff-head { min-height: 44px; font-size: 14px; }
-    .lens .count { font-size: 13px; }
-    .card-head { font-size: 12px; }
+    .verdict-sheet button { min-height: 44px; }
+    .lens, .file, .diff-head { min-height: 44px; }
     .flag-toggle, .viewed { min-height: 44px; }
 
     /* iOS Safari zooms the page in on focus of any text control under 16px.
        That is not a stylistic choice to preserve - it is a bug the desktop
        sizes happen to trigger, so every text control mobile can focus is
-       raised to the threshold that keeps the page still. */
+       raised to the threshold that keeps the page still. Set as a literal
+       16 rather than var(--textLead): this is a hard technical floor, not a
+       type-scale choice, and must not follow --textLead if that token is
+       ever tuned to something smaller. */
     .settings-fields input,
     .settings-fields select,
     .settings-fields input.mono,
@@ -1477,6 +1715,23 @@
       </div>
     </div>
 
+    <!-- Chips alone are wider than a phone screen has room to also fit the
+         open pull request beside, so it needs the line to itself.
+         flex-basis:100% forces that break, but only on this empty,
+         zero-height item - putting it on head-open instead would claim the
+         whole new line for itself. Signout is not here to bump: it is
+         pinned to the header's top-right corner by position, not by flex
+         order (see the mobile media query). -->
+    <span class="row-break"></span>
+
+    <!-- Mobile only: opens and closes the review pane as a drawer over the
+         page. Off (display:none) everywhere else, where the pane is a
+         permanent second column and there is nothing for it to open. Beside
+         the title rather than the chips: it is chrome about the pull
+         request being read, and the title is the one line on the wrapped
+         row that is always there whether or not one is open yet. -->
+    <button id="pane-toggle" aria-expanded="false"></button>
+
     <span class="head-open">
       <span class="title" id="head-title"></span>
       <span class="mono head-stats" id="head-stats"></span>
@@ -1488,15 +1743,22 @@
 
   <main>
     <section class="pane">
-      <div class="pane-head" id="blurb-head" hidden><span>summary</span></div>
-      <div id="blurb"></div>
-      <div class="pane-head"><span>agent verdict</span><span class="spacer"></span><button class="flag-toggle" id="files-flagged" hidden title="Hide lenses and files with no drafted comments"><span class="box"></span>flagged only</button></div>
-      <div id="analysis"></div>
-      <div class="pane-head" id="kinds-head" hidden><span>themes</span></div>
-      <div id="kinds" style="display: grid; gap: 2px; padding: 8px 0 10px"></div>
-      <div class="pane-head" id="files-head" hidden><span>files</span><span id="file-count" style="color: var(--dim2)"></span></div>
-      <div id="files"></div>
+      <div id="pane-content">
+        <div class="pane-head" id="blurb-head" hidden><span>summary</span></div>
+        <div id="blurb"></div>
+        <div class="pane-head"><span>agent verdict</span><span class="spacer"></span><button class="flag-toggle" id="files-flagged" hidden title="Hide lenses and files with no drafted comments"><span class="box"></span>flagged only</button></div>
+        <div id="analysis"></div>
+        <div class="pane-head" id="kinds-head" hidden><span>themes</span></div>
+        <div id="kinds" style="display: grid; gap: 2px; padding: 8px 0 10px"></div>
+        <div class="pane-head" id="files-head" hidden><span>files</span><span id="file-count" style="color: var(--dim2)"></span></div>
+        <div id="files"></div>
+      </div>
     </section>
+
+    <!-- Mobile only: the drawer's own way out, a click outside it aimed at
+         what it is covering. Meaningless anywhere the pane never overlays
+         anything. -->
+    <div id="pane-backdrop" hidden></div>
 
     <section id="comment">
       <div id="tab-summary">
@@ -1532,16 +1794,26 @@
          a failure is announced once wherever it was raised. -->
     <span id="status" role="status" aria-live="polite"></span>
     <span class="fdivider"></span>
-    <div class="verdicts" id="verdicts">
-      <button data-event="APPROVE" aria-pressed="false"><span class="dot"></span>Approve</button>
-      <button data-event="COMMENT" aria-pressed="false"><span class="dot"></span>Comment</button>
-      <button data-event="REQUEST_CHANGES" aria-pressed="false"><span class="dot"></span>Request changes</button>
-      <button data-event="DISMISS" aria-pressed="false" hidden><span class="dot"></span>Dismiss</button>
-    </div>
     <span class="consequence" id="consequence"></span>
     <span class="spacer"></span>
-    <button id="post" disabled>Post review</button>
+    <div class="split" id="post-split">
+      <button id="post" disabled>Post review</button>
+      <button id="verdict-button" aria-expanded="false" aria-label="Change what this would send" disabled>&#9662;</button>
+    </div>
   </footer>
+</div>
+
+<!-- The verdict picker: at body level rather than inside the footer, the same
+     reason the settings panel below is - a popover positioned inside the
+     footer would be clipped by the footer's own overflow-x:auto (see the
+     mobile media query), which computes overflow-y:auto right along with it
+     the moment either axis is not visible. -->
+<div class="scrim2" id="verdict-backdrop" hidden></div>
+<div class="verdict-sheet" id="verdict-popover" hidden>
+  <button data-event="APPROVE" aria-pressed="false"><span class="dot"></span>Approve</button>
+  <button data-event="COMMENT" aria-pressed="false"><span class="dot"></span>Comment</button>
+  <button data-event="REQUEST_CHANGES" aria-pressed="false"><span class="dot"></span>Request changes</button>
+  <button data-event="DISMISS" aria-pressed="false" hidden><span class="dot"></span>Dismiss</button>
 </div>
 
 <div id="celebrate" class="scrim" hidden>
@@ -1573,6 +1845,10 @@
     <div id="source-list"></div>
     <div class="settings-group mono"><span>destinations</span><span class="spacer"></span><span id="destination-attention"></span></div>
     <div id="destination-list"></div>
+    <div class="settings-group mono"><span>every comment</span></div>
+    <div class="settings-prefix">
+      <input class="mono" id="comment-prefix" type="text" placeholder="none" autocomplete="off" spellcheck="false" title="Put ahead of the review body and every comment this source sends">
+    </div>
     <div class="spacer"></div>
     <button class="settings-add" id="settings-add" type="button">+ Add</button>
   </div>

@@ -1,6 +1,6 @@
 [package]
 name = "reviewer"
-version = "0.5.9"
+version = "0.6.2"
 description = "Desktop shell for the reviewer app"
 edition = "2021"
 license = "Apache-2.0"
@@ -32,3 +32,13 @@ tempfile = "3"
 codegen-units = 1
 lto = true
 strip = true
+
+# Gating the Keychain's actual Face ID prompt is only meaningful where a
+# Keychain exists to gate - iOS. Desktop keeps using the same IndexedDB
+# secret storage it always has; nothing here is a security regression for
+# it, since it never carried a keychain integration in the first place.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSFileManager", "NSURL", "NSString", "NSUserDefaults", "std"] }
+security-framework = "3.7.0"
+tauri-plugin-biometric = "2.3.2"

@@ -99,6 +99,11 @@ export default {
   })),
   "pulls.resetComment": change(() => ({ comment: null, commentEditedAt: null })),
 
+  // Whether the body goes out at all, which is the reader's to say the same
+  // way each finding is.
+  "pulls.includeSummary": moment("summaryIncludedAt"),
+  "pulls.excludeSummary": moment("summaryIncludedAt", null),
+
   "pulls.chooseVerdict": change((data) => ({ verdict: data.event })),
 
   // The ticket body. Null means the reader has not touched it and the kept
@@ -119,11 +124,25 @@ export default {
     verdict: data.event,
   })),
 
+  // Fired when the reader asks for a fresh draft. The old post described a
+  // review that no longer exists once the agent rewrites it from scratch -
+  // forgetting it is what lets a new one go out instead of the buttons
+  // staying locked against a review that has already been superseded.
+  "pulls.redraft": change(() => ({ postedAt: null, postedUrl: "" })),
+
   // ---- What the reader decided about one finding.
   //
   // Keyed by "owner/repo#number:findingId", so the agent's own stable ids are
   // what carry a decision across a redraft, exactly as the schema promises.
 
+  "findings.include": moment("includedAt"),
+  "findings.exclude": moment("includedAt", null),
+
+  // Kept so a log written by an app version before this one still replays
+  // without a missing runner - drop/restore is nobody's current command, but
+  // an event already on a reader's own device is a fact about their history,
+  // not something this app gets to un-happen. droppedAt is not read anywhere
+  // any more; only includedAt decides what is sent.
   "findings.drop": moment("droppedAt"),
   "findings.restore": moment("droppedAt", null),
 
@@ -156,6 +175,10 @@ export default {
 
   "preferences.flagOnly": moment("flaggedOnlyAt"),
   "preferences.showAll": moment("flaggedOnlyAt", null),
+
+  // What the reader wants ahead of everything sent - a tag their team reads
+  // as "an agent had a hand in this," a name, whatever they configure.
+  "preferences.setCommentPrefix": change((data) => ({ commentPrefix: data.prefix })),
 
   // ---- How far through the diff the reader has got.
 

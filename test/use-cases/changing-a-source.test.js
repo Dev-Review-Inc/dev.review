@@ -35,11 +35,20 @@ describe("Choosing where drafts come from", () => {
     assert.equal(offered.includes("memory"), false);
   });
 
-  test("the native reader is listed but unusable outside the desktop build", () => {
-    const tauri = adapterTypes().find((entry) => entry.type === "tauri");
+  test("a folder on this computer is listed, unusable outside a Chromium tab or the desktop build", () => {
+    // Outside a browser entirely, which is what running under Node is, only
+    // filesystem is on offer - tauri and filesystem both mean "a folder on
+    // this computer" and adapterTypes() only ever shows the one that could
+    // actually work here. See adapterTypes()'s own comment for why.
+    const filesystem = adapterTypes().find((entry) => entry.type === "filesystem");
 
-    assert.ok(tauri, "dropping it would leave the reader nothing to look at");
-    assert.match(tauri.reason, /desktop app/i);
+    assert.ok(filesystem, "dropping it would leave the reader nothing to look at");
+    assert.match(filesystem.reason, /Chrom/i);
+    assert.equal(
+      adapterTypes().some((entry) => entry.type === "tauri"),
+      false,
+      "the same reader intent should not appear twice",
+    );
   });
 
   test("each backend says what it needs asking for, so no form knows a backend", () => {
@@ -76,14 +85,14 @@ describe("Fixing a source that was set up wrong", () => {
     });
     await app.select(app.queue()[0]);
     const [finding] = app.queries.findingsForPull(app.source, app.selected);
-    app.commands.dropFinding(app.source, app.selected, finding);
+    app.commands.includeFinding(app.source, app.selected, finding);
   });
 
   test("renaming it keeps everything recorded against it", async () => {
     await app.editSource(source, { name: "Work" });
 
     assert.equal(app.queries.findSource(source.id).name, "Work");
-    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].droppedAt);
+    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].includedAt);
   });
 
   test("correcting the bucket keeps the same source, and its decisions", async () => {
@@ -94,7 +103,7 @@ describe("Fixing a source that was set up wrong", () => {
     const after = app.queries.findSource(source.id);
     assert.equal(after.id, source.id);
     assert.equal(after.adapter.bucket, "correct");
-    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].droppedAt);
+    assert.ok(app.queries.findingsForPull(app.source, app.selected)[0].includedAt);
   });
 
   test("a key left blank is left alone rather than blanked", async () => {

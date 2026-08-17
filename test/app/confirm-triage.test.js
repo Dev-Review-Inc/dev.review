@@ -257,6 +257,23 @@ describe("triaging an issue through the sheet", () => {
     assert.equal(app.queries.isPosted(app.source, app.selected), true);
   });
 
+  test("the prefix leads the triage comment, and an edit takes it off", async () => {
+    app.commands.setCommentPrefix(app.source, "[bot-assisted]");
+
+    await post(app);
+    assert.deepEqual(commented, ["[bot-assisted] Why the body should change."]);
+
+    // The prefix marks the agent's words; a comment the reader rewrote is the
+    // reader's own, and goes out exactly as written.
+    await build();
+    app.commands.setCommentPrefix(app.source, "[bot-assisted]");
+    app.commands.editComment(app.source, app.selected, "My own words.");
+    await app.reselect();
+
+    await post(app);
+    assert.deepEqual(commented, ["My own words."]);
+  });
+
   test("a close the destination refuses records nothing, and says how far it got", async () => {
     await build(anIssueDraft({ close: { reason: "not_planned" } }));
     refuseClose = true;

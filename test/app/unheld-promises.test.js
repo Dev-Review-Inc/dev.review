@@ -362,4 +362,31 @@ describe("the backstop under everything", () => {
 
     assert.deepEqual(said, [[undefined, "error"]]);
   });
+
+  // Every Chromium browser fires this as a real error event the moment a
+  // ResizeObserver callback's own layout change would trigger another resize
+  // in the same frame - a scheduling detail the browser is reporting on
+  // itself, not a catch this app is missing. Telling the reader would be a
+  // false alarm on every one of those browsers, not an occasional one.
+  test("does not report the ResizeObserver loop warning every Chromium browser fires", () => {
+    const scope = aScope();
+    const said = [];
+
+    backstop(scope, (message, tone) => said.push([message, tone]));
+    scope.raise("error", {
+      error: new Error("ResizeObserver loop completed with undelivered notifications."),
+    });
+
+    assert.deepEqual(said, []);
+  });
+
+  test("still reports a real error whose message happens to start differently", () => {
+    const scope = aScope();
+    const said = [];
+
+    backstop(scope, (message, tone) => said.push([message, tone]));
+    scope.raise("error", { error: new Error("the draft could not be read") });
+
+    assert.deepEqual(said, [["the draft could not be read", "error"]]);
+  });
 });

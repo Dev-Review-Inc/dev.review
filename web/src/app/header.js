@@ -12,7 +12,7 @@
 
 import { adapterTypes, chooseFolder } from "../adapters/index.js";
 import { destinationTypes } from "../destinations/index.js";
-import { age, arm, element, find, initials, say } from "./dom.js";
+import { age, arm, element, find, initials, say, LEAVE_ICON } from "./dom.js";
 import { button } from "../ui/button.js";
 import { render, restyle } from "../ui/render.js";
 import { leaveWords } from "./words.js";
@@ -24,6 +24,20 @@ const TYPE_WORDS = {
   s3: "s3",
   github: "github repo",
   git: "git repo",
+};
+
+// Where each backend's full setup page lives on the marketing site - the
+// fields here are only ever the ones the form needs, not the CORS rule or the
+// token scope a reader hits trouble without. Two adapter types share a page
+// because the app already offers them as one option, "a folder on this
+// computer" (see adapterTypes() in ../adapters/index.js).
+const ADAPTER_DOCS = {
+  filesystem: "folder",
+  tauri: "folder",
+  icloud: "icloud",
+  github: "github",
+  git: "git",
+  s3: "s3",
 };
 
 /**
@@ -124,13 +138,16 @@ export function drawHeader(app) {
   drawOpen(app);
 
   const leave = leaveWords(app);
-  // Compact, because the header is dense chrome. It carried its own 26px rule
-  // for that, ten pixels from what the same class meant everywhere else.
+  // An icon rather than a label: this is the one action on the row that is
+  // not what a reader came here to do, and a label on it was wide enough to
+  // push the title it sits beside onto a second row before the title had
+  // given up any of its own space.
   const control = restyle(
-    button({ label: leave.label, compact: true, title: leave.title }),
+    button({ role: "icon", icon: LEAVE_ICON, title: leave.title }),
     find("signout"),
   );
 
+  control.setAttribute("aria-label", leave.label);
   control.hidden = !app.destination;
 }
 
@@ -286,6 +303,10 @@ function drawQueue(app) {
  * is absent entirely when nothing has been dismissed lately, so the common case
  * is not asked to carry a heading about a decision nobody made.
  *
+ * Labelled "history" rather than "dismissed": what lands here is whatever the
+ * reader has resolved, posted reviews included, and a posted review is the
+ * decision this section exists to show back to them - "dismissed" undersold it.
+ *
  * @param {object} app the running app
  * @returns {void}
  */
@@ -299,34 +320,54 @@ function drawDismissed(app) {
   if (!entries.length) return;
 
   section.append(
-    element("div", "popover-head", `dismissed · ${entries.length}`),
+    element("div", "popover-head", `history · ${entries.length}`),
   );
 
   for (const entry of entries) {
     const line = document.createElement("div");
     line.className = "setup-line";
 
-    const row = document.createElement("div");
+    // Openable, like every other pull request in this popover. Dismissing
+    // answers "I am not reviewing this", which is not "I never want to look
+    // at it again" - and restoring it to the queue is a heavier answer than
+    // another look asks for.
+    const row = document.createElement("button");
+
     row.className = "setup-row";
+    row.type = "button";
+    row.title = "Open this pull request without putting it back on the queue";
     row.append(
       element("div", "top", ""),
       element("div", "dir mono", `${entry.owner}/${entry.repo}#${entry.number}`),
     );
     row.firstChild.append(element("span", "name", entry.title));
+    row.addEventListener("click", () => {
+      closeQueue();
+      app.select(entry).catch((failure) => say(failure.message, "error"));
+    });
 
-    // `restore` says whatever went wrong itself, so the promise a listener
-    // cannot return is one nothing is waiting on rather than one nobody holds.
-    const edit = render(
-      button({
-        label: "Restore",
-        compact: true,
-        title: "Put this pull request back on the queue",
-        onClick: () => restore(app, entry),
-      }),
-    );
+    line.append(row);
 
-    edit.classList.add("setup-edit");
-    line.append(row, edit);
+    // Restoring means putting a pull request back on the queue, and there is
+    // nowhere to put one back once the destination has stopped listing it -
+    // offering the button anyway would let a click clear the one field
+    // keeping the row in this list, with nothing to show for it afterward.
+    if (entry.restorable) {
+      // `restore` says whatever went wrong itself, so the promise a listener
+      // cannot return is one nothing is waiting on rather than one nobody holds.
+      const edit = render(
+        button({
+          label: "Restore",
+          compact: true,
+          title: "Put this pull request back on the queue",
+          onClick: () => restore(app, entry),
+        }),
+      );
+
+      edit.classList.add("setup-edit");
+      line.append(edit);
+    }
+
     section.append(line);
   }
 }
@@ -509,6 +550,7 @@ function drawSettings(app) {
   const selection = app.settingsSelection || { kind: "" };
 
   drawNav(app, sources, destinations, selection);
+  drawCommentPrefix(app);
 
   const add = find("settings-add");
 
@@ -542,6 +584,27 @@ function drawSettings(app) {
   find("destination-form").hidden =
     !(selection.kind === "destination" ||
       (selection.kind === "add" && selection.adding === "destination"));
+}
+
+/**
+ * Keep the prefix field in step with what is stored, without clobbering a
+ * value the reader is mid-typing.
+ *
+ * Blur is where it saves - see the listener in view.js - so nothing here
+ * writes anything down, the same reasoning {@link closeEditor} gives for the
+ * summary box: there is no save button, and an edit is never left sitting.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+function drawCommentPrefix(app) {
+  const field = find("comment-prefix");
+
+  field.disabled = !app.source;
+
+  if (document.activeElement !== field) {
+    field.value = app.source ? app.queries.commentPrefixFor(app.source) : "";
+  }
 }
 
 // ---- The nav
@@ -1172,13 +1235,10 @@ function drawSourceForm(app) {
     }),
   );
 
-  // Where to go and switch a backend on, for the one case that has such a
-  // place. It sits under the picker rather than inside the option because an
-  // option is a line of text and this is a sentence with a url in it. At most
-  // one backend has a hint, so this is one line, not a list of caveats.
-  for (const type of types) {
-    if (type.hint) grid.append(element("div", "mono settings-hint", `${type.label}: ${type.hint}`));
-  }
+  // The caveat for whichever backend is chosen, not for whichever one
+  // happens to have one - a reader picking GitHub was reading git's CORS
+  // warning, because this used to loop every type instead of the chosen one.
+  if (chosen?.hint) grid.append(element("div", "mono settings-hint", `${chosen.label}: ${chosen.hint}`));
 
   for (const field of fields) {
     grid.append(
@@ -1200,6 +1260,22 @@ function drawSourceForm(app) {
 
   if (usable && !fields.length) {
     grid.append(element("span", "mono settings-key", "Folder"), folderRow(app, setup, editing));
+  }
+
+  // What a field list cannot carry: the CORS rule a bucket needs, the token
+  // scope GitHub wants, which of these need the desktop app. One line to the
+  // page that does, for whichever backend is chosen right now.
+  const docSlug = ADAPTER_DOCS[setup.type];
+
+  if (docSlug) {
+    const link = document.createElement("a");
+
+    link.className = "settings-doc-link mono";
+    link.href = `https://dev.review/adapters/${docSlug}`;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = `Full setup for ${chosen?.label || setup.type} →`;
+    grid.append(link);
   }
 
   body.append(grid);

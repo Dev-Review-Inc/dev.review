@@ -1,7 +1,9 @@
 // The footer: what would be sent, what it would do, and the button that sends.
 //
-// Posting reads as a consequence of the verdict rather than as a fourth,
-// differently-coloured button, so the verdict tints the button.
+// The send button says which verdict it would send rather than a fixed
+// "Post review" - the word itself is the plainest report of what is about to
+// happen, ahead of tone or a second line of prose saying the same thing
+// again.
 
 import { find } from "./dom.js";
 import { button } from "../ui/button.js";
@@ -10,6 +12,13 @@ import { postLabel } from "./words.js";
 
 // Which tone each verdict carries, in the confirmation sheet and the footer.
 export const VERDICT_TONE = { APPROVE: "ok", COMMENT: "accent", REQUEST_CHANGES: "critical" };
+
+// The word on the send button once a choice is made.
+const VERDICT_LABEL = {
+  APPROVE: "Approve",
+  COMMENT: "Comment",
+  REQUEST_CHANGES: "Request changes",
+};
 
 // Taking the pull request off the queue, chosen the way a verdict is chosen.
 //
@@ -20,14 +29,6 @@ export const VERDICT_TONE = { APPROVE: "ok", COMMENT: "accent", REQUEST_CHANGES:
 // review this one" is a true answer regardless of who opened it - so unlike
 // the verdicts, it is never withheld for authorship.
 export const DISMISS = "DISMISS";
-
-// What each choice does to the pull request, stated once.
-const CONSEQUENCE = {
-  APPROVE: "approves for merge",
-  COMMENT: "leaves the PR unblocked",
-  REQUEST_CHANGES: "blocks merge until resolved",
-  DISMISS: "sends nothing and takes it off your queue",
-};
 
 /**
  * The one line the footer and the sheet both say about a proposed close.
@@ -59,12 +60,18 @@ export function closeWords(close, dropped) {
  * nothing, because the case it exists for is a pull request with nothing
  * worth drafting.
  *
+ * A review carrying nothing cannot be sent either: the summary and every
+ * comment are opted in one at a time, so "nothing chosen yet" is a state the
+ * reader can be in, and the destination refuses a review with no words and no
+ * comments. Dismissing is untouched by that - it sends nothing by design.
+ *
  * @param {object|null} pull the open pull request, if one is open
  * @param {string} chosen a verdict, or DISMISS
  * @param {boolean} posted whether the review already went out
+ * @param {boolean} [carrying] whether anything has been opted into the review
  * @returns {{label: string, disabled: boolean}} what to draw the button as
  */
-export function commitButton(pull, chosen, posted) {
+export function commitButton(pull, chosen, posted, carrying = true) {
   if (!pull) return { label: "Post review", disabled: true };
 
   if (chosen === DISMISS) return { label: "Dismiss", disabled: false };
@@ -72,15 +79,19 @@ export function commitButton(pull, chosen, posted) {
   const needsFinish = chosen === "APPROVE";
   const notReady = !pull.draft || (needsFinish && !pull.draft.finishedAt);
 
-  return { label: "Post review", disabled: notReady || posted };
+  return {
+    label: VERDICT_LABEL[chosen] || "Post review",
+    disabled: notReady || posted || !carrying,
+  };
 }
 
 /**
  * The send button over an issue, which takes no verdict.
  *
  * A draft file is the whole condition: parsing guarantees it proposes a
- * description or a comment, and either is worth sending. Dismissing waits on
- * nothing, as ever.
+ * description or a comment, and either is worth sending - so a triage never
+ * asks commitButton's "carrying" question. Dismissing waits on nothing, as
+ * ever.
  *
  * @param {object|null} pull the open issue, if one is open
  * @param {string} chosen "" or DISMISS
@@ -95,7 +106,28 @@ export function triageButton(pull, chosen, posted, label) {
 }
 
 /**
- * Whether a choice in the footer's button row is offered.
+ * What the send button is painted as.
+ *
+ * One control whatever is chosen: the verdict changes its colour and nothing
+ * else, because a button that changes shape underneath the reader is a
+ * different button. Dismissing sends nothing anywhere, so it is the one
+ * choice that does not wear a verdict's colour - grey says "this is still the
+ * action" without claiming to be one.
+ *
+ * @param {string} chosen a verdict, or DISMISS
+ * @returns {{role: string, tone: string}} how to describe it
+ */
+export function commitLook(chosen) {
+  if (chosen === DISMISS) return { role: "primary", tone: "neutral" };
+
+  // "accent" is the primary's own fill, so it is said by saying nothing.
+  const tone = VERDICT_TONE[chosen] || "";
+
+  return { role: "primary", tone: tone === "accent" ? "" : tone };
+}
+
+/**
+ * Whether a choice in the verdict sheet is offered.
  *
  * The destination refuses an approval or a change request on your own pull
  * request, so verdictFor already narrows those to a comment; this only has to
@@ -109,6 +141,57 @@ export function triageButton(pull, chosen, posted, label) {
  */
 export function choiceHidden(event, own) {
   return event === DISMISS ? false : own && event !== "COMMENT";
+}
+
+/**
+ * @returns {void}
+ */
+export function closeVerdictMenu() {
+  find("verdict-popover").hidden = true;
+  find("verdict-backdrop").hidden = true;
+  find("verdict-button").setAttribute("aria-expanded", "false");
+}
+
+/**
+ * @returns {void}
+ */
+export function toggleVerdictMenu() {
+  const open = find("verdict-popover").hidden;
+
+  find("verdict-popover").hidden = !open;
+  find("verdict-backdrop").hidden = !open;
+  find("verdict-button").setAttribute("aria-expanded", String(open));
+
+  if (open) positionVerdictMenu();
+}
+
+/**
+ * Put the verdict sheet where it reads as coming out of the caret that opened
+ * it, rather than sliding up from the edge of the screen.
+ *
+ * Measured after the sheet is un-hidden - a hidden element has no box to
+ * measure - and placed with fixed coordinates rather than anchored under a
+ * relatively positioned parent, which is what lets it sit above the footer
+ * without being clipped by the footer's own horizontal scrolling on a narrow
+ * viewport.
+ *
+ * @returns {void}
+ */
+function positionVerdictMenu() {
+  const anchor = find("verdict-button").getBoundingClientRect();
+  const sheet = find("verdict-popover");
+  const margin = 8;
+
+  // Right-aligned to the caret, the same edge #post-split ends on, and
+  // clamped so a caret hard against the left edge does not push the sheet
+  // off the other side of the screen.
+  const left = Math.max(
+    margin,
+    Math.min(anchor.right - sheet.offsetWidth, window.innerWidth - sheet.offsetWidth - margin),
+  );
+
+  sheet.style.left = `${left}px`;
+  sheet.style.top = `${anchor.top - sheet.offsetHeight - margin}px`;
 }
 
 /**
@@ -167,6 +250,7 @@ function drawVerdict(app) {
   const pull = app.selected;
   const post = find("post");
   const consequence = find("consequence");
+  const verdictButton = find("verdict-button");
 
   consequence.classList.remove("is-warn");
   consequence.textContent = "";
@@ -186,44 +270,60 @@ function drawVerdict(app) {
   const verdict = pull && !issue ? app.queries.verdictFor(app.source, pull, app.login) : "";
   const chosen = app.dismissing ? DISMISS : verdict;
 
-  for (const choice of find("verdicts").children) {
+  for (const choice of find("verdict-popover").children) {
     choice.hidden = issue
       ? choice.dataset.event !== DISMISS
       : choiceHidden(choice.dataset.event, own);
     choice.setAttribute("aria-pressed", String(choice.dataset.event === chosen));
-    choice.disabled = !pull;
   }
+
+  const carrying = Boolean(
+    pull &&
+      !issue &&
+      (app.queries.commentToPost(app.source, pull).trim() ||
+        app.queries.findingsToPost(app.source, pull).length),
+  );
 
   const posted = Boolean(pull) && app.queries.isPosted(app.source, pull);
   const commit = issue
     ? triageButton(pull, chosen, posted, postLabel(app))
-    : commitButton(pull, chosen, posted);
+    : commitButton(pull, chosen, posted, carrying);
 
-  // The verdict tints the send button. "accent" is the primary's own fill, so
-  // it is said by saying nothing. Dismissing sends nothing at all, so it does
-  // not wear the send colour: it steps down to an ordinary action rather than
-  // being a filled button repainted to look like it is not one.
-  const tone = VERDICT_TONE[chosen] || "";
+  const described = button({
+    label: commit.label,
+    ...commitLook(chosen),
+    disabled: commit.disabled,
+  });
 
-  restyle(
-    button({
-      label: commit.label,
-      role: chosen === DISMISS ? "ghost" : "primary",
-      tone: tone === "accent" ? "" : tone,
-      disabled: commit.disabled,
-    }),
-    post,
-  );
+  restyle(described, post);
+
+  // #post's own inline border-radius (see labelStyle() in ui/button.js) beats
+  // the stylesheet's .split #post { border-radius: 0 }, because an inline
+  // style always outranks a selector no matter how specific - restyle() sets
+  // it fresh on every draw, so it has to be squared off again here every time
+  // too, or the seam against the caret shows a rounded notch instead of a
+  // straight join.
+  post.style.borderTopRightRadius = "0";
+  post.style.borderBottomRightRadius = "0";
+
+  // The caret rides #post's own class rather than choosing a colour of its
+  // own, so the two read as one filled button wearing the verdict's tone
+  // instead of two buttons that happen to touch. Its disabled state does not
+  // follow #post's, though: commit.disabled covers "nothing drafted yet",
+  // which would otherwise lock a reader with nothing drafted out of ever
+  // reaching Dismiss - the one choice that never needs a draft.
+  verdictButton.className = described.className;
+  verdictButton.disabled = !pull;
 
   if (!pull || !chosen) return;
 
+  // The verdict's own word already says what would happen. The one thing it
+  // cannot say by itself is that approving here specifically overrides
+  // blocking comments still open - that is the one case worth a second line.
   const blocking = app.queries.blockingCount(app.source, pull);
 
   if (chosen === "APPROVE" && blocking) {
     consequence.textContent = `overrides ${blocking} blocking`;
     consequence.classList.add("is-warn");
-  } else {
-    consequence.textContent = CONSEQUENCE[chosen];
   }
-
 }

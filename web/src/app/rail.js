@@ -14,13 +14,29 @@ import {
   say,
   tabRow,
   worstTone,
+  MENU_ICON,
+  CLOSE_ICON,
   COPY_ICON,
   COPIED_ICON,
   REDRAFT_ICON,
 } from "./dom.js";
 import { button } from "../ui/button.js";
-import { render } from "../ui/render.js";
+import { render, restyle } from "../ui/render.js";
 import { webUrl } from "../domain/url.js";
+
+/**
+ * Fold the pane's content away, or bring it back. View-only state kept on the
+ * app beside app.filter and app.editing, so a redraw remembers it without a
+ * second place to keep it in step.
+ *
+ * @param {object} app the application
+ * @returns {boolean} the new state
+ */
+export function togglePaneCollapsed(app) {
+  app.paneCollapsed = !app.paneCollapsed;
+
+  return app.paneCollapsed;
+}
 
 /**
  * Draw the whole left pane.
@@ -29,10 +45,43 @@ import { webUrl } from "../domain/url.js";
  * @returns {void}
  */
 export function drawRail(app) {
+  drawPaneToggle(app);
   drawBlurb(app);
   drawSections(app);
   drawKinds(app);
   drawFiles(app);
+}
+
+/**
+ * The mobile-only control that opens and closes the review pane as a drawer
+ * over the page, and the backdrop that comes with it.
+ *
+ * It draws on every platform - the description is cheap and #pane-toggle
+ * matters nowhere it is not display:flex - rather than branching on viewport
+ * width, which is a thing CSS already decided and JS has no business deciding
+ * again.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+function drawPaneToggle(app) {
+  const collapsed = Boolean(app.paneCollapsed);
+  const pane = document.querySelector(".pane");
+
+  if (pane) pane.classList.toggle("is-collapsed", collapsed);
+
+  const backdrop = find("pane-backdrop");
+
+  if (backdrop) backdrop.hidden = collapsed;
+
+  const label = collapsed ? "Show the review menu" : "Hide the review menu";
+  const toggle = restyle(
+    button({ role: "icon", icon: collapsed ? MENU_ICON : CLOSE_ICON, pressed: !collapsed, title: label }),
+    find("pane-toggle"),
+  );
+
+  toggle.setAttribute("aria-label", label);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
 }
 
 function drawBlurb(app) {
@@ -209,7 +258,14 @@ function drawSections(app) {
   // source has rather than a thing the app has.
   const onlyFlagged = Boolean(app.source) && app.queries.isFlaggedOnly(app.source);
 
-  if (draft) {
+  if (pull) {
+    // Drawn whether or not a draft exists yet, and clickable either way: on
+    // mobile this is the only row in an otherwise-empty drawer before the
+    // agent claims the pull request, and with no way to click into it, there
+    // was no way to close the drawer and see the "not started" state
+    // summary.js already draws in the pane underneath - a plain, unclickable
+    // label used to stand here instead, which showed the same word but led
+    // nowhere.
     rows.append(
       tabRow({
         active: app.tab === "summary" && !app.filter.section && !app.filter.kind,
@@ -220,7 +276,9 @@ function drawSections(app) {
         onClick: () => app.show("summary"),
       }),
     );
+  }
 
+  if (draft) {
     for (const section of draft.sections) {
       const active = app.filter.section === section.key;
       const count = app.queries.findingsMatching(app.source, pull, {

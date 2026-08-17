@@ -82,7 +82,7 @@ describe("Triaging an issue the agent drafted", () => {
     assert.equal(await page.text("#staged"), "");
     assert.deepEqual(
       await page.eval(
-        '[...document.querySelectorAll("#verdicts button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
+        '[...document.querySelectorAll("#verdict-popover button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
       ),
       ["DISMISS"],
     );

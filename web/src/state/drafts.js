@@ -213,52 +213,65 @@ export class Drafts {
     };
   }
 
+  // Fired together rather than one after another: against a GitHub source
+  // each read is its own round trip to api.github.com, and loadAll asks for
+  // every draft the source holds. Sequentially that is a wait proportional to
+  // the reader's draft count; together it is bounded by the slowest one. Each
+  // read keeps its own try/catch so one failure marks only its own file,
+  // matching what the sequential loop did file for file.
   async _absorb(paths) {
-    const changed = [];
+    const results = await Promise.all(paths.map((path) => this._absorbOne(path)));
 
-    for (const path of paths) {
-      const key = keyOf(path);
+    return results.filter(Boolean);
+  }
 
-      if (!key) continue;
+  /**
+   * Read and record one draft, as one entry of an `_absorb` batch.
+   *
+   * @param {string} path a path under ROOT
+   * @returns {Promise<string|null>} the key that changed, or null when the
+   *   path is not a draft path at all
+   */
+  async _absorbOne(path) {
+    const key = keyOf(path);
 
-      let bytes;
+    if (!key) return null;
 
-      try {
-        bytes = await this.adapter.read(path);
-      } catch (error) {
-        // Answered exactly the way `load` answers it, because which of the two
-        // ran is only an accident of whether the reader had this pull request
-        // open when the storage faltered. A read that failed is not a draft
-        // that was deleted: forgetting it here takes the ready mark off the
-        // queue row, which reports the storage's outage as the agent having
-        // nothing waiting.
-        this._byKey.set(key, { draft: null, problem: { cause: UNREAD, detail: error.message } });
-        changed.push(key);
-        continue;
-      }
+    let bytes;
 
-      if (!bytes) {
-        this._byKey.delete(key);
-        changed.push(key);
-        continue;
-      }
+    try {
+      bytes = await this.adapter.read(path);
+    } catch (error) {
+      // Answered exactly the way `load` answers it, because which of the two
+      // ran is only an accident of whether the reader had this pull request
+      // open when the storage faltered. A read that failed is not a draft
+      // that was deleted: forgetting it here takes the ready mark off the
+      // queue row, which reports the storage's outage as the agent having
+      // nothing waiting.
+      this._byKey.set(key, { draft: null, problem: { cause: UNREAD, detail: error.message } });
 
-      try {
-        this._byKey.set(key, {
-          draft: parseDraft(JSON.parse(new TextDecoder().decode(bytes))),
-          problem: null,
-        });
-      } catch (error) {
-        this._byKey.set(key, {
-          draft: this._byKey.get(key)?.draft || null,
-          problem: { cause: UNPARSED, detail: error.message },
-        });
-      }
-
-      changed.push(key);
+      return key;
     }
 
-    return changed;
+    if (!bytes) {
+      this._byKey.delete(key);
+
+      return key;
+    }
+
+    try {
+      this._byKey.set(key, {
+        draft: parseDraft(JSON.parse(new TextDecoder().decode(bytes))),
+        problem: null,
+      });
+    } catch (error) {
+      this._byKey.set(key, {
+        draft: this._byKey.get(key)?.draft || null,
+        problem: { cause: UNPARSED, detail: error.message },
+      });
+    }
+
+    return key;
   }
 }
 

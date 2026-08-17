@@ -10,6 +10,8 @@ import { App } from "./app.js";
 import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
+import { inTauriIOS } from "../adapters/tauri.js";
+import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
 import { leaveWords } from "./words.js";
 import { closeConfirm, dismiss, openConfirm, post } from "./confirm.js";
@@ -24,9 +26,9 @@ import {
 } from "./header.js";
 import { closeDescriptionEditor, drawDescription } from "./description-pane.js";
 import { drawDiff } from "./diff-pane.js";
-import { DISMISS, drawFooter } from "./footer.js";
+import { DISMISS, closeVerdictMenu, drawFooter, toggleVerdictMenu } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
-import { drawRail } from "./rail.js";
+import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { closeEditor, drawSummary } from "./summary.js";
 
 // Registered first, before anything that could fail has run. It handles
@@ -39,6 +41,11 @@ backstop(window, say);
 const app = new App({
   install: demoWanted(location.search) ? installDemo : null,
   report: say,
+  // Everywhere else, secrets sit in the same store as every other preference,
+  // as they always have. On the iOS build specifically there is somewhere
+  // sturdier to put a GitHub token than a database any app on the device
+  // could, in principle, be tricked into reading - see keychain.rs.
+  secrets: inTauriIOS() ? new KeychainKeyValueStore() : undefined,
 });
 
 // View-only state, kept on the app beside the rest of what is being looked at
@@ -46,7 +53,14 @@ const app = new App({
 app.editing = false;
 app.editingDescription = false;
 app.editingFinding = null;
+// The confirmation sheet's own summary editor, which is not the pane's: the
+// pane's sits behind the sheet, where nothing can be typed into it.
+app.editingConfirm = false;
 app.addingAt = null;
+// Mobile-only: whether the left pane's content is folded away under its own
+// bar. Meaningless at desktop width, where the pane is always open, but kept
+// here rather than guarded on viewport so a resize never has to reconcile it.
+app.paneCollapsed = false;
 app.setup = newSourceSetup();
 app.destinationSetup = newDestinationSetup();
 // Which item the settings panel's detail is showing: a source, a destination,
@@ -178,6 +192,7 @@ function open(pull) {
   app.editing = false;
   app.editingDescription = false;
   app.editingFinding = null;
+  app.editingConfirm = false;
   app.addingAt = null;
   say("");
 
@@ -195,6 +210,27 @@ find("files-flagged").addEventListener("click", () => {
   if (!app.source) return;
 
   app.commands.showFlaggedOnly(app.source, !app.queries.isFlaggedOnly(app.source));
+  app.changed();
+});
+
+find("comment-prefix").addEventListener("blur", () => {
+  const field = find("comment-prefix");
+
+  if (!app.source || field.value === app.queries.commentPrefixFor(app.source)) return;
+
+  app.commands.setCommentPrefix(app.source, field.value);
+  app.changed();
+});
+
+find("pane-toggle").addEventListener("click", () => {
+  togglePaneCollapsed(app);
+  app.changed();
+});
+
+// The drawer's own way out, the same as every other backdrop in this app:
+// a click outside it is a click meant for what it is covering, not for it.
+find("pane-backdrop").addEventListener("click", () => {
+  togglePaneCollapsed(app);
   app.changed();
 });
 
@@ -240,8 +276,13 @@ find("post").addEventListener("click", () => {
   dismiss(app);
 });
 
-find("verdicts").addEventListener("click", (event) => {
+find("verdict-button").addEventListener("click", () => toggleVerdictMenu());
+find("verdict-backdrop").addEventListener("click", () => closeVerdictMenu());
+
+find("verdict-popover").addEventListener("click", (event) => {
   const button = event.target.closest("button");
+
+  closeVerdictMenu();
 
   if (!button || !app.selected) return;
 
@@ -255,9 +296,20 @@ find("verdicts").addEventListener("click", (event) => {
 find("confirm-post").addEventListener("click", () => post(app));
 find("confirm-cancel").addEventListener("click", () => closeConfirm(app));
 
-find("confirm").addEventListener("click", (event) => {
-  // Clicking the backdrop is a way out, but a click inside the sheet is not.
-  if (event.target === find("confirm")) closeConfirm(app);
+// Clicking the backdrop is a way out, but a click inside the sheet is not -
+// and which one happened is decided by where the press landed, not where the
+// release did. A click event's target is the ancestor the two have in common,
+// so a press inside the sheet that releases over the backdrop reports the
+// backdrop: dragging a selection out of the sheet, or letting go after the
+// sheet has redrawn under the cursor, used to close it.
+let pressedOnBackdrop = false;
+
+find("confirm").addEventListener("mousedown", (event) => {
+  pressedOnBackdrop = event.target === find("confirm");
+});
+
+find("confirm").addEventListener("click", () => {
+  if (pressedOnBackdrop) closeConfirm(app);
 });
 
 find("cheer-close").addEventListener("click", () => (find("celebrate").hidden = true));

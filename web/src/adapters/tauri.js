@@ -41,6 +41,22 @@ export function inTauri() {
 }
 
 /**
+ * Whether the app is running inside the desktop shell's iOS build
+ * specifically - the only platform src-tauri/src/keychain.rs's commands
+ * exist on. Desktop Tauri and a plain browser both answer false, and keep
+ * using whatever secret storage they already had.
+ *
+ * User agent sniffing rather than a platform-detection plugin: this project
+ * adds no JS dependencies, and the webview's own UA already says iPhone/iPad
+ * on that build without one.
+ *
+ * @returns {boolean} true inside the iOS app
+ */
+export function inTauriIOS() {
+  return inTauri() && /iPhone|iPad|iPod/.test(globalThis.navigator?.userAgent || "");
+}
+
+/**
  * Why this computer cannot be used here, if it cannot.
  *
  * A browser tab is not a shortcoming to explain away, so there is no hint: the
@@ -84,7 +100,11 @@ export async function chooseRoot() {
 
 export class TauriAdapter extends Adapter {
   static type = "tauri";
-  static label = "This computer";
+  // Matches FilesystemAdapter's own label deliberately: adapterTypes() only
+  // ever offers one of the two, so whichever one it is should read the same
+  // "a folder on this computer" the reader already understands, not a second
+  // phrase for the same idea.
+  static label = "A folder on this computer";
 
   // The folder is chosen through the native dialog, so there is nothing to ask.
   static fields = [];
@@ -97,7 +117,10 @@ export class TauriAdapter extends Adapter {
   constructor(config = {}) {
     super();
     this._root = config.root || "";
-    this._label = config.label || TauriAdapter.label;
+    // this.constructor rather than TauriAdapter: a subclass with its own
+    // static label (icloud.js's ICloudAdapter) would otherwise fall back to
+    // this one's instead of its own the moment config.label was left unset.
+    this._label = config.label || this.constructor.label;
   }
 
   async ready() {

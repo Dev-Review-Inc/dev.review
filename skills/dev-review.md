@@ -35,8 +35,10 @@ Then sync to git — see "Sync to git" below.
 
 As review input comes in, keep `org--app-42/review.json` up-to-date so the human stays in the loop.
 
-1. **After each lens completes**, overwrite the file with everything so far — sections and findings accumulated to that point, `draftedAt` refreshed, and `progress` updated: `{ "note": "Security review", "percent": 60 }`. Write the note for the human waiting ("Reading the diff", "QA: scenario 2 of 3"), not as an internal state code.
-2. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
+1. **The moment a finding is identified**, write it in — don't hold it until its lens finishes or batch it with others. A human reading mid-review sees what is here now, not what was here as of the last checkpoint.
+2. **After each lens completes** too, overwrite the file with everything so far — sections and findings accumulated to that point, `draftedAt` refreshed, and `progress` updated: `{ "note": "Security review", "percent": 60 }`. Write the note for the human waiting ("Reading the diff", "QA: scenario 2 of 3"), not as an internal state code.
+3. **Before QA starts**, write and sync once more regardless of whether anything changed since the last write. QA is usually the slowest part of a review — a human should never be looking at a draft that is behind by everything QA takes to run, when every finding QA doesn't touch was already sitting there finished.
+4. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
 
 Sync to git after each of these writes too — same section below.
 
@@ -116,4 +118,4 @@ The parts that are easy to get wrong:
 - `video` is stored in `org--app-42/` and must stay inside it. A path that climbs out is refused.
 - **One scenario entry per QA run — one scenario file, one recording.** A run that checks five things is still one entry; listing its checkpoints as separate scenarios makes the app play the same video once per entry. No two entries share a `video`. Several entries mean several runs, each recording copied in under its own name: the runner always writes `qa.mp4`, so a second run left at that name overwrites the first.
 - A scenario with no `verdict` counts as `skip`. Silence is not a pass.
-- `comment` is the body of the review, not the whole review. Keep the findings out of it. If something is related to a diff, use `findings`. Otherwise, use the main `comment`.
+- `comment` is the body of the review, not the whole review, and it defaults to empty. Leave it `""` unless there is something to say that cannot be pinned to a line — everything that can be, goes in `findings` instead, never repeated here as prose. An empty `comment` reads to the reviewer as "the findings carry this review," which is a fine review; do not fill it with a restatement of what the findings already say just to have something written there.

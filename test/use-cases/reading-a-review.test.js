@@ -77,27 +77,67 @@ describe("Deciding what goes out", () => {
     pull = app.open();
   });
 
-  test("a dropped finding is not sent, and is still readable", () => {
+  test("a finding is not sent until the reader opts it in, but is readable either way", () => {
     const [finding] = app.queries.findingsForPull(app.source, pull);
 
-    app.commands.dropFinding(app.source, pull, finding);
+    assert.equal(finding.includedAt, null);
+    assert.equal(finding.body, "The rescue clause now parses and never matches.");
+    assert.deepEqual(app.queries.findingsToPost(app.source, pull), []);
+  });
 
-    const [dropped] = app.queries.findingsForPull(app.source, pull);
-    assert.ok(dropped.droppedAt);
-    assert.equal(dropped.body, "The rescue clause now parses and never matches.");
+  test("including a finding is what puts it in what gets sent", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.includeFinding(app.source, pull, finding);
+
+    const [included] = app.queries.findingsForPull(app.source, pull);
+    assert.ok(included.includedAt);
     assert.deepEqual(
       app.queries.findingsToPost(app.source, pull).map((item) => item.id),
-      ["spec-cannot-fail"],
+      [finding.id],
     );
   });
 
-  test("a dropped finding can be restored", () => {
+  test("an included finding can be excluded again", () => {
     const [finding] = app.queries.findingsForPull(app.source, pull);
-    app.commands.dropFinding(app.source, pull, finding);
+    app.commands.includeFinding(app.source, pull, finding);
 
-    app.commands.restoreFinding(app.source, pull, finding);
+    app.commands.excludeFinding(app.source, pull, finding);
 
-    assert.equal(app.queries.findingsForPull(app.source, pull)[0].droppedAt, null);
+    assert.equal(app.queries.findingsForPull(app.source, pull)[0].includedAt, null);
+  });
+
+  test("the summary is not sent until the reader opts it in, but is readable either way", () => {
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), false);
+    assert.match(app.queries.commentFor(app.source, pull), /\w/);
+    assert.equal(app.queries.commentToPost(app.source, pull), "");
+  });
+
+  test("including the summary is what puts it in what gets sent", () => {
+    app.commands.includeSummary(app.source, pull);
+
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), true);
+    assert.equal(
+      app.queries.commentToPost(app.source, pull),
+      app.queries.commentFor(app.source, pull),
+    );
+  });
+
+  test("an included summary can be excluded again", () => {
+    app.commands.includeSummary(app.source, pull);
+
+    app.commands.excludeSummary(app.source, pull);
+
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), false);
+    assert.equal(app.queries.commentToPost(app.source, pull), "");
+  });
+
+  test("an included summary carries the reader's edit, not the agent's words", () => {
+    app.commands.includeSummary(app.source, pull);
+
+    app.commands.editComment(app.source, pull, "Said my own way.");
+
+    assert.equal(app.queries.commentToPost(app.source, pull), "Said my own way.");
   });
 
   test("editing a finding keeps what the agent wrote", () => {
@@ -109,6 +149,33 @@ describe("Deciding what goes out", () => {
     assert.equal(edited.body, "Say it more kindly.");
     assert.equal(edited.drafted, "The rescue clause now parses and never matches.");
     assert.ok(edited.editedAt);
+  });
+
+  test("rewriting a finding is opting it in - the reader would not bother otherwise", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.editFinding(app.source, pull, finding, "Say it more kindly.");
+
+    const [edited] = app.queries.findingsForPull(app.source, pull);
+    assert.ok(edited.includedAt);
+  });
+
+  test("editing an excluded finding opts it back in", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.includeFinding(app.source, pull, finding);
+    app.commands.excludeFinding(app.source, pull, finding);
+
+    app.commands.editFinding(app.source, pull, finding, "Once more, differently.");
+
+    const [reincluded] = app.queries.findingsForPull(app.source, pull);
+    assert.ok(reincluded.includedAt);
+  });
+
+  test("rewriting the summary is opting it in - the reader would not bother otherwise", () => {
+    app.commands.editComment(app.source, pull, "Said my own way.");
+
+    assert.equal(app.queries.isSummaryIncluded(app.source, pull), true);
+    assert.equal(app.queries.commentToPost(app.source, pull), "Said my own way.");
   });
 
   test("an edit can be put back to what was drafted", () => {
@@ -126,7 +193,7 @@ describe("Deciding what goes out", () => {
     const before = await app.adapter.read("drafts/org--app-42/review.json");
     const [finding] = app.queries.findingsForPull(app.source, pull);
 
-    app.commands.dropFinding(app.source, pull, finding);
+    app.commands.includeFinding(app.source, pull, finding);
     app.commands.editFinding(app.source, pull, finding, "Different.");
     app.commands.editComment(app.source, pull, "A different summary.");
 
@@ -136,7 +203,7 @@ describe("Deciding what goes out", () => {
 
   test("the agent rewriting its draft does not take the reader's decisions with it", async () => {
     const [finding] = app.queries.findingsForPull(app.source, pull);
-    app.commands.dropFinding(app.source, pull, finding);
+    app.commands.includeFinding(app.source, pull, finding);
     app.commands.editFinding(app.source, pull, finding, "Say it more kindly.");
 
     await agentWrites(
@@ -147,7 +214,7 @@ describe("Deciding what goes out", () => {
 
     const reopened = app.open();
     const [after] = app.queries.findingsForPull(app.source, reopened);
-    assert.ok(after.droppedAt);
+    assert.ok(after.includedAt);
     assert.equal(after.body, "Say it more kindly.");
     assert.equal(reopened.draft.summary, "Rewritten by the agent");
   });
@@ -208,19 +275,24 @@ describe("Deciding what goes out", () => {
     assert.equal(app.queries.verdictFor(app.source, mine, "reader"), "COMMENT");
   });
 
-  test("the footer counts only what would actually block a merge", () => {
-    assert.equal(app.queries.blockingCount(app.source, pull), 1);
+  test("the footer counts only what would actually block a merge, and only once opted in", () => {
+    assert.equal(app.queries.blockingCount(app.source, pull), 0);
 
     const [blocking] = app.queries.findingsForPull(app.source, pull);
-    app.commands.dropFinding(app.source, pull, blocking);
+    app.commands.includeFinding(app.source, pull, blocking);
+
+    assert.equal(app.queries.blockingCount(app.source, pull), 1);
+
+    app.commands.excludeFinding(app.source, pull, blocking);
 
     assert.equal(app.queries.blockingCount(app.source, pull), 0);
   });
 
-  test("a finding posted on its own is left out of the review that follows", () => {
-    const [finding] = app.queries.findingsForPull(app.source, pull);
+  test("a finding posted on its own is left out of the review that follows, even if included", () => {
+    const findings = app.queries.findingsForPull(app.source, pull);
 
-    app.commands.recordPostedFinding(app.source, pull, finding, { url: "https://x" });
+    for (const finding of findings) app.commands.includeFinding(app.source, pull, finding);
+    app.commands.recordPostedFinding(app.source, pull, findings[0], { url: "https://x" });
 
     assert.deepEqual(
       app.queries.findingsToPost(app.source, pull).map((item) => item.id),
@@ -229,8 +301,9 @@ describe("Deciding what goes out", () => {
   });
 
   test("what goes to the destination is exactly what the reader was shown", () => {
-    const [first] = app.queries.findingsForPull(app.source, pull);
-    app.commands.dropFinding(app.source, pull, first);
+    const [, second] = app.queries.findingsForPull(app.source, pull);
+    app.commands.includeFinding(app.source, pull, second);
+    app.commands.includeSummary(app.source, pull);
     app.commands.editComment(app.source, pull, "My words.");
 
     const payload = reviewPayload(
@@ -238,7 +311,7 @@ describe("Deciding what goes out", () => {
       {
         commitId: "e612b1b",
         dropped: new Set(),
-        body: app.queries.commentFor(app.source, pull),
+        body: app.queries.commentToPost(app.source, pull),
         event: app.queries.verdictFor(app.source, pull, "reader"),
       },
     );
@@ -261,7 +334,7 @@ describe("Coming back to a review later", () => {
     const pull = app.open();
     const [finding] = app.queries.findingsForPull(app.source, pull);
 
-    app.commands.dropFinding(app.source, pull, finding);
+    app.commands.includeFinding(app.source, pull, finding);
     app.commands.markFile(app.source, pull, "lib/error.rb", true);
     app.commands.collapseFile(app.source, pull, "lib/error.rb", true);
     app.commands.dismissPull(app.source, pull);
@@ -270,7 +343,7 @@ describe("Coming back to a review later", () => {
     await app.state.restore();
 
     const again = app.open();
-    assert.ok(app.queries.findingsForPull(app.source, again)[0].droppedAt);
+    assert.ok(app.queries.findingsForPull(app.source, again)[0].includedAt);
     assert.ok(app.queries.fileState(app.source, again, "lib/error.rb").viewedAt);
     assert.ok(app.queries.fileState(app.source, again, "lib/error.rb").collapsedAt);
     assert.equal(app.queries.queue(app.source, [aPull()]).length, 0);
@@ -306,14 +379,14 @@ describe("Reading the same source from two devices", () => {
 
     const pull = laptop.open();
     const [finding] = laptop.queries.findingsForPull(laptop.source, pull);
-    laptop.commands.dropFinding(laptop.source, pull, finding);
+    laptop.commands.includeFinding(laptop.source, pull, finding);
     await laptop.sync.push(laptop.source);
 
     const taken = await desktop.sync.pull(desktop.source);
 
     assert.ok(taken > 0);
     const there = desktop.open();
-    assert.ok(desktop.queries.findingsForPull(desktop.source, there)[0].droppedAt);
+    assert.ok(desktop.queries.findingsForPull(desktop.source, there)[0].includedAt);
   });
 
   test("taking the same log twice changes nothing", async () => {

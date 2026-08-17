@@ -2,7 +2,7 @@
 
 A draft is one JSON file in a draft source: the storage the app reads drafts from. Writing that file is the only way anything gets into the app: there is no API, no upload, and no notification. An agent writes a file, the app notices it, and shows it.
 
-The path is derived, not discovered. Each pull request owns one directory, its draft at `review.json` inside:
+The path is derived, not discovered. Each pull request — or issue: the two share one number sequence per repository, so a number names exactly one of them — owns one directory, its draft at `review.json` inside:
 
 ```text
 <owner>--<repo>-<number>/review.json
@@ -69,12 +69,16 @@ so `org/app#42` is `org--app-42/review.json`. Media the draft refers to — QA r
 | `draftedAt` | no | ISO 8601 timestamp of the most recent write — including an in-progress one. |
 | `finishedAt` | no | ISO 8601 timestamp set only on the write that finishes the review. Absent while still in progress, however much of `sections` and `findings` has landed so far. |
 | `progress` | no | Where an unfinished review has got to: `{ "note": "QA: scenario 2 of 3", "percent": 60 }`. Both parts optional. Refresh it on each incremental write; it is ignored once `finishedAt` is set. |
-| `verdict` | yes | `APPROVE`, `COMMENT` or `REQUEST_CHANGES` — a GitHub review event, used verbatim. |
+| `verdict` | see below | `APPROVE`, `COMMENT` or `REQUEST_CHANGES` — a GitHub review event, used verbatim. A pull request review carries one; an issue draft carries none. |
 | `summary` | no | One line, plain text. What the reviewer would say in a sentence. Not posted. |
 | `sections` | no | How the review is organised. Shown in the verdict pane and used as its filters. Not posted. |
 | `findings` | no | The individual comments, each anchored to a file and line. Posted as inline review comments, minus any the reader drops. |
 | `qa` | no | Evidence from actually running the change. Not posted. |
-| `comment` | no | Markdown, posted as the review's body. Empty is legitimate: the findings can be the whole review. |
+| `comment` | no | Markdown, posted verbatim: the review's body on a pull request, the one comment on an issue. Empty is legitimate on a review: the findings can be the whole review. |
+| `description` | no | Issues. The proposed replacement body of the ticket, whole, as markdown. The app diffs it against the live body and the reader keeps or rejects each hunk. |
+| `close` | no | Issues. `{ "reason": "duplicate", "of": 482 }` — a proposal to close the ticket. `reason` is `duplicate`, `not_planned` or `completed`; `of` names the surviving ticket and only `duplicate` takes one. The reader can drop the close and still post the rest. |
+
+A draft must propose at least one thing the reader could post: a `verdict`, a `description`, a `close`, or a non-empty `comment`. One that proposes none of them is refused as having nothing to send.
 
 ## Sections
 
@@ -153,6 +157,31 @@ Each scenario:
 
 Videos are just files an agent writes next to its draft. An agent that wants them presented on their own can emit a section for them and point its findings there; the app needs no special mode for that.
 
+## Issues
+
+An issue draft is the same file with a different proposal in it. There is no
+`kind` field and no second filename: the target says which it is, because the
+app asks GitHub, and a number is an issue or a pull request, never both.
+
+What changes is what the draft proposes. No `verdict` — there is no code to
+judge. Instead:
+
+- **`description`** is the ticket's body as the agent believes it should read,
+  whole. The app fetches the live body at read time and cuts the proposal into
+  hunks against it, so staleness is not a special case: if the ticket moved
+  since the draft was written, the diff simply shows what the proposal would
+  change about today's text. The reader rejects hunks, edits the result by
+  hand, and the final body is recomputed from what they kept. Posting patches
+  the body — after fetching it once more and refusing if it moved again.
+- **`comment`** is the one comment the agent would leave, exact markdown.
+- **`close`** proposes closing the ticket, performed after the comment so a
+  `Duplicate of #482` comment lands before the state changes.
+
+`findings` have no meaning on an issue — they anchor to a file and a diff line —
+so an issue draft leaves them out. `summary`, `sections`, `qa` and `progress`
+carry over unchanged: a reproduction run recorded against a bug report is the
+same evidence a review's QA is.
+
 ## Where drafts live
 
 A draft source is a name and a piece of storage the customer already owns: a
@@ -188,6 +217,12 @@ older version of this app wrote them, is still read correctly.
 ## Changing this schema
 
 `schema` exists so that a change is loud. Adding an optional field needs no version bump. Removing a field, renaming one, or changing the meaning of an existing one is a bump, and the app refuses anything it does not recognise — which it says plainly rather than showing a blank pane.
+
+Issue support arrived without a bump, and deliberately: `description` and
+`close` are new optional fields, and `verdict` went from required to one
+proposal among several. Every draft the old rule accepted still parses to the
+same thing; a new issue draft handed to an old client is refused with a plain
+error rather than misread, which is the behaviour a bump exists to buy.
 
 ### 3 — findings and QA become data
 

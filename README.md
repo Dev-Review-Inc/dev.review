@@ -27,8 +27,8 @@ Then open <http://localhost:8080/?demo=1>.
 That attaches two sample sources, a tour and a real review of a real commit in
 this repository, plus a destination that posts nowhere and says so
 ([`web/src/app/demo.js`](web/src/app/demo.js)). No agent, no token, no folder.
-Drop a finding and reload: it stays dropped, because the event log underneath is
-the real one. The site at [dev.review](https://dev.review) runs the same thing
+Include a finding and reload: it stays included, because the event log underneath
+is the real one. The site at [dev.review](https://dev.review) runs the same thing
 in a frame.
 
 ## Why it is built this way
@@ -62,7 +62,7 @@ one file per device under `.reviewer/events/`
 ([`web/src/state/sync.js`](web/src/state/sync.js)). Events are immutable and
 carry the time they happened, so absorbing one twice is a no-op and absorbing
 them out of order lands on the same state. Read a review on the laptop, finish
-it on the desktop, and the drops and edits are already there.
+it on the desktop, and the inclusions and edits are already there.
 
 ### Zero JavaScript dependencies
 
@@ -88,10 +88,11 @@ endpoint. The left rail lists every pass the agent made with its finding count,
 including Query cost, ticked with nothing flagged. In the diff the deleted
 where clause is struck through in red, and a finding card hangs under
 src/api/orders.js:42 explaining that the limit is unbounded, carrying a
-suggested change marked committable and Edit, Post this comment and Drop
-buttons. The footer reads five comments staged, two blocking and three notes,
-with Request changes
-selected.](docs/media/review-diff-finding.png)
+suggested change marked committable and Edit, Post this comment and Include
+controls. Include is ticked on it and the card wears an accent edge for it,
+while the card below at src/api/orders.js:45 is left unticked and plain. The
+footer reads one comment staged, zero blocking and one note, beside a Request
+changes button.](docs/media/review-diff-finding.png)
 
 **A change arrives because it is waiting on you.** The app asks GitHub which
 pull requests await your review and which are your own, and shows them in one
@@ -111,8 +112,8 @@ drawn per file, collapsible, with adds and deletes and a viewed tick that
 persists. Click any new-side line number to write a finding of your own
 ([`web/src/app/findings.js`](web/src/app/findings.js)).
 
-**Editing is yours.** Edit a finding, drop it, restore it, or revert it to what
-the agent drafted. Click the summary to rewrite it. The draft file is never
+**Editing is yours.** Edit a finding, include it in the review, take it back out,
+or revert it to what the agent drafted. Click the summary to rewrite it. The draft file is never
 written to: your decisions are events laid over it, so the agent can rewrite its
 draft while you are part way through reading and neither of you loses anything.
 

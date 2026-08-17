@@ -50,9 +50,9 @@ describe("clearing the draft on the pull request being read", () => {
 
   test("leaves the reader's decisions standing, for the redraft to land on", async () => {
     const { app, adapter } = await reading();
-    const dropped = app.queries.findingsForPull(app.source, app.selected)[0];
+    const included = app.queries.findingsForPull(app.source, app.selected)[0];
 
-    app.commands.dropFinding(app.source, app.selected, dropped);
+    app.commands.includeFinding(app.source, app.selected, included);
 
     await app.clearDraft();
     await agentWrites(adapter, aDraft({ summary: "Second look." }));
@@ -60,8 +60,33 @@ describe("clearing the draft on the pull request being read", () => {
 
     const again = app.queries.findingsForPull(app.source, app.selected)[0];
 
-    assert.equal(again.id, dropped.id);
-    assert.ok(again.droppedAt);
+    assert.equal(again.id, included.id);
+    assert.ok(again.includedAt);
+  });
+});
+
+describe("clearing the draft on a pull request already posted", () => {
+  test("forgets the post, so the buttons and the comment box unlock for the fresh review", async () => {
+    const { app } = await reading();
+
+    await app.commands.recordPostedReview(app.source, app.selected, {
+      url: "https://github.com/org/app/pull/42#pullrequestreview-1",
+      event: "COMMENT",
+    });
+
+    assert.ok(app.queries.isPosted(app.source, app.selected), "setup: expected the review to read as posted");
+
+    await app.clearDraft();
+
+    assert.equal(app.queries.isPosted(app.source, app.selected), false);
+  });
+
+  test("leaves an unposted pull request's decisions alone", async () => {
+    const { app } = await reading();
+
+    await app.clearDraft();
+
+    assert.equal(app.queries.isPosted(app.source, app.selected), false);
   });
 });
 

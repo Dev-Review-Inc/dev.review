@@ -8,7 +8,7 @@
 // draft mid-read without touching what the reader decided.
 
 import { draftKey } from "../domain/draft-path.js";
-import { bodyOf } from "../domain/review.js";
+import { bodyOf, withPrefix } from "../domain/review.js";
 
 // A finding the reader wrote themselves belongs to the pull request it names.
 const SORT_BY_NAME = (a, b) => String(a.name || "").localeCompare(String(b.name || ""));
@@ -23,6 +23,33 @@ const DISMISSED_WINDOW = 7 * 24 * 60 * 60 * 1000;
 
 // There is one of these per source, so it needs a name rather than an id.
 export const READING = "reading";
+
+/**
+ * A pull request's identity, recovered from the key its decisions are filed
+ * under, for one the destination has stopped listing.
+ *
+ * Owner, repository and number are all a diff or a head commit ever asks of a
+ * pull request, so the title going unknown does not stop either from loading -
+ * only the row loses a name until the reader opens it.
+ *
+ * @param {string} key what {@link draftKey} produced
+ * @returns {object} enough of a pull request to read
+ */
+function pullFromKey(key) {
+  const [, owner, repo, number] = /^(.+)\/(.+)#(\d+)$/.exec(key) || [];
+
+  return {
+    owner,
+    repo,
+    number: Number(number),
+    title: "",
+    author: "",
+    url: `https://github.com/${owner}/${repo}/pull/${number}`,
+    updatedAt: "",
+    createdAt: "",
+    isRequested: false,
+  };
+}
 
 export class Queries {
   /**
@@ -94,6 +121,12 @@ export class Queries {
    * mis-hit sometimes, and a row that simply vanishes leaves a reader with
    * nothing to undo.
    *
+   * Read from what this app decided, not from the destination's own queue.
+   * Answering a review request is exactly what takes a pull request off that
+   * queue, so filtering the destination's list the way {@link queue} does
+   * would drop a pull request from this one the moment it is dismissed the
+   * way most of them are: by posting.
+   *
    * Newest first: the one to put back is almost always the one just dismissed.
    *
    * Only the last week of them. A dismissal older than that is a decision the
@@ -104,16 +137,29 @@ export class Queries {
    * expire the dismissal: the event stays in the log, still syncs, and still
    * keeps its pull request out of {@link queue} for good.
    *
+   * Each entry carries `restorable`: whether the destination still lists the
+   * pull request anywhere this app could put it back on the queue. Restoring
+   * clears the one field keeping a pull request in this list, so restoring
+   * one the destination has stopped listing would not put it back on the
+   * queue - it would only make it disappear from here too, with no way back.
+   *
    * @param {object} source the source being read
-   * @param {object[]} pulls what the destination said is waiting
+   * @param {object[]} pulls what the destination said is waiting, for whichever
+   *   of these it still lists
    * @param {number} [now] the moment to measure the week back from
    * @returns {object[]} the recently dismissed ones, each carrying its state
    */
   dismissed(source, pulls, now = Date.now()) {
     const since = now - DISMISSED_WINDOW;
+    const live = new Map(pulls.map((pull) => [draftKey(pull.owner, pull.repo, pull.number), pull]));
 
-    return pulls
-      .map((pull) => this.pullState(source, pull))
+    return this.state
+      .findAll(source.id, "pulls")
+      .map((decision) => {
+        const pull = live.get(decision.id);
+
+        return { ...this.pullState(source, pull || pullFromKey(decision.id)), restorable: Boolean(pull) };
+      })
       .filter((entry) => entry.dismissedAt && entry.dismissedAt > since)
       .sort((a, b) => b.dismissedAt - a.dismissedAt);
   }
@@ -178,8 +224,12 @@ export class Queries {
   /**
    * Whether the reader has already sent this review.
    *
-   * The event log is the record, not the draft. A posted review that the agent
-   * later redrafts is still posted.
+   * The event log is the record, not the draft: an agent quietly rewriting
+   * its draft (new commits landing, a scheduled sweep re-running) does not
+   * un-post a review the reader already sent. Asking for a fresh draft from
+   * inside the app is different - see commands.forgetPost, fired from the
+   * same action that throws the old draft away - because that is the reader
+   * saying the posted review no longer describes what is here.
    *
    * @param {object} source the source being read
    * @param {object} pull the pull request
@@ -220,6 +270,34 @@ export class Queries {
     const edited = this._pullDecision(source, pull.key).comment;
 
     return edited === null || edited === undefined ? pull.draft?.comment || "" : edited;
+  }
+
+  /**
+   * Whether the reader has put the review body in what gets sent.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {boolean} whether the summary is included
+   */
+  isSummaryIncluded(source, pull) {
+    return Boolean(this._pullDecision(source, pull.key).summaryIncludedAt);
+  }
+
+  /**
+   * The review body this send would actually carry: the words on screen, or
+   * nothing at all while the reader has not opted them in.
+   *
+   * Without the reader's prefix, on purpose: this is also what {@link
+   * reviewPayload} takes as `options.body`, and that is where the prefix is
+   * applied - to it and to every comment alike, in the one place responsible
+   * for both. Applying it here too would send it twice.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {string} markdown
+   */
+  commentToPost(source, pull) {
+    return this.isSummaryIncluded(source, pull) ? this.commentFor(source, pull) : "";
   }
 
   /**
@@ -301,13 +379,17 @@ export class Queries {
   /**
    * The findings that would actually be posted with the review.
    *
+   * Opt-in: a finding the reader has not said yes to is exactly as absent
+   * from what gets sent as one the agent never drafted. Silence is never
+   * agreement here, the same way an unchecked box never submits a form.
+   *
    * @param {object} source the source being read
    * @param {object} pull the pull request
    * @returns {object[]} the findings to send
    */
   findingsToPost(source, pull) {
     return this.findingsForPull(source, pull).filter(
-      (finding) => !finding.droppedAt && !finding.postedAt,
+      (finding) => finding.includedAt && !finding.postedAt,
     );
   }
 
@@ -319,11 +401,13 @@ export class Queries {
    * must say the same thing. A committable suggestion is the difference between
    * a comment someone reads and a fix they apply in one click.
    *
+   * @param {object} source the source being read
    * @param {object} finding the finding being posted
    * @returns {string} the markdown to send
    */
-  bodyToPost(finding) {
-    return bodyOf(finding);
+  bodyToPost(source, finding) {
+    // The prefix marks the agent's words; one the reader rewrote is theirs.
+    return withPrefix(finding.editedAt ? "" : this.commentPrefixFor(source), bodyOf(finding));
   }
 
   /**
@@ -367,6 +451,17 @@ export class Queries {
    */
   isFlaggedOnly(source) {
     return Boolean(this._object(source, "preferences", READING).flaggedOnlyAt);
+  }
+
+  /**
+   * What the reader wants ahead of the review body and every comment, empty
+   * when they have not configured one.
+   *
+   * @param {object} source the source being read
+   * @returns {string} the prefix
+   */
+  commentPrefixFor(source) {
+    return this._object(source, "preferences", READING).commentPrefix || "";
   }
 
   /**
@@ -426,7 +521,7 @@ export class Queries {
       drafted: edited ? finding.body : null,
       body: edited ? decision.body : finding.body,
       editedAt: decision.editedAt || null,
-      droppedAt: decision.droppedAt || null,
+      includedAt: decision.includedAt || null,
       postedAt: decision.postedAt || null,
       postedUrl: decision.postedUrl || "",
       mine: false,
@@ -445,7 +540,7 @@ export class Queries {
         suggestion: null,
         drafted: null,
         ...finding,
-        droppedAt: finding.droppedAt || null,
+        includedAt: finding.includedAt || null,
         postedAt: finding.postedAt || null,
         postedUrl: finding.postedUrl || "",
         mine: true,

@@ -17,9 +17,10 @@ export class MultiEventStore {
    * @param {object} options how the stores are built
    * @param {object} options.runners the reducers every log shares
    * @param {(name: string) => object} options.database makes a key value store
+   * @param {object} [options.secrets] a KeyValueStore for secrets specifically, in place of `database`'s config store - see keychain-key-value-store.js
    * @param {string} [options.name] prefix for the underlying databases
    */
-  constructor({ runners, database, name = "reviewer" }) {
+  constructor({ runners, database, secrets, name = "reviewer" }) {
     this._runners = runners;
     this._database = database || (() => new MemoryKeyValueStore());
     this._name = name;
@@ -30,6 +31,10 @@ export class MultiEventStore {
     // open and whether the flagged filter is on are not decisions worth a
     // history, and a credential must never be in something that syncs.
     this._config = this._database(`${name}-config`);
+    // Secrets default to living in that same config store, as they always
+    // have - `secrets` exists for a platform with somewhere sturdier to put
+    // them than the store everything else's preferences already share.
+    this._secrets = secrets || this._config;
   }
 
   /**
@@ -177,7 +182,7 @@ export class MultiEventStore {
    * @returns {Promise<object>} the secret, or an empty object
    */
   async secret(id) {
-    return (await this._config.getItem(`secret:${id}`)) || {};
+    return (await this._secrets.getItem(`secret:${id}`)) || {};
   }
 
   /**
@@ -186,7 +191,7 @@ export class MultiEventStore {
    * @returns {Promise<void>} when it is written
    */
   async setSecret(id, value) {
-    await this._config.setItem(`secret:${id}`, value);
+    await this._secrets.setItem(`secret:${id}`, value);
   }
 
   /**
@@ -194,7 +199,7 @@ export class MultiEventStore {
    * @returns {Promise<void>} when it is gone
    */
   async forgetSecret(id) {
-    await this._config.removeItem(`secret:${id}`);
+    await this._secrets.removeItem(`secret:${id}`);
   }
 
   _store(id) {
