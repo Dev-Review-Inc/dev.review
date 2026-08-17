@@ -113,9 +113,9 @@ export function finishedPulls(events) {
  * Delete every draft (and its media — qa.mp4, frames/, whatever sits beside
  * review.json) whose pull request is finished.
  *
- * Only removes files on disk. Committing and pushing the deletion is the
- * sweep's job, reusing the same "Sync to git" step a draft write already
- * goes through.
+ * Only removes files on disk. Making the deletion visible to whatever reads
+ * the storage is the sweep's job, reusing the same "Leave the storage synced"
+ * step a draft write already goes through.
  *
  * @param {string} draftsDir the drafts directory
  * @returns {string[]} pull keys whose draft was deleted

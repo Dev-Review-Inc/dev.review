@@ -117,3 +117,33 @@ test("leaves an unprefixed send exactly as it was", () => {
 test("does not prefix a review body the reader opted out of", () => {
   assert.strictEqual(payload({ prefix: "[bot-assisted]", body: "" }).body, "");
 });
+
+test("does not prefix a review body the reader rewrote", () => {
+  const body = payload({ prefix: "[bot-assisted]", body: "my own words", bodyEdited: true });
+
+  assert.strictEqual(body.body, "my own words");
+  // The findings are untouched, so they still carry the agent's mark.
+  assert.strictEqual(body.comments[0].body, "[bot-assisted] never matches");
+});
+
+test("does not prefix a finding the reader rewrote", () => {
+  const edited = {
+    ...DRAFT,
+    findings: [
+      { ...DRAFT.findings[0], body: "my sharper point", editedAt: "2026-08-17T10:00:00Z" },
+      DRAFT.findings[1],
+    ],
+  };
+
+  const body = reviewPayload(edited, {
+    commitId: "e612b1b",
+    dropped: new Set(),
+    prefix: "[bot-assisted]",
+  });
+
+  assert.strictEqual(body.comments[0].body, "my sharper point");
+  assert.strictEqual(
+    body.comments[1].body,
+    "[bot-assisted] cannot fail\n\n```suggestion\nexpect(x).to be < Y\n```",
+  );
+});

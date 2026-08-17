@@ -31,6 +31,7 @@ export class EventStore {
     this._db = db || new MemoryKeyValueStore();
     this._runners = runners;
     this._state = {};
+    this._clock = 0;
     this._keys = new Set();
     this._events = [];
     this._writing = new Set();
@@ -64,6 +65,10 @@ export class EventStore {
     const when = time === undefined ? this._nextLocalTime() : time;
 
     const event = new EventStoreEvent(collection, objectId || crypto.randomUUID(), action, data, when);
+
+    // The key leads with the time, so two decisions in one millisecond would
+    // share an identity and replay out of order: the local clock never repeats.
+    if (time === undefined) event.time = this._clock = Math.max(event.time, this._clock + 1);
 
     this._apply(event);
     this._write(event);

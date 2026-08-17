@@ -75,6 +75,26 @@ describe("commenting or requesting changes before the draft finishes", () => {
   });
 });
 
+// Approving implies having read the whole review, so it alone waits on the
+// draft finishing. A comment or a request for changes can be about the part
+// already drafted, and does not claim to have seen the rest.
+describe("commenting or requesting changes before the draft finishes", () => {
+  test("can be sent while the agent is still writing", () => {
+    assert.equal(commitButton(drafting, "COMMENT", false).disabled, false);
+    assert.equal(commitButton(drafting, "REQUEST_CHANGES", false).disabled, false);
+  });
+
+  test("still waits on a draft, and on not already having sent it", () => {
+    assert.equal(commitButton(undrafted, "COMMENT", false).disabled, true);
+    assert.equal(commitButton(drafting, "COMMENT", true).disabled, true);
+  });
+
+  test("approving still waits for the draft to finish", () => {
+    assert.equal(commitButton(drafting, "APPROVE", false).disabled, true);
+    assert.equal(commitButton(drafted, "APPROVE", false).disabled, false);
+  });
+});
+
 describe("with dismiss chosen", () => {
   test("says what it will do, which is not posting", () => {
     assert.equal(commitButton(undrafted, DISMISS, false).label, "Dismiss");
@@ -101,6 +121,31 @@ describe("what the send button wears", () => {
   test("the verdict's own colour, when it has one", () => {
     assert.deepEqual(commitLook("APPROVE"), { role: "primary", tone: "ok" });
     assert.deepEqual(commitLook("REQUEST_CHANGES"), { role: "primary", tone: "critical" });
+  });
+});
+
+describe("whether a choice is offered in the footer", () => {
+  test("dismiss is offered on someone else's pull request", () => {
+    assert.equal(choiceHidden(DISMISS, false), false);
+  });
+
+  test("dismiss is offered on the reader's own pull request too", () => {
+    assert.equal(choiceHidden(DISMISS, true), false);
+  });
+
+  test("a verdict other than a comment is withheld on the reader's own pull request", () => {
+    assert.equal(choiceHidden("APPROVE", true), true);
+    assert.equal(choiceHidden("REQUEST_CHANGES", true), true);
+  });
+
+  test("a comment is offered even on the reader's own pull request", () => {
+    assert.equal(choiceHidden("COMMENT", true), false);
+  });
+
+  test("every verdict is offered on someone else's pull request", () => {
+    assert.equal(choiceHidden("APPROVE", false), false);
+    assert.equal(choiceHidden("REQUEST_CHANGES", false), false);
+    assert.equal(choiceHidden("COMMENT", false), false);
   });
 });
 

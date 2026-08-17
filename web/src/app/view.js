@@ -24,6 +24,7 @@ import {
   toggleQueue,
   toggleSetup,
 } from "./header.js";
+import { closeDescriptionEditor, drawDescription } from "./description-pane.js";
 import { drawDiff } from "./diff-pane.js";
 import { DISMISS, closeVerdictMenu, drawFooter, toggleVerdictMenu } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
@@ -50,6 +51,7 @@ const app = new App({
 // View-only state, kept on the app beside the rest of what is being looked at
 // rather than in a second state object the panes would have to keep in step.
 app.editing = false;
+app.editingDescription = false;
 app.editingFinding = null;
 // The confirmation sheet's own summary editor, which is not the pane's: the
 // pane's sits behind the sheet, where nothing can be typed into it.
@@ -107,6 +109,7 @@ function render() {
   drawTab();
   drawSummary(app);
   drawDiff(app);
+  drawDescription(app);
   drawQa(app);
   drawFooter(app);
 
@@ -117,6 +120,7 @@ function render() {
 function drawTab() {
   find("tab-summary").hidden = app.tab !== "summary";
   find("tab-diff").hidden = app.tab !== "diff";
+  find("tab-description").hidden = app.tab !== "description";
   find("tab-qa").hidden = app.tab !== "qa";
 }
 
@@ -186,6 +190,7 @@ function restorePlace(places) {
  */
 function open(pull) {
   app.editing = false;
+  app.editingDescription = false;
   app.editingFinding = null;
   app.editingConfirm = false;
   app.addingAt = null;
@@ -249,6 +254,18 @@ find("editor").addEventListener("blur", () => {
   }
 
   afterClick(() => closeEditor(app));
+});
+
+// The ticket body's editor keeps its words the same way the summary's does:
+// leaving the box is what keeps them.
+find("description-editor").addEventListener("blur", () => {
+  if (!pressing) {
+    closeDescriptionEditor(app);
+
+    return;
+  }
+
+  afterClick(() => closeDescriptionEditor(app));
 });
 
 find("post").addEventListener("click", () => {

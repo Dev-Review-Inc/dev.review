@@ -49,7 +49,10 @@ export function withPrefix(prefix, body) {
  * @param {Set<string>} options.dropped ids of findings not to post
  * @param {string} [options.body] the review body, if it was edited
  * @param {string} [options.event] the verdict, if it was overridden
- * @param {string} [options.prefix] the reader's prefix, ahead of the body and every comment
+ * @param {string} [options.prefix] the reader's prefix, ahead of the body and every comment.
+ *   It marks the agent's words, so anything the reader rewrote goes without it:
+ *   a finding carrying `editedAt`, and the body when `options.bodyEdited`.
+ * @param {boolean} [options.bodyEdited] whether the reader rewrote the body
  * @returns {object} the body for POST /repos/{owner}/{repo}/pulls/{n}/reviews
  * @throws {Error} if there is nothing to post at all, or the verdict is not an event
  */
@@ -68,7 +71,7 @@ export function reviewPayload(draft, options) {
       line: finding.line,
       // Findings anchor to the file's new state, which is GitHub's RIGHT side.
       side: "RIGHT",
-      body: withPrefix(options.prefix, bodyOf(finding)),
+      body: withPrefix(finding.editedAt ? "" : options.prefix, bodyOf(finding)),
     }));
 
   // An empty body is fine when the findings carry the review; a review with
@@ -77,7 +80,7 @@ export function reviewPayload(draft, options) {
     throw new Error("refusing to post an empty review");
   }
 
-  const prefixedBody = withPrefix(options.prefix, body);
+  const prefixedBody = withPrefix(options.bodyEdited ? "" : options.prefix, body);
 
   // An empty comments array is rejected, so a review with nothing inline is
   // sent as a plain review instead of one carrying no comments.

@@ -5,9 +5,18 @@ import { reviewPayload, withPrefix } from "../domain/review.js";
 import { element, find, say } from "./dom.js";
 import { button } from "../ui/button.js";
 import { restyle } from "../ui/render.js";
+import { descriptionPlan } from "./description-pane.js";
 import { findingCard } from "./findings.js";
-import { VERDICT_TONE } from "./footer.js";
+import { VERDICT_TONE, closeWords } from "./footer.js";
+import { reviewText } from "./summary.js";
 import { dismissedWords, postLabel, postNote, postedWords } from "./words.js";
+
+// The one line the sheet and the footer both say about the rewrite.
+function planWords(plan) {
+  return plan.changed
+    ? `description: ${plan.kept} of ${plan.total} changes kept`
+    : "description unchanged";
+}
 
 /**
  * Put the confirmation sheet back to a state it can be used from.
@@ -51,16 +60,26 @@ export function openConfirm(app) {
 
   if (!pull || !pull.draft) return;
 
+  find("confirm-target").textContent = `${pull.owner}/${pull.repo}#${pull.number}`;
+
+  const verdict = find("confirm-verdict");
+
+  // An issue carries no verdict, so the badge would only ever wear a guess.
+  verdict.hidden = Boolean(pull.isIssue);
+
+  if (pull.isIssue) {
+    openTriageConfirm(app);
+
+    return;
+  }
+
   const event = app.queries.verdictFor(app.source, pull, app.login);
   const posting = app.queries.findingsToPost(app.source, pull);
 
-  const verdict = find("confirm-verdict");
   verdict.textContent = event.replace("_", " ");
   verdict.className = `verdict-badge mono is-${VERDICT_TONE[event] || "neutral"}`;
 
   const summary = app.queries.commentToPost(app.source, pull);
-
-  find("confirm-target").textContent = `${pull.owner}/${pull.repo}#${pull.number}`;
 
   // Said by listing what is actually in this send. A summary the reader never
   // opted in is not in it, and a sheet that claims otherwise is describing a
@@ -86,10 +105,13 @@ export function openConfirm(app) {
   // Shown with the prefix already leading it, because this is the one place
   // that promises to say exactly what would be sent - the summary box still
   // edits the reader's own words alone, unprefixed, so saving an edit here
-  // can never write the prefix into the stored comment.
+  // can never write the prefix into the stored comment. The prefix marks the
+  // agent's words, so a body the reader rewrote goes without it, and each
+  // finding decides for itself the same way.
   const prefix = app.queries.commentPrefixFor(app.source);
+  const bodyPrefix = app.queries.isCommentEdited(app.source, pull) ? "" : prefix;
 
-  if (summary) preview.append(summaryBox(app, pull, summary, prefix));
+  if (summary) preview.append(summaryBox(app, pull, summary, bodyPrefix));
 
   for (const finding of posting) {
     preview.append(findingCard(app, pull, finding, { snippet: true, actions: false, prefix }));
@@ -98,6 +120,93 @@ export function openConfirm(app) {
   find("confirm-note").textContent = postNote(app);
   find("confirm").hidden = false;
   settle(app);
+}
+
+/**
+ * Show exactly what a triage would send: the comment, and one line saying what
+ * happens to the ticket's body.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+function openTriageConfirm(app) {
+  const pull = app.selected;
+  const plan = descriptionPlan(app);
+  const comment = reviewText(app);
+  const close = pull.draft.close;
+  const dropped = close ? app.queries.closeDropped(app.source, pull) : false;
+
+  find("confirm-count").textContent = [
+    comment.trim() ? "posts a comment" : "posts no comment",
+    planWords(plan),
+    ...(close ? [closeWords(close, dropped)] : []),
+  ].join(" · ");
+
+  const preview = find("confirm-preview");
+
+  // Shown with the prefix already leading it, the same promise the review
+  // sheet makes: this is exactly what would be sent - and an edited comment
+  // is the reader's own words, which the agent's mark does not lead.
+  preview.innerHTML = renderBody(withPrefix(triagePrefix(app, pull), comment));
+  preview.append(element("div", "description-plan mono", planWords(plan)));
+
+  if (close) preview.append(closeLine(app, pull, close, dropped));
+
+  find("confirm-note").textContent = postNote(app);
+  find("confirm").hidden = false;
+  settle(app);
+}
+
+/**
+ * The prefix a triage send carries: the reader's, unless the comment is
+ * already the reader's own words.
+ *
+ * @param {object} app the application
+ * @param {object} pull the open issue
+ * @returns {string} the prefix, or nothing
+ */
+function triagePrefix(app, pull) {
+  return app.queries.isCommentEdited(app.source, pull)
+    ? ""
+    : app.queries.commentPrefixFor(app.source);
+}
+
+/**
+ * The close as one line on the sheet, with the decision beside it.
+ *
+ * The control lives here rather than in the footer because this app puts
+ * decisions on the content they decide - findings carry their own Drop, hunks
+ * their own Reject - and the sheet's plan line is the one place the close is
+ * stated as content. The verbs are the findings' own: Drop, and Restore.
+ *
+ * @param {object} app the application
+ * @param {object} pull the open issue
+ * @param {{reason: string, of: number|null}} close the draft's proposal
+ * @param {boolean} dropped whether the reader left the close out
+ * @returns {HTMLElement} the line
+ */
+function closeLine(app, pull, close, dropped) {
+  const line = element("div", "description-plan mono close-plan", "");
+
+  line.append(element("span", "", closeWords(close, dropped)), element("span", "spacer", ""));
+
+  const toggle = document.createElement("button");
+
+  toggle.className = "hunk-toggle";
+  toggle.textContent = dropped ? "Restore" : "Drop";
+  toggle.addEventListener("click", async () => {
+    if (dropped) app.commands.restoreClose(app.source, pull);
+    else app.commands.dropClose(app.source, pull);
+
+    // The sheet is drawn imperatively, so the redraw the reselect triggers
+    // does not reach it: it is reopened over the decision just made.
+    await app.reselect();
+    openConfirm(app);
+  });
+
+  line.append(toggle);
+
+  return line;
 }
 
 /**
@@ -197,6 +306,8 @@ export async function post(app) {
     app.editing = false;
   }
 
+  if (pull.isIssue) return postTriage(app, pull);
+
   try {
     const event = app.queries.verdictFor(app.source, pull, app.login);
 
@@ -212,6 +323,7 @@ export async function post(app) {
         body: app.queries.commentToPost(app.source, pull),
         event,
         prefix: app.queries.commentPrefixFor(app.source),
+        bodyEdited: app.queries.isCommentEdited(app.source, pull),
       },
     );
 
@@ -226,6 +338,96 @@ export async function post(app) {
     say(failure.message, "error");
     settle(app);
     find("confirm-note").textContent = "nothing has been sent";
+  }
+}
+
+/**
+ * Send the triage: the rewrite first, then the comment, then the record.
+ *
+ * The rewrite replaces the whole body, so it alone gets a guard: the ticket is
+ * fetched again at the last moment, and one that moved since the reader read
+ * it is re-read rather than overwritten - the sheet closes, the pane rediffs
+ * against what is actually there, and the reader's kept and rejected hunks
+ * carry over on their content ids.
+ *
+ * Nothing is recorded until everything staged has landed. A patch that went
+ * out before a comment was refused stays honest either way: re-patching the
+ * same body is idempotent, so the retry the queue offers is safe.
+ *
+ * @param {object} app the application
+ * @param {object} pull the open issue
+ * @returns {Promise<void>} when it has landed, or failed out loud
+ */
+async function postTriage(app, pull) {
+  let patched = null;
+  let commented = null;
+  let commentStaged = false;
+
+  try {
+    const plan = descriptionPlan(app);
+
+    if (plan.changed) {
+      const fresh = await app.destination.issue(pull);
+
+      if (fresh.body !== app.issue.body) {
+        app.issue = fresh;
+        closeConfirm(app);
+        say("the ticket changed since you read it - look it over again", "error");
+        await app.reselect();
+
+        return;
+      }
+
+      patched = await app.destination.patchDescription(pull, plan.body);
+    }
+
+    // The reader's prefix leads the triage comment the same way it leads the
+    // review body and every line comment: applied at the send, never stored -
+    // and never over an edited comment, which is the reader's own words.
+    const comment = withPrefix(
+      triagePrefix(app, pull),
+      app.queries.commentFor(app.source, pull),
+    );
+
+    commentStaged = Boolean(comment.trim());
+    commented = commentStaged ? await app.destination.commentOnIssue(pull, comment) : null;
+
+    // The close goes last, after the comment that explains it, so the ticket
+    // is never shut on a reporter before the reason is on it.
+    const close = pull.draft.close;
+
+    if (close && !app.queries.closeDropped(app.source, pull)) {
+      await app.destination.closeIssue(pull, close.reason);
+    }
+
+    // The comment's url is the deeper link, so it wins when both went. A
+    // close's url is the ticket itself, which pull.url already is, so it
+    // never overrides either.
+    const url = commented?.url || patched?.url || pull.url;
+
+    await app.commands.recordPostedTriage(app.source, pull, { url });
+    await app.reselect();
+
+    closeConfirm(app);
+    say(postedWords(app).sent ? `posted to #${pull.number}` : "nothing was sent", "ok");
+    celebrate(app, pull, url);
+  } catch (failure) {
+    // The sheet stays open and says how far it got: a patch or a comment that
+    // landed before a later step failed is not "nothing". Posting again sends
+    // everything staged - re-patching the same body changes nothing.
+    say(failure.message, "error");
+    settle(app);
+
+    const landed = [
+      patched && "the description was updated",
+      commented && "the comment was posted",
+    ].filter(Boolean);
+
+    find("confirm-note").textContent = landed.length
+      ? `${landed.join("; ")}; ${
+          commentStaged && !commented ? "the comment was not sent" : "the ticket was not closed"
+        }`
+      : "nothing has been sent";
   }
 }
 

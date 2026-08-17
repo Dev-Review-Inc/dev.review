@@ -271,6 +271,93 @@ export class Commands {
     return this.state.settled();
   }
 
+  // ---- Triaging an issue
+
+  /**
+   * Leave a proposed hunk out of the ticket body.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} hunkId the differ's stable id for the hunk
+   * @returns {void}
+   */
+  rejectHunk(source, pull, hunkId) {
+    this.track(source, "hunks", `${pull.key}:${hunkId}`, "reject");
+  }
+
+  /**
+   * Put a rejected hunk back into the ticket body.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} hunkId the differ's stable id for the hunk
+   * @returns {void}
+   */
+  restoreHunk(source, pull, hunkId) {
+    this.track(source, "hunks", `${pull.key}:${hunkId}`, "restore");
+  }
+
+  /**
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {string} body the ticket body as the reader wants it
+   * @returns {void}
+   */
+  editDescription(source, pull, body) {
+    this.track(source, "pulls", pull.key, "editDescription", { body });
+  }
+
+  /**
+   * Put the ticket body back to what the kept hunks say.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  resetDescription(source, pull) {
+    this.track(source, "pulls", pull.key, "resetDescription");
+  }
+
+  /**
+   * Leave the proposed close out of the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  dropClose(source, pull) {
+    this.track(source, "pulls", pull.key, "dropClose");
+  }
+
+  /**
+   * Put the proposed close back into the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  restoreClose(source, pull) {
+    this.track(source, "pulls", pull.key, "restoreClose");
+  }
+
+  /**
+   * Record that the triage went out.
+   *
+   * The same "post" record a review leaves, with no verdict because an issue
+   * carries none, so being posted reads the same either way.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {{url: string}} triage where it landed
+   * @returns {Promise<void>} when it is in local storage
+   */
+  recordPostedTriage(source, pull, { url }) {
+    this.track(source, "pulls", pull.key, "post", { url, event: "" });
+    this.track(source, "pulls", pull.key, "dismiss");
+
+    return this.state.settled();
+  }
+
   // ---- Findings
 
   /**

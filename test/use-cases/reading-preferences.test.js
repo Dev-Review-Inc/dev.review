@@ -163,4 +163,20 @@ describe("A prefix on every comment and summary", () => {
       "[bot-assisted] The rescue clause now parses and never matches.",
     );
   });
+
+  // The prefix marks the agent's words. A finding the reader rewrote is the
+  // reader's, and marking it as the agent's would be a small lie in public.
+  test("does not lead a finding the reader edited", async () => {
+    const app = await anApp();
+    await agentWrites(app.adapter, aDraft());
+    await app.drafts.loadAll();
+    const pull = app.open();
+    app.commands.setCommentPrefix(app.source, "[bot-assisted]");
+
+    let [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.editFinding(app.source, pull, finding, "My own sharper point.");
+    [finding] = app.queries.findingsForPull(app.source, pull);
+
+    assert.equal(app.queries.bodyToPost(app.source, finding), "My own sharper point.");
+  });
 });

@@ -81,7 +81,8 @@ export class DemoDestination {
   async queue() {
     await this._loaded();
 
-    return this._document.pulls || [];
+    // Seeds predate issues, so an entry that does not say is a pull request.
+    return (this._document.pulls || []).map((pull) => ({ isIssue: false, ...pull }));
   }
 
   /**
@@ -125,6 +126,68 @@ export class DemoDestination {
    */
   async review(pull) {
     return { url: pull.url || "" };
+  }
+
+  /**
+   * Answer an issue's live body out of the seed.
+   *
+   * The tour diffs a proposed rewrite against this, so the seed carries the
+   * body under `issues`, keyed the way `files` and `commits` are. An issue the
+   * seed does not carry gets a canned body, enough for the path to walk on.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{body: string, title: string, isPull: boolean, url: string}>} the issue
+   */
+  async issue(target) {
+    await this._loaded();
+
+    const body = (this._document.issues || {})[seedKey(target)];
+
+    if (body === undefined) {
+      return {
+        body: "A sample issue, standing in for one of yours.",
+        title: "A sample issue",
+        isPull: false,
+        url: target.url || "",
+      };
+    }
+
+    return {
+      body,
+      title: target.title || "",
+      isPull: false,
+      url: target.url || "",
+    };
+  }
+
+  /**
+   * Take a description rewrite nowhere.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{url: string}>} where the reader can see the real thing
+   */
+  async patchDescription(target) {
+    return { url: target.url || "" };
+  }
+
+  /**
+   * Take a close nowhere.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{url: string}>} where the reader can see the real thing
+   */
+  async closeIssue(target) {
+    return { url: target.url || "" };
+  }
+
+  /**
+   * Take an issue comment nowhere.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{url: string}>} where the reader can see the real thing
+   */
+  async commentOnIssue(target) {
+    return { url: target.url || "" };
   }
 
   /**

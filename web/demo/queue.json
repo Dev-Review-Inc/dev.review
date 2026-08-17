@@ -22,6 +22,18 @@
       "createdAt": "2026-07-30T13:41:00Z"
     },
     {
+      "owner": "harbourline",
+      "repo": "storefront",
+      "number": 134,
+      "title": "Export button does nothing",
+      "author": "sofia",
+      "url": "https://github.com/harbourline/storefront/issues/134",
+      "updatedAt": "2026-07-30T16:20:41Z",
+      "createdAt": "2026-07-30T16:02:00Z",
+      "isIssue": true,
+      "isRequested": true
+    },
+    {
       "owner": "dev-review",
       "repo": "dev.review",
       "number": 41,
@@ -116,6 +128,9 @@
         "patch": "@@ -36,10 +36,11 @@ describe(\"Choosing where drafts come from\", () => {\n     assert.equal(offered.includes(\"memory\"), false);\n   });\n \n-  test(\"the native reader is not offered outside the desktop build\", () => {\n-    const offered = adapterTypes().map((entry) => entry.type);\n+  test(\"the native reader is listed but unusable outside the desktop build\", () => {\n+    const tauri = adapterTypes().find((entry) => entry.type === \"tauri\");\n \n-    assert.equal(offered.includes(\"tauri\"), false);\n+    assert.ok(tauri, \"dropping it would leave the reader nothing to look at\");\n+    assert.match(tauri.reason, /desktop app/i);\n   });\n \n   test(\"each backend says what it needs asking for, so no form knows a backend\", () => {"
       }
     ]
+  },
+  "issues": {
+    "harbourline/storefront#134": "the export on the orders page is broken and we need it for month end\n\nSteps I took:\n1. Signed in as the shop owner\n2. Opened Orders\n3. Clicked \"Export CSV\"\n4. Waited a couple of minutes\n\nThe spinner just runs and runs and no file ever downloads.\nI tried Chrome and Safari on my Mac and it is the same in both.\nIt definitely worked before last week's deploy.\n\nplease can someone look at this today, finance is waiting on me"
   },
   "commits": {
     "harbourline/storefront#128": "9d41c0e",

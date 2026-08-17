@@ -197,6 +197,33 @@
           }
         ]
       }
+    },
+    "drafts/harbourline--storefront-134/review.json": {
+      "schema": 3,
+      "owner": "harbourline",
+      "repo": "storefront",
+      "number": 134,
+      "title": "Export button does nothing",
+      "url": "https://github.com/harbourline/storefront/issues/134",
+      "draftedAt": "2026-07-30T16:14:05Z",
+      "finishedAt": "2026-07-30T16:20:41Z",
+      "summary": "The report is real and the ticket buries it. Reproduction, scope and the regression window are all in there, underneath the urgency.",
+      "description": "Orders export: \"Export CSV\" spins forever and no file downloads\n\nSteps I took:\n1. Signed in as the shop owner\n2. Opened Orders\n3. Clicked \"Export CSV\"\n4. Waited a couple of minutes\n\nThe spinner just runs and runs and no file ever downloads.\nI tried Chrome and Safari on my Mac and it is the same in both.\n\nExpected: a CSV of the listed orders downloads within a few seconds.\nActual: the spinner runs until the page is reloaded; no file arrives.\n\nIt worked before last week's deploy, and month end reporting is blocked on it.",
+      "comment": "**This one is an issue, not a pull request.** There is no diff and no verdict, because there is no code to judge: the agent read the ticket instead, and what it proposes is a clearer ticket.\n\nOpen **Description** on the left. The proposal is not a comment saying \"please clarify\" - it is the rewritten body itself, cut into hunks against the ticket as it stands. Reject a hunk and the final body below recomputes without it; the reporter's own words win wherever you say so. Click the final body to write over the top of it.\n\nWhen you post, the rewrite replaces the ticket's body and this comment goes underneath, so the reporter can see what changed and why. If someone edits the ticket while you are reading, posting refuses and rediffs rather than overwriting them.\n\nTidied the title into the symptom, kept your reproduction steps word for word, and moved the impact to where a triager will read it. Nothing was lost: the urgency is now the last line instead of the loudest one.",
+      "sections": [
+        {
+          "key": "rewrite",
+          "label": "The rewrite",
+          "color": "accent",
+          "body": "What changed and why. The title now names the symptom, so the issue list reads as a list of symptoms rather than a list of alarm levels. The plea at the bottom became the two lines a fix gets measured against: expected and actual.\n\nEach change is one hunk in the Description lens, and each stands or falls on its own."
+        },
+        {
+          "key": "kept-facts",
+          "label": "What the reporter got right",
+          "color": "ok",
+          "body": "Untouched, deliberately. The reproduction steps, the two browsers and the regression window are exactly what a fix needs, and they are in the reporter's own words in the middle of the ticket. A rewrite that restated them would be claiming their work; the hunks leave those lines alone, which you can check by reading what the diff does not touch."
+        }
+      ]
     }
   },
   "media": {

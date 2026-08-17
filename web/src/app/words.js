@@ -42,11 +42,17 @@ export function draftProblemWords(problem) {
 /**
  * What this destination calls the send, in its own words.
  *
+ * A destination that names itself - "Post to GitHub" - says something true of
+ * a triage too, so its word stands. "Post review" is the one word that claims
+ * a review, and over an issue there is none, so it becomes the triage's own.
+ *
  * @param {object} app the application
  * @returns {string} the button's text
  */
 export function postLabel(app) {
-  return app.destination?.constructor.postLabel || "Post review";
+  const label = app.destination?.constructor.postLabel || "Post review";
+
+  return app.selected?.isIssue && label === "Post review" ? "Post triage" : label;
 }
 
 /**

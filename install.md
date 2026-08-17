@@ -44,7 +44,7 @@ Store all media related to this (videos, screenshots) in the same directory.
   "comment": "A review of this pull request is being written." }
 ```
 
-Then sync to git — see "Sync to git" below.
+Then leave the storage synced — see the section below.
 
 **If the file already exists, stop — with one exception.** An existing draft means another run owns this pull request or a human already has the review; a second reviewer would fight it over the same file. The exception is a dead claim: a file with no `finishedAt` that has not been modified in over 30 minutes is a run that died partway. Overwrite it with your own placeholder and take the review over.
 
@@ -57,13 +57,13 @@ As review input comes in, keep `org--app-42/review.json` up-to-date so the human
 3. **Before QA starts**, write and sync once more regardless of whether anything changed since the last write. QA is usually the slowest part of a review — a human should never be looking at a draft that is behind by everything QA takes to run, when every finding QA doesn't touch was already sitting there finished.
 4. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
 
-Sync to git after each of these writes too — same section below.
+Leave the storage synced after each of these writes too — same section below.
 
-## Sync to git
+## Leave the storage synced
 
-After every write to `review.json` — the claim, each progress update, and the finished draft:
+A write is not done until whatever reads the drafts directory can see it. Most storage needs nothing from you: a plain folder, a bucket, or a repository the app reads directly is current the moment the file lands. A drafts directory that is a git checkout with a remote is the one kind that waits for a push, so after every write to `review.json` — the claim, each progress update, and the finished draft:
 
-1. Check `git -C <drafts directory> rev-parse --is-inside-work-tree` succeeds and `git -C <drafts directory> remote` lists something. If either fails, the drafts directory is a plain folder — do nothing, exactly as before.
+1. Check `git -C <drafts directory> rev-parse --is-inside-work-tree` succeeds and `git -C <drafts directory> remote` lists something. If either fails, this is not that kind of storage — do nothing.
 2. Otherwise `git -C <drafts directory> add -A` (this respects `.gitignore` — never force-add an ignored file, e.g. `qa.mp4` or `frames/`), commit with a small mechanical message like `Update review draft: org/repo#42`, and push.
 3. If the push is rejected, pull/rebase once and retry. If it still fails, don't crash the review — note the sync failure in your final summary instead.
 
@@ -174,11 +174,11 @@ A draft's reviewer app already knows when its review was posted or dismissed —
 node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>   # delete drafts posted or dismissed, print which ones
 ```
 
-This deletes matching draft folders (and their QA media) from disk only. Commit and push the deletion the same way a draft write is: run the "Sync to git" step from **/dev-review** against `<drafts-dir>` — `git add -A`, commit, push — rather than a second git flow.
+This deletes matching draft folders (and their QA media) from disk only. Leave the storage synced the same way a draft write does: run the "Leave the storage synced" step from **/dev-review** against `<drafts-dir>` rather than a second flow of your own. On anything but a git-backed drafts directory that step does nothing, which is correct — the deletion is already visible.
 
 ## Finish with
 
-One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted or dismissed, and anything that failed and why — including any git sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted or dismissed, and anything that failed and why — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
 ````
 
 ## The queue helper
@@ -748,9 +748,9 @@ export function finishedPulls(events) {
  * Delete every draft (and its media — qa.mp4, frames/, whatever sits beside
  * review.json) whose pull request is finished.
  *
- * Only removes files on disk. Committing and pushing the deletion is the
- * sweep's job, reusing the same "Sync to git" step a draft write already
- * goes through.
+ * Only removes files on disk. Making the deletion visible to whatever reads
+ * the storage is the sweep's job, reusing the same "Leave the storage synced"
+ * step a draft write already goes through.
  *
  * @param {string} draftsDir the drafts directory
  * @returns {string[]} pull keys whose draft was deleted

@@ -19,12 +19,18 @@
   // Object storage, as a Map of key to text.
   const objects = new Map(Object.entries(seed.objects));
 
+  // The issues' live bodies, keyed "owner/repo#n". A Map rather than the seed
+  // itself so a PATCH lands somewhere a later GET reads back, and so a test can
+  // move a ticket underneath the reader.
+  const issueBodies = new Map(Object.entries(seed.issueBodies || {}));
+
   // What the interface sent out, so a test can assert on what would have
   // reached GitHub rather than only on what the page then said.
   const sent = [];
 
   globalThis.__world = {
     objects,
+    issueBodies,
     sent,
 
     /**
@@ -119,11 +125,59 @@
     if (path === "/user") return json({ login: seed.login });
 
     if (path === "/search/issues") {
-      // The queue is two searches merged. Only the review-requested one has
-      // anything in it, which is also what proves the merge is not doubling up.
-      const requested = url.searchParams.get("q").includes("review-requested");
+      // The queue is four searches merged. The review-requested one answers the
+      // pulls and the assignee one answers the issues; the other two answer
+      // nothing, which is also what proves the merge is not doubling up.
+      const query = url.searchParams.get("q");
 
-      return json({ items: requested ? seed.pulls : [] });
+      if (query.includes("review-requested")) return json({ items: seed.pulls });
+      if (query.includes("assignee")) return json({ items: seed.issues || [] });
+
+      return json({ items: [] });
+    }
+
+    const issue = path.match(/^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)(\/comments)?$/);
+
+    if (issue) {
+      const [, owner, repo, number, part] = issue;
+      const key = `${owner}/${repo}#${number}`;
+      const entry = (seed.issues || []).find((item) => String(item.number) === number);
+
+      if (!part && method === "GET") {
+        // No pull_request key: this number is an issue, and the interface reads
+        // its absence as exactly that.
+        return json({
+          body: issueBodies.get(key) ?? "",
+          title: entry?.title || "",
+          html_url: entry?.html_url || "",
+        });
+      }
+
+      if (!part && method === "PATCH") {
+        const patched = JSON.parse(body);
+
+        // A close is a PATCH too, told apart by what it carries: state and a
+        // reason, never a body. Recorded under its own name so a test can say
+        // "no close was sent" without parsing payloads.
+        if (patched.state) {
+          sent.push({ what: "close-issue", key, body: patched });
+
+          return json({ html_url: entry?.html_url || "" });
+        }
+
+        // Written through, so a re-fetch after the patch reads the new body the
+        // way GitHub would serve it.
+        issueBodies.set(key, patched.body);
+        sent.push({ what: "patch-issue", key, body: patched });
+
+        return json({ html_url: entry?.html_url || "" });
+      }
+
+      if (part === "/comments" && method === "POST") {
+        sent.push({ what: "issue-comment", key, body: JSON.parse(body) });
+
+        return json({ html_url: `${entry?.html_url || ""}#issuecomment-1` });
+      }
     }
 
     const pull = path.match(/^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)(\/[a-z]+)?$/);
