@@ -399,10 +399,12 @@ export function blankState(app) {
 
   if (!app.selected) {
     if (!queue.length) {
+      // Nothing waiting means no drafts in the storage: the queue is derived
+      // from what the sweep has written, never from a search.
       return emptyState(
         "○",
         "Nothing waiting.",
-        app.destination.emptyQueueHint() || "No pull request here is waiting on you.",
+        "No drafts in this source yet. The sweep writes one per pull request or issue, and each appears here as it lands.",
       );
     }
 

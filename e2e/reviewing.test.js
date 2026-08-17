@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 
 import { openBrowser } from "./support/browser.js";
 import { serveSite } from "./support/site.js";
-import { aDraft, aPull, attachStorage, drawn, openApp, written } from "./support/harness.js";
+import { aDraft, attachStorage, drawn, openApp, written } from "./support/harness.js";
 
 let site;
 let browser;
@@ -469,16 +469,15 @@ describe("Clearing a review that is open", () => {
     assert.equal(await page.count("#tab-summary .finding"), 0);
   });
 
-  test("the queue row resets to match, rather than keeping its marks", async () => {
-    assert.equal(await page.text("#queue .state"), "not started");
-    assert.equal(await page.count("#queue .bars span"), 0);
-    assert.equal(await page.count("#queue .ready-dot"), 0);
-    assert.equal(await page.text("#queue-count"), "0/1 drafted");
+  test("the queue lets it go entirely, because nothing appears without a draft", async () => {
+    // The draft was the entry: the queue is derived from the drafts and from
+    // nothing else, so a cleared draft is not a row reset to "not started" -
+    // it is no row at all, until the sweep writes a fresh one.
+    assert.equal(await page.text("#queue-waiting"), "nothing to review");
+    assert.equal(await page.count("#queue .row"), 0);
+    assert.equal(await page.text("#queue-count"), "0/0 drafted");
     assert.equal(await page.text("#queue-ready"), "");
-
-    // The tally under the rows counts the same pull request, so it cannot
-    // claim a review is under way when the row above it says none has started.
-    assert.equal(await page.text("#queue-foot"), "0 drafted · 1 waiting");
+    assert.match(await page.text("#queue-foot"), /No drafts in this source yet/);
   });
 
   test("the rail says the same thing the pane does, rather than nothing", async () => {
@@ -539,14 +538,16 @@ describe("Asking for the review again", () => {
     );
   });
 
-  test("and the pull request goes back to waiting, where the agent will find it", async () => {
+  test("and the pull request leaves the queue, until the agent drafts it again", async () => {
     await page.until(
       'document.querySelector("#tab-summary .empty-title")?.textContent === "No review has started."',
       "the pane to let the cleared review go",
     );
 
-    assert.equal(await page.text("#queue .state"), "not started");
-    assert.equal(await page.text("#queue-foot"), "0 drafted · 1 waiting");
+    // The queue is the drafts, so asking for the review again is handing the
+    // pull request back to the agent entirely: no draft, no row.
+    assert.equal(await page.text("#queue-waiting"), "nothing to review");
+    assert.match(await page.text("#queue-foot"), /No drafts in this source yet/);
 
     // Nothing left to throw away, so nothing offers to.
     assert.equal(await page.count(".clear-review"), 0);
@@ -657,14 +658,18 @@ describe("Posting the review", () => {
 // and that origin holds the reader's GitHub token and their storage keys, so
 // the scheme in a draft's url decides whether both are still theirs.
 describe("A draft whose url is not a web address", () => {
-  const HOSTILE = "javascript:globalThis.__stolen = true";
+  // The queue derivation reads the url's shape, not its scheme: it wants a
+  // "/pull/N" in there, and a hostile draft can carry one. So a draft like
+  // this still reaches the screen, and the scheme guard in the view is the
+  // one thing between its url and a click.
+  const HOSTILE = "javascript:globalThis.__stolen = true;//pull/42";
 
   let page;
 
   before(async () => {
     page = await openApp(browser, site.origin, {
       objects: written(aDraft({ url: HOSTILE })),
-      pulls: [aPull({ html_url: HOSTILE })],
+      postedUrl: HOSTILE,
     });
     await attachStorage(page);
     await page.until('document.querySelector("#tab-summary .finding")', "the review to open");
@@ -712,21 +717,22 @@ describe("A draft whose url is not a web address", () => {
 
 describe("Dismissing your own pull request", () => {
   // The case this exists for. GitHub refuses an approval or a change request
-  // from the author, so the only verdict on offer is a comment, and here there
-  // is nothing drafted to comment with. Without a way out, the pull request
-  // sits on the queue for ever.
+  // from the author, so the only verdict on offer is a comment, and nothing
+  // here has been opted into one. Without a way out, the pull request sits on
+  // the queue for ever. The queue is the drafts, so the reader's own pull
+  // request is on it the same way anything is: the agent started a draft -
+  // this one still being written, which is also why nothing opens by itself.
   let page;
 
   before(async () => {
     page = await openApp(browser, site.origin, {
       login: "reader",
-      pulls: [aPull({ user: { login: "reader" } })],
-      objects: {},
+      objects: written(aDraft({ author: "reader", finishedAt: undefined })),
     });
     await attachStorage(page);
 
-    // Nothing is drafted, so nothing opens by itself: the reader picks it off
-    // the queue the way they would any pull request the agent has not reached.
+    // An unfinished draft never opens by itself: the reader picks it off the
+    // queue the way they would any review still being written.
     await page.click("#queue-button");
     await page.until('document.querySelector("#queue .row")', "the queue to list it");
     await page.click("#queue .row");
@@ -746,7 +752,7 @@ describe("Dismissing your own pull request", () => {
     assert.deepEqual(offered, ["COMMENT", "DISMISS"]);
   });
 
-  test("there is nothing to post, because nothing was drafted", async () => {
+  test("there is nothing to post, because nothing has been opted in", async () => {
     assert.equal(await page.text("#post"), "Comment");
     assert.equal(await page.eval('document.querySelector("#post").disabled'), true);
   });
@@ -915,23 +921,29 @@ describe("A review request that comes back", () => {
   after(() => page.close());
 
   test("what was reviewed stays gone while nothing new has happened to it", async () => {
-    // The reader coming back to the tab, which is when this app asks GitHub
-    // what is waiting.
+    // The reader coming back to the tab, which is the moment this app reads
+    // the drafts again. The draft is still there, unchanged: the posted
+    // review answered it, and it must not come back on that draft's account.
     await page.eval('window.dispatchEvent(new Event("focus"))');
 
     assert.equal(await page.text("#queue-waiting"), "nothing to review");
     assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), false);
   });
 
-  test("a push after the review puts it back on the queue", async () => {
-    // GitHub still has the review requested of the reader, and now the branch
-    // has moved: a re-request, as this app can see one.
-    await page.eval("globalThis.__seed.pulls[0].updated_at = new Date().toISOString()");
+  test("a redraft after the review puts it back on the queue", async () => {
+    // The branch moved and the sweep wrote the draft again: a draft newer
+    // than the reader's answer is a new question, and it has to reach them.
+    await page.eval(`(() => {
+      const draft = ${JSON.stringify(aDraft())};
+
+      draft.draftedAt = new Date().toISOString();
+      globalThis.__world.put("drafts/org--app-42/review.json", JSON.stringify(draft));
+    })()`);
     await page.eval('window.dispatchEvent(new Event("focus"))');
 
     await page.until(
       'document.querySelector("#queue-waiting").textContent === "1 to review"',
-      "the re-request to reach the queue",
+      "the redraft to reach the queue",
     );
 
     assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), true);

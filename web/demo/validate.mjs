@@ -3,9 +3,10 @@
 // The seed is two static files served to a real build of the reviewer, so
 // nothing catches a malformed draft or an unanchorable finding at runtime: the
 // pane just comes up wrong in front of whoever the demo was for. This runs the
-// seed through the same two readers the app uses, `parseDraft` and `parsePatch`,
-// and then checks the one thing neither of them can: that every finding names a
-// line that actually exists on the right-hand side of the patch it points into.
+// seed through the same readers the app uses - `parseDraft`, `pullsFromDrafts`
+// and `parsePatch` - and then checks the one thing none of them can: that every
+// finding names a line that actually exists on the right-hand side of the patch
+// it points into.
 //
 // Run it directly, or through test/demo/seed.test.js, which calls `check`.
 
@@ -17,6 +18,7 @@ import { parseDraft } from "../src/domain/draft.js";
 import { draftPath, draftKey } from "../src/domain/draft-path.js";
 import { parsePatch } from "../src/domain/diff.js";
 import { diffText } from "../src/domain/text-diff.js";
+import { pullsFromDrafts } from "../src/queries/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -78,20 +80,26 @@ export function check() {
     if (derived !== path) problems.push(`${path}: draft says it belongs at ${derived}`);
 
     const key = draftKey(payload.owner, payload.repo, payload.number);
-    const entry = (queue.pulls || []).find(
-      (pull) => draftKey(pull.owner, pull.repo, pull.number) === key,
-    );
 
-    if (!entry) problems.push(`${path}: the queue has no pull request ${key}`);
+    // The queue is derived from the drafts, through the app's own derivation:
+    // a draft whose url names neither a pull request nor an issue is on no
+    // queue at all, which in a seed is a draft nobody will ever see.
+    const [entry] = pullsFromDrafts(new Map([[key, draft]]));
+
+    if (!entry) {
+      problems.push(`${path}: url "${draft.url || ""}" names neither a pull request nor an issue, so it never appears`);
+
+      continue;
+    }
 
     // An issue draft has no diff to anchor into; its counterpart is the live
     // body the description will be cut into hunks against, which must exist and
     // must actually differ, or the pane comes up saying nothing would change.
-    if (entry?.isIssue) {
+    if (entry.isIssue) {
       const body = (queue.issues || {})[key];
 
       if (typeof body !== "string") {
-        problems.push(`${path}: the queue has no live body for issue ${key}`);
+        problems.push(`${path}: the seed has no live body for issue ${key}`);
       } else if (!diffText(body, draft.description).length) {
         problems.push(`${path}: the description proposes no change to ${key}`);
       }
@@ -99,10 +107,14 @@ export function check() {
       continue;
     }
 
+    if (!(queue.commits || {})[key]) {
+      problems.push(`${path}: the seed has no head commit for ${key}`);
+    }
+
     const files = (queue.files || {})[key];
 
     if (!files) {
-      problems.push(`${path}: the queue has no files for ${key}`);
+      problems.push(`${path}: the seed has no files for ${key}`);
 
       continue;
     }

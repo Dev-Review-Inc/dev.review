@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { App } from "../../web/src/app/app.js";
 import { MemoryKeyValueStore } from "../../web/src/state/key-value-store.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
-import { agentWrites, aDraft, aPull } from "./helper.js";
+import { agentWrites, aDraft } from "./helper.js";
 
 // Databases that outlive one App, so booting a second one against them is
 // what a reload is: the same storage, a fresh application object.
@@ -24,10 +24,9 @@ function anAppOn(adapter, destination, database = someDatabases()) {
   return new App({ database, adapter: () => adapter, destination: () => destination });
 }
 
-function aForge(pulls = [aPull()]) {
+function aForge() {
   return {
     identify: async () => ({ login: "reader" }),
-    queue: async () => pulls,
     files: async () => [],
     headCommit: async () => "e612b1b",
     comment: async () => ({ url: "https://github.com/comment/1" }),
@@ -74,8 +73,13 @@ describe("Setting up a source and a destination", () => {
     assert.match(app.problem, /drafts\//);
   });
 
-  test("adding a destination signs the reader in and fills the queue", async () => {
+  test("adding a destination signs the reader in; the queue was already the drafts", async () => {
+    await agentWrites(adapter, aDraft());
     await app.addSource({ name: "Work", adapter: { type: "memory" } });
+
+    // The queue is derived from the drafts, so it is full before anywhere to
+    // post exists. The destination only adds the signed-in account.
+    assert.equal(app.queue().length, 1);
 
     await app.addDestination({ type: "github", label: "GitHub", secret: { token: "x" } });
 

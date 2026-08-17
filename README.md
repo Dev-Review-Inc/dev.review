@@ -94,9 +94,10 @@ while the card below at src/api/orders.js:45 is left unticked and plain. The
 footer reads one comment staged, zero blocking and one note, beside a Request
 changes button.](docs/media/review-diff-finding.png)
 
-**A change arrives because it is waiting on you.** The app asks GitHub which
-pull requests await your review and which are your own, and shows them in one
-queue with the drafted ones first
+**A change arrives because the agent drafted it.** The queue is your drafts
+directory: whatever the sweep judged worth your attention — a pull request
+review or an issue triage — appears when its draft lands, drafted-and-finished
+ones first, and nothing else appears at all
 ([`web/src/queries/index.js`](web/src/queries/index.js)). The first finished
 review opens by itself.
 
@@ -146,12 +147,12 @@ is offered.
 An agent writes a JSON file. That is the whole integration: no API, no upload,
 no notification.
 
-Paths are derived, never listed. Each pull request owns a directory,
+Each pull request or issue owns a directory,
 `drafts/<owner>--<repo>-<number>/`, with its draft at `review.json` and any
-media beside it. The client asks GitHub which pull requests await your review,
-derives the path for each, and requests it. A missing file means nothing has
-been drafted yet. Deleting a draft is how you ask for another one, because a
-sweep reviews whatever has none.
+media beside it. The listing of `drafts/` is the queue itself: the client
+never asks GitHub what awaits you, so an entry exists because an agent drafted
+it, and it leaves when you post, dismiss, or clear it. Deleting a draft is how
+you ask for another one, because a sweep reviews whatever has none.
 
 The shape is documented and versioned in
 [`docs/draft-schema.md`](docs/draft-schema.md). A draft declaring a schema this
@@ -191,8 +192,9 @@ one to an afternoon.
 ## The token
 
 Fine-grained is preferable, scoped to the repositories you review: **Pull
-requests** read and write, **Metadata** read. That is the entire surface the app
-needs.
+requests** read and write, **Issues** read and write, **Metadata** read. That
+is the entire surface the app needs — pull requests for reviews, issues for
+posting a triage's comment, description edit, or close.
 
 Some organisations require an owner to approve fine-grained tokens on their
 repositories. If yours does, a classic token with the single `repo` scope works,

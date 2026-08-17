@@ -3,8 +3,8 @@
 // A marketing page embeds this app with no token in it, so both halves of the
 // app have to come from somewhere that needs no credential: a static JSON file
 // served beside the page. The reading half takes the drafts out of it and the
-// writing half takes the queue, which is why fetching one lives here rather
-// than in either.
+// writing half takes the per-item answers - files, commits, live issue bodies -
+// which is why fetching one lives here rather than in either.
 
 /**
  * Read a seed document, answering with what went wrong rather than throwing.

@@ -51,7 +51,6 @@ describe("Triaging an issue the agent drafted", () => {
 
   before(async () => {
     page = await openApp(browser, site.origin, {
-      pulls: [],
       issues: [
         anIssue(),
         anIssue({ number: 9, title: "Totals wrong", html_url: "https://github.com/org/app/issues/9" }),
@@ -200,7 +199,6 @@ describe("Closing an issue the agent proposed", () => {
 
   before(async () => {
     page = await openApp(browser, site.origin, {
-      pulls: [],
       issues: [
         anIssue(),
         anIssue({ number: 9, title: "Totals wrong", html_url: "https://github.com/org/app/issues/9" }),

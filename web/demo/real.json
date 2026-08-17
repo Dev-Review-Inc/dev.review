@@ -8,6 +8,7 @@
       "number": 41,
       "title": "Say why a storage backend cannot be used here",
       "url": "https://github.com/dev-review/dev.review/pull/41",
+      "author": "maintainer",
       "reviewedAt": "2f27fbb",
       "draftedAt": "2026-07-30T16:02:11Z",
       "finishedAt": "2026-07-30T16:19:40Z",

@@ -20,7 +20,6 @@ const aPull = () => ({
 
 const aSeed = () => ({
   login: "you",
-  pulls: [aPull()],
   files: { "org/app#1": [{ filename: "lib/error.rb", status: "modified", patch: "@@" }] },
   commits: { "org/app#1": "e612b1b" },
 });
@@ -38,17 +37,6 @@ describe("a demo destination with sample data behind it", () => {
     const destination = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(aSeed()) });
 
     assert.deepEqual(await destination.identify(), { login: "you", avatar: "" });
-  });
-
-  test("answers the queue out of its seed", async () => {
-    const destination = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(aSeed()) });
-
-    const queue = await destination.queue();
-
-    assert.equal(queue.length, 1);
-    assert.equal(queue[0].number, 1);
-    // Seeds predate issues, so an entry that does not say is a pull request.
-    assert.equal(queue[0].isIssue, false);
   });
 
   test("answers the diff and the head commit for a pull request it holds", async () => {
@@ -74,7 +62,6 @@ describe("a demo destination with sample data behind it", () => {
     });
 
     await destination.identify();
-    await destination.queue();
     await destination.files(aPull());
 
     assert.deepEqual(asked, ["/demo/queue.json"]);
@@ -154,11 +141,6 @@ describe("a demo destination whose sample data was never deployed", () => {
     await assert.rejects(() => destination.identify(), /sample data/i);
   });
 
-  test("has an empty queue rather than a crash", async () => {
-    const destination = new DemoDestination({ seed: "/demo/queue.json", fetch: missing });
-
-    assert.deepEqual(await destination.queue(), []);
-  });
 });
 
 describe("the destinations a build offers", () => {

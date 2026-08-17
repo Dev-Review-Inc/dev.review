@@ -46,7 +46,9 @@ export function aDraft(overrides = {}) {
     number: 42,
     title: "Re-root the errors onto a common base class",
     url: "https://github.com/org/app/pull/42",
+    author: "someone",
     reviewedAt: "e612b1b",
+    draftedAt: "2026-07-29T15:32:00Z",
     finishedAt: "2026-07-29T15:41:10Z",
     verdict: "COMMENT",
     summary: "Re-rooted correctly, but the family catch-all is now inert.",
@@ -126,6 +128,8 @@ export function anIssueDraft(overrides = {}) {
     number: 7,
     title: "Export never finishes",
     url: "https://github.com/org/app/issues/7",
+    author: "sofia",
+    draftedAt: "2026-07-29T16:01:00Z",
     finishedAt: "2026-07-29T16:05:00Z",
     summary: "The report is real; the title and the tail bury it.",
     description: theProposedBody(),
@@ -135,39 +139,17 @@ export function anIssueDraft(overrides = {}) {
 }
 
 /**
- * An issue as the GitHub search API reports one.
+ * An issue as the world serves its detail: what a GET of the ticket answers
+ * beyond its live body. The queue never lists it - only its draft does that.
  *
  * @param {object} [overrides] fields to change
- * @returns {object} one search result
+ * @returns {object} one issue
  */
 export function anIssue(overrides = {}) {
   return {
     number: 7,
     title: "Export never finishes",
-    repository_url: "https://api.github.com/repos/org/app",
-    user: { login: "sofia" },
     html_url: "https://github.com/org/app/issues/7",
-    updated_at: "2026-07-29T16:00:00Z",
-    created_at: "2026-07-29T10:00:00Z",
-    ...overrides,
-  };
-}
-
-/**
- * A pull request as the GitHub search API reports one.
- *
- * @param {object} [overrides] fields to change
- * @returns {object} one search result
- */
-export function aPull(overrides = {}) {
-  return {
-    number: 42,
-    title: "Re-root the errors onto a common base class",
-    repository_url: "https://api.github.com/repos/org/app",
-    user: { login: "someone" },
-    html_url: "https://github.com/org/app/pull/42",
-    updated_at: "2026-07-29T15:00:00Z",
-    created_at: "2026-07-28T09:00:00Z",
     ...overrides,
   };
 }
@@ -234,14 +216,18 @@ export function written(draft) {
 /**
  * Open the interface, with a world behind it.
  *
+ * The queue is whatever `world.objects` holds drafts for: an entry exists
+ * because a draft file does, and every harness draft carries the url and
+ * author the derivation reads. GitHub is only ever asked per item.
+ *
  * @param {object} browser the browser
  * @param {string} origin where the interface is served
  * @param {object} [world] what the storage holds and what GitHub would say
  * @param {object} [world.objects] object key to contents
- * @param {object[]} [world.pulls] what the review-requested search returns
- * @param {object[]} [world.issues] what the assignee search returns
+ * @param {object[]} [world.issues] each issue's detail beyond its body
  * @param {object} [world.issueBodies] each issue's live body, keyed "owner/repo#n"
  * @param {string} [world.login] who the token belongs to
+ * @param {string} [world.postedUrl] what a send's response points back at
  * @returns {Promise<object>} the page, loaded and idle
  */
 export async function openApp(browser, origin, world = {}) {
@@ -251,7 +237,7 @@ export async function openApp(browser, origin, world = {}) {
     endpoint: ENDPOINT,
     bucket: BUCKET,
     login: world.login || "reader",
-    pulls: world.pulls || [aPull()],
+    postedUrl: world.postedUrl || "",
     issues: world.issues || [],
     issueBodies: world.issueBodies || {},
     headCommit: "e612b1b",

@@ -79,6 +79,42 @@ export function aPull(overrides = {}) {
 }
 
 /**
+ * The draft that would put a queue entry where a test wants it.
+ *
+ * An issue entry gets an issue draft: an issue url, no verdict, a proposed
+ * replacement body. A test that cares what the draft says writes its own over
+ * this one.
+ *
+ * @param {object} pull a queue entry, as {@link aPull} shapes one
+ * @returns {object} a schema 3 draft that derives back into that entry
+ */
+function draftFor(pull) {
+  const url = pull.isIssue
+    ? `https://github.com/${pull.owner}/${pull.repo}/issues/${pull.number}`
+    : pull.url || `https://github.com/${pull.owner}/${pull.repo}/pull/${pull.number}`;
+
+  return aDraft({
+    owner: pull.owner,
+    repo: pull.repo,
+    number: pull.number,
+    title: pull.title,
+    author: pull.author,
+    url,
+    draftedAt: pull.updatedAt,
+    ...(pull.isIssue
+      ? {
+          verdict: "",
+          summary: "",
+          sections: [],
+          findings: [],
+          description: "The proposed replacement body.",
+          comment: "Why the body should change.",
+        }
+      : {}),
+  });
+}
+
+/**
  * Wire up an app against a reader that keeps nothing.
  *
  * @param {object} [options] how to build it
@@ -130,9 +166,13 @@ export async function anApp({ adapter = new MemoryAdapter(), deviceId = "device-
  * destination, which answers from memory. The store, the runners, the commands,
  * the queries and the drafts projection are the app's own.
  *
+ * The queue is the drafts, so `pulls` here is seeded as drafts: each entry gets
+ * one written where the sweep would have written it, finished and carrying the
+ * entry's title, author and url.
+ *
  * @param {object} [options] what to build it against
  * @param {object} [options.adapter] a reader to share with another app
- * @param {object[]} [options.pulls] what the destination says is waiting
+ * @param {object[]} [options.pulls] what should be waiting on the queue
  * @param {(name: string) => object} [options.database] local storage, for a test
  *   that cares when a write lands
  * @param {(message: string, tone: string) => void} [options.report] how the app
@@ -148,20 +188,25 @@ export async function theApp({
   report,
   destination = {},
 } = {}) {
+  for (const pull of pulls) {
+    // A draft the test already wrote is the draft: the seed only fills absence.
+    const path = `drafts/${pull.owner}--${pull.repo}-${pull.number}/review.json`;
+
+    if (!(await adapter.read(path))) await agentWrites(adapter, draftFor(pull));
+  }
+
   const app = new App({
     database,
     report,
     adapter: () => adapter,
     destination: () => ({
       identify: async () => ({ login: "reader" }),
-      queue: async () => pulls,
       files: async () => [],
       headCommit: async () => "e612b1b",
       issue: async () => ({ body: "", title: "", isPull: false, url: "" }),
       patchDescription: async () => ({ url: "" }),
       commentOnIssue: async () => ({ url: "" }),
       closeIssue: async () => ({ url: "" }),
-      emptyQueueHint: () => "",
       ...destination,
     }),
   });

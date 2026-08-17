@@ -1,12 +1,10 @@
 // Being asked to look again at something you already dealt with.
 //
 // A posted review dismisses the pull request, so everything the reader has ever
-// reviewed carries a dismissal for ever. GitHub puts a pull request back in
-// front of them when someone re-requests their review, and a dismissal that
-// outlives that request is the app hiding the one thing they were asked for.
-// These hold the line on where a dismissal stops counting, and on the two cases
-// that must not move: a request with nothing new behind it, and the reader's
-// own pull request, which they dismissed knowing they would go on pushing to it.
+// reviewed carries a dismissal for ever. On a draft-driven queue the new
+// question is the sweep drafting again: an entry's updatedAt is its draftedAt,
+// so a redraft newer than the dismissal is what brings one back, and a redraft
+// with nothing new behind it stays quiet.
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -87,11 +85,11 @@ describe("a dismissed pull request whose review is requested again", () => {
 });
 
 describe("a dismissed pull request of the reader's own", () => {
-  // The common case in the dismissed list, and the one that treating any
-  // upstream change as a reason to come back would ruin: the reader pushes to
-  // their own branch all day.
-  test("stays dismissed however often it is pushed to", async () => {
-    const pull = aPull({ isRequested: false, author: "reader", updatedAt: AFTER });
+  // Every draft is waiting on the reader, their own work included, so the old
+  // carve-out for one's own pull request is gone. What cannot revive it is a
+  // push: pushes never touch this queue, only the sweep drafting again does.
+  test("stays dismissed until the sweep drafts it again", async () => {
+    const pull = aPull({ author: "reader", updatedAt: BEFORE });
     const app = await theApp({ pulls: [pull] });
 
     await dismissedAt(app, pull, DISMISSED_AT);

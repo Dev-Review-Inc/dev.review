@@ -23,9 +23,12 @@ Store all media related to this (videos, screenshots) in the same directory.
 
 ```json
 { "schema": 3, "owner": "…", "repo": "…", "number": 0, "verdict": "COMMENT",
+  "title": "…", "url": "https://github.com/…/pull/0", "author": "…",
   "summary": "Reviewing…", "progress": { "note": "Claimed — review starting", "percent": 0 },
   "comment": "A review of this pull request is being written." }
 ```
+
+`title`, `url` and `author` are load-bearing from the first write: the queue is the drafts directory, so the app knows nothing about a pull request except what the draft says, and a draft with no `url` renders nowhere.
 
 Then leave the storage synced — see the section below.
 
@@ -62,6 +65,7 @@ Never touch git config. Never force-push. Never ask.
   "number": 42,
   "title": "Re-root the Records errors",
   "url": "https://github.com/org/app/pull/42",
+  "author": "priya",
   "reviewedAt": "e612b1b",
   "draftedAt": "2026-07-29T15:36:52Z",
   "finishedAt": "2026-07-29T15:41:10Z",

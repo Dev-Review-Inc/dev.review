@@ -1,19 +1,18 @@
-// Being asked to look again at something the destination has stopped listing.
+// Being asked to look again at something whose draft is gone.
 //
-// A posted review dismisses the pull request, and the destination itself
-// stops returning it from the search that builds the queue - answering a
-// review request is exactly what takes a pull request off it. The dismissed
-// list used to be built by filtering that same search result, so the moment
-// the destination stopped listing something, this app's own record of ever
-// having reviewed it went with it. What is dismissed is read from what this
-// app decided, not from whatever the destination happens to still return.
+// A posted review dismisses the pull request, and the draft that put it on
+// the queue is eventually pruned or cleared. The dismissed list used to be
+// built by filtering the queue's own entries, so the moment the draft went,
+// this app's own record of ever having reviewed it went with it. What is
+// dismissed is read from what this app decided, not from whichever drafts
+// the storage happens to still hold.
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { theApp, aPull } from "../use-cases/helper.js";
 
-describe("a pull request the destination has stopped listing", () => {
+describe("a pull request whose draft is gone", () => {
   test("still shows in the dismissed list once dismissed", async () => {
     const pull = aPull();
     const app = await theApp({ pulls: [pull] });
@@ -74,7 +73,7 @@ describe("a pull request the destination has stopped listing", () => {
   });
 });
 
-describe("a dismissed pull request the destination still lists", () => {
+describe("a dismissed pull request whose draft is still held", () => {
   test("can be restored", async () => {
     const pull = aPull();
     const app = await theApp({ pulls: [pull] });

@@ -125,15 +125,9 @@
     if (path === "/user") return json({ login: seed.login });
 
     if (path === "/search/issues") {
-      // The queue is four searches merged. The review-requested one answers the
-      // pulls and the assignee one answers the issues; the other two answer
-      // nothing, which is also what proves the merge is not doubling up.
-      const query = url.searchParams.get("q");
-
-      if (query.includes("review-requested")) return json({ items: seed.pulls });
-      if (query.includes("assignee")) return json({ items: seed.issues || [] });
-
-      return json({ items: [] });
+      // The queue is the drafts: nothing asks GitHub what is waiting any more,
+      // so a search arriving here is a regression, not a request to answer.
+      throw new TypeError("the queue is derived from drafts: nothing may call /search/issues");
     }
 
     const issue = path.match(/^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)(\/comments)?$/);
@@ -184,7 +178,12 @@
 
     if (!pull) return json({ message: `nothing here: ${method} ${path}` }, 404);
 
-    const [, , , , part] = pull;
+    const [, owner, repo, number, part] = pull;
+
+    // What a send's response points back at. GitHub answers with the pull
+    // request's own address, and a test proving the interface distrusts even
+    // that can hand the seed a hostile one.
+    const pullUrl = seed.postedUrl || `https://github.com/${owner}/${repo}/pull/${number}`;
 
     if (!part) return json({ head: { sha: seed.headCommit } });
     if (part === "/files") return json(seed.files);
@@ -192,13 +191,13 @@
     if (part === "/reviews" && method === "POST") {
       sent.push({ what: "review", body: JSON.parse(body) });
 
-      return json({ html_url: `${seed.pulls[0].html_url}#pullrequestreview-1` });
+      return json({ html_url: `${pullUrl}#pullrequestreview-1` });
     }
 
     if (part === "/comments" && method === "POST") {
       sent.push({ what: "comment", body: JSON.parse(body) });
 
-      return json({ html_url: `${seed.pulls[0].html_url}#discussion_r1` });
+      return json({ html_url: `${pullUrl}#discussion_r1` });
     }
 
     return json({ message: `nothing here: ${method} ${path}` }, 404);

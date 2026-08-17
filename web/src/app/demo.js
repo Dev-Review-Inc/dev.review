@@ -17,8 +17,9 @@ const SOURCES = [
   { name: "A real review", seed: "real" },
 ];
 
-// The queue is one list covering both sources, because a destination answers
-// for every pull request either source has a draft about.
+// One document covering both sources, because a destination answers per item -
+// files, commits, live issue bodies - for whatever either source has a draft
+// about. The queue itself is the drafts; nothing lists it here.
 const QUEUE = "queue";
 
 /**

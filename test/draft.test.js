@@ -34,6 +34,12 @@ test("carries the fields the interface shows", () => {
   assert.match(parsed.comment, /family catch-all/);
 });
 
+test("carries who opened the pull request or issue, blank when the sweep did not say", () => {
+  assert.strictEqual(draft({ author: "someone" }).author, "someone");
+  assert.strictEqual(parseDraft(DRAFT).author, "");
+  assert.strictEqual(draft({ author: 7 }).author, "");
+});
+
 test("carries the kinds with their summaries, tolerating their absence", () => {
   const parsed = draft({
     kinds: [{ key: "transition-debt", body: "Old surface carried forward." }, { key: "robustness" }],

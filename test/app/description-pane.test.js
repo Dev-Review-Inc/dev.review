@@ -68,6 +68,7 @@ function spoken(node) {
 
 const anIssueDraft = (overrides = {}) =>
   aDraft({
+    url: "https://github.com/org/app/issues/42",
     verdict: "",
     summary: "",
     sections: [],

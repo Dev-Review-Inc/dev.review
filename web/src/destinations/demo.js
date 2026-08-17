@@ -1,7 +1,7 @@
 // Somewhere for the demo to post that is nowhere at all.
 //
-// This is the writing half of the demo. It answers the queue, the diff and the
-// head commit out of the same kind of static file the demo reader uses, and it
+// This is the writing half of the demo. It answers the diff and the head
+// commit out of the same kind of static file the demo reader uses, and it
 // posts nothing: a visitor to a marketing page has given us no token and no
 // permission, so the send has to be a no-op that says so in its own words
 // rather than a send that quietly fails.
@@ -73,16 +73,6 @@ export class DemoDestination {
     if (this._problem) throw new Error(this._problem);
 
     return { login: this._document.login || "", avatar: "" };
-  }
-
-  /**
-   * @returns {Promise<object[]>} the pull requests the sample data carries
-   */
-  async queue() {
-    await this._loaded();
-
-    // Seeds predate issues, so an entry that does not say is a pull request.
-    return (this._document.pulls || []).map((pull) => ({ isIssue: false, ...pull }));
   }
 
   /**
@@ -188,13 +178,6 @@ export class DemoDestination {
    */
   async commentOnIssue(target) {
     return { url: target.url || "" };
-  }
-
-  /**
-   * @returns {string} nothing: an empty demo queue is an empty file, and says so
-   */
-  emptyQueueHint() {
-    return "";
   }
 
   _loaded() {

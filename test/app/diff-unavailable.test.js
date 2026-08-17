@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { App } from "../../web/src/app/app.js";
 import { MemoryKeyValueStore } from "../../web/src/state/key-value-store.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
-import { aDraft, agentWrites, aPull } from "../use-cases/helper.js";
+import { aDraft, agentWrites } from "../use-cases/helper.js";
 
 const FILES = [{ filename: "lib/error.rb", additions: 3, deletions: 1, patch: "" }];
 
@@ -30,10 +30,8 @@ async function anAppWhoseDestination({ files, headCommit }) {
     adapter: () => adapter,
     destination: () => ({
       identify: async () => ({ login: "reader" }),
-      queue: async () => [aPull()],
       files,
       headCommit,
-      emptyQueueHint: () => "",
     }),
   });
 

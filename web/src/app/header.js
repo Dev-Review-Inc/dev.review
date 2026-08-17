@@ -282,11 +282,11 @@ function drawQueue(app) {
   // Everything that is not drafted is waiting, and no more can be said than
   // that in one number: some of it is being reviewed now and some of it no
   // agent has picked up, which is a difference each row makes for itself.
+  // An empty queue is an empty drafts directory: nothing appears here until
+  // the sweep has drafted it, so the remedy is the sweep's, not a search's.
   find("queue-foot").textContent = entries.length
     ? `${ready} drafted · ${entries.length - ready} waiting`
-    : app.destination
-      ? app.destination.emptyQueueHint() || "Nothing has been requested of you here."
-      : "No destination is configured, so nothing can be waiting yet.";
+    : "No drafts in this source yet - the queue fills as the sweep writes them.";
 
   drawDismissed(app);
 
@@ -409,9 +409,15 @@ function queueRow(app, entry) {
 
   const who = document.createElement("span");
   who.className = "who";
+  // A draft need not say who opened the work, so the row degrades to the
+  // date alone rather than drawing an empty name.
+  if (entry.author) who.append(element("span", "avatar", initials(entry.author)));
   who.append(
-    element("span", "avatar", initials(entry.author)),
-    element("span", "", `${entry.author} · ${age(entry.updatedAt)}`),
+    element(
+      "span",
+      "",
+      [entry.author, entry.updatedAt ? age(entry.updatedAt) : null].filter(Boolean).join(" · "),
+    ),
   );
 
   const meta = document.createElement("div");

@@ -237,3 +237,22 @@ describe("a source with no drafts/ directory", () => {
     assert.equal(drafts.misconfigured, false);
   });
 });
+
+describe("all", () => {
+  test("hands over every parsed draft by key, leaving out what could not be read", async () => {
+    const adapter = new MemoryAdapter();
+
+    await agentWrites(adapter, aDraft());
+    await agentWrites(adapter, aDraft({ repo: "site", number: 7 }));
+    await adapter.write("drafts/org--app-9/review.json", new TextEncoder().encode("not json"));
+
+    const drafts = new Drafts({ adapter });
+
+    await drafts.loadAll();
+
+    const held = drafts.all();
+
+    assert.deepEqual([...held.keys()].sort(), ["org/app#42", "org/site#7"]);
+    assert.equal(held.get("org/app#42").title, aDraft().title);
+  });
+});

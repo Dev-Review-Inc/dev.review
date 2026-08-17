@@ -45,7 +45,7 @@ describe("the dismissed list", () => {
     const later = Date.now() + 6 * DAY;
 
     assert.deepEqual(
-      app.queries.dismissed(app.source, app.pulls, later).map((entry) => entry.number),
+      app.queries.dismissed(app.source, app.pulls(), later).map((entry) => entry.number),
       [42],
     );
   });
@@ -57,7 +57,7 @@ describe("the dismissed list", () => {
 
     const later = Date.now() + 8 * DAY;
 
-    assert.deepEqual(app.queries.dismissed(app.source, app.pulls, later), []);
+    assert.deepEqual(app.queries.dismissed(app.source, app.pulls(), later), []);
   });
 
   // The one that says the window is a display window. If ageing out ever became
@@ -70,7 +70,7 @@ describe("the dismissed list", () => {
 
     const later = Date.now() + 400 * DAY;
 
-    assert.deepEqual(app.queries.dismissed(app.source, app.pulls, later), []);
+    assert.deepEqual(app.queries.dismissed(app.source, app.pulls(), later), []);
     assert.deepEqual(app.queue(), []);
   });
 
@@ -87,7 +87,7 @@ describe("the dismissed list", () => {
 
     assert.deepEqual(
       app.queries
-        .dismissed(app.source, app.pulls, 10_000_000_000_002)
+        .dismissed(app.source, app.pulls(), 10_000_000_000_002)
         .map((entry) => entry.number),
       [3, 2, 1],
     );
@@ -102,7 +102,7 @@ describe("the dismissed list", () => {
 
     const at = app.dismissed()[0].dismissedAt;
 
-    assert.equal(app.queries.dismissed(app.source, app.pulls, at + 7 * DAY - 1).length, 1);
-    assert.equal(app.queries.dismissed(app.source, app.pulls, at + 7 * DAY).length, 0);
+    assert.equal(app.queries.dismissed(app.source, app.pulls(), at + 7 * DAY - 1).length, 1);
+    assert.equal(app.queries.dismissed(app.source, app.pulls(), at + 7 * DAY).length, 0);
   });
 });
