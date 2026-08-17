@@ -26,7 +26,7 @@ export const READING = "reading";
 
 /**
  * A pull request's identity, recovered from the key its decisions are filed
- * under, for one the destination has stopped listing.
+ * under, for one whose draft is gone.
  *
  * Owner, repository and number are all a diff or a head commit ever asks of a
  * pull request, so the title going unknown does not stop either from loading -
@@ -49,6 +49,53 @@ function pullFromKey(key) {
     createdAt: "",
     isRequested: false,
   };
+}
+
+// What a draft's url says it is. The sweep records the html url of the thing
+// it drafted, and that is the one place a queue entry's kind can come from.
+const ISSUE_URL = /\/issues\/\d+(?:[/?#]|$)/;
+const PULL_URL = /\/pull\/\d+(?:[/?#]|$)/;
+
+/**
+ * The queue, derived from the drafts the reader's storage holds.
+ *
+ * Nothing is searched for: an entry exists because the sweep drafted it, and
+ * it stays until it is posted, dismissed, or its draft is cleared. A draft
+ * whose url names neither a pull request nor an issue is the one remaining
+ * invisibility, because it names nothing this app could open or post to.
+ *
+ * @param {Map<string, object>} drafts parsed drafts by key, from Drafts#all
+ * @returns {object[]} one queue entry per draft
+ */
+export function pullsFromDrafts(drafts) {
+  const queue = [];
+
+  for (const [key, draft] of drafts) {
+    const url = draft.url || "";
+    const isIssue = ISSUE_URL.test(url);
+
+    if (!isIssue && !PULL_URL.test(url)) continue;
+
+    const [, owner, repo, number] = /^(.+)\/(.+)#(\d+)$/.exec(key) || [];
+
+    queue.push({
+      owner,
+      repo,
+      number: Number(number),
+      title: draft.title,
+      author: draft.author || "",
+      url,
+      // The revival rule reads this: a redraft newer than a dismissal is a
+      // new question, and reaches the reader again.
+      updatedAt: draft.draftedAt,
+      createdAt: "",
+      // A draft is, by definition, waiting on the reader.
+      isRequested: true,
+      isIssue,
+    });
+  }
+
+  return queue;
 }
 
 export class Queries {
@@ -103,7 +150,7 @@ export class Queries {
    * for. Dismissed ones are left out entirely rather than dimmed.
    *
    * @param {object} source the source being read
-   * @param {object[]} pulls what the destination said is waiting
+   * @param {object[]} pulls the drafted entries, from {@link pullsFromDrafts}
    * @returns {object[]} the queue, each entry carrying its own reading state
    */
   queue(source, pulls) {
@@ -121,11 +168,10 @@ export class Queries {
    * mis-hit sometimes, and a row that simply vanishes leaves a reader with
    * nothing to undo.
    *
-   * Read from what this app decided, not from the destination's own queue.
-   * Answering a review request is exactly what takes a pull request off that
-   * queue, so filtering the destination's list the way {@link queue} does
-   * would drop a pull request from this one the moment it is dismissed the
-   * way most of them are: by posting.
+   * Read from what this app decided, not from the drafts still held. A draft
+   * is eventually pruned or cleared, so filtering the drafted entries the way
+   * {@link queue} does would drop a pull request from this list the moment
+   * its draft went, taking the record of ever having reviewed it along.
    *
    * Newest first: the one to put back is almost always the one just dismissed.
    *
@@ -137,15 +183,15 @@ export class Queries {
    * expire the dismissal: the event stays in the log, still syncs, and still
    * keeps its pull request out of {@link queue} for good.
    *
-   * Each entry carries `restorable`: whether the destination still lists the
-   * pull request anywhere this app could put it back on the queue. Restoring
-   * clears the one field keeping a pull request in this list, so restoring
-   * one the destination has stopped listing would not put it back on the
-   * queue - it would only make it disappear from here too, with no way back.
+   * Each entry carries `restorable`: whether a draft still holds a place this
+   * app could put the pull request back on the queue. Restoring clears the
+   * one field keeping a pull request in this list, so restoring one whose
+   * draft is gone would not put it back on the queue - it would only make it
+   * disappear from here too, with no way back.
    *
    * @param {object} source the source being read
-   * @param {object[]} pulls what the destination said is waiting, for whichever
-   *   of these it still lists
+   * @param {object[]} pulls the drafted entries, for whichever of these the
+   *   storage still holds a draft
    * @param {number} [now] the moment to measure the week back from
    * @returns {object[]} the recently dismissed ones, each carrying its state
    */
@@ -168,7 +214,7 @@ export class Queries {
    * Everything the app knows about one pull request.
    *
    * @param {object} source the source being read
-   * @param {object} pull one entry from the destination's queue
+   * @param {object} pull one entry from the queue
    * @returns {object} the pull request, its draft, and what the reader decided
    */
   pullState(source, pull) {
@@ -197,15 +243,15 @@ export class Queries {
    * every pull request the reader has ever reviewed carries one for ever. Being
    * asked to look again is a new question, and it has to be able to reach them.
    *
-   * It takes both halves. A review requested with nothing new behind it is the
-   * request the dismissal already answered, and work that moved without a
-   * request is the reader's own pull request, which they took off the queue
-   * knowing they would go on pushing to it.
+   * On a draft-driven queue the new question is a redraft: an entry's
+   * updatedAt is its draft's draftedAt, so a draft written after the
+   * dismissal is what revives it, and one with nothing new behind it is the
+   * question the dismissal already answered.
    *
    * Deciding it here is what keeps the queue and the dismissed list from
    * disagreeing: they are one decision read twice.
    *
-   * @param {object} pull one entry from the destination's queue
+   * @param {object} pull one entry from the queue
    * @param {object} decision what the reader decided about it
    * @returns {number|null} when it was dismissed, or null once that is spent
    */
@@ -214,7 +260,7 @@ export class Queries {
 
     if (!dismissedAt || !pull.isRequested) return dismissedAt;
 
-    // The destination reports an ISO 8601 string; a dismissal is this app's own
+    // The draft carries an ISO 8601 string; a dismissal is this app's own
     // clock, in milliseconds. Neither is comparable until one of them moves.
     const movedAt = Date.parse(pull.updatedAt || "");
 

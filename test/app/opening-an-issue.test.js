@@ -1,4 +1,4 @@
-// Opening something the queue got from an issue search.
+// Opening an entry whose draft named an issue.
 //
 // An issue has no diff: asking /pulls/{n} for an issue number is a 404, so
 // opening one fetches the live body instead. A pull request whose draft
@@ -13,6 +13,7 @@ import { aDraft, aPull, agentWrites, theApp } from "../use-cases/helper.js";
 
 const anIssueDraft = (overrides = {}) =>
   aDraft({
+    url: "https://github.com/org/app/issues/42",
     verdict: "",
     summary: "",
     sections: [],
@@ -87,7 +88,8 @@ describe("opening an issue", () => {
 describe("opening a pull request", () => {
   test("whose draft proposes a description fetches the body beside the diff", async () => {
     const { app, calls } = await opened({
-      draft: anIssueDraft({ verdict: "COMMENT" }),
+      // A pull request draft, so a pull url, that also proposes a description.
+      draft: anIssueDraft({ verdict: "COMMENT", url: "https://github.com/org/app/pull/42" }),
       pull: aPull(),
     });
 

@@ -1,9 +1,8 @@
 // Where a draft lives, derived rather than looked up.
 //
-// The sweep writes one markdown file per pull request it has reviewed. Nothing
-// lists them: the queue comes from GitHub, and the client asks for the file it
-// expects for each pull request in that queue. A 404 means the sweep has not
-// reached it yet.
+// The sweep writes one draft file per pull request or issue it has handled,
+// and the listing of those files is the queue: an entry exists because its
+// draft does. A pull request with no draft is simply not here yet.
 
 // GitHub owners and repository names are drawn from this set. Anything else did
 // not come from the API, and must not reach a URL path.

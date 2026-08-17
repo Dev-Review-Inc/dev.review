@@ -326,6 +326,10 @@ export function parseDraft(payload) {
   return {
     title: draft.title || "",
     url: draft.url || "",
+    // Who opened the pull request or issue, when the sweep recorded it. The
+    // queue is derived from drafts, so this is the only place a row's author
+    // can come from.
+    author: typeof draft.author === "string" ? draft.author : "",
     reviewedAt: draft.reviewedAt || "",
     draftedAt: draft.draftedAt || "",
     finishedAt: draft.finishedAt || "",

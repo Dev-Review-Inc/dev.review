@@ -54,6 +54,25 @@ export class Drafts {
   }
 
   /**
+   * Every draft currently held, by key.
+   *
+   * This is what the queue is derived from: an entry exists because a draft
+   * does. A key whose read failed or whose bytes did not parse holds no draft,
+   * so it is left out here and reported through {@link problem} instead.
+   *
+   * @returns {Map<string, object>} parsed drafts by key, e.g. "org/app#42"
+   */
+  all() {
+    const held = new Map();
+
+    for (const [key, entry] of this._byKey) {
+      if (entry.draft) held.set(key, entry.draft);
+    }
+
+    return held;
+  }
+
+  /**
    * What is wrong with a draft, if anything is.
    *
    * A draft that does not parse is shown as unreadable rather than as absent,

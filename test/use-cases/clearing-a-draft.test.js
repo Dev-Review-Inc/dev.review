@@ -56,6 +56,8 @@ describe("clearing the draft on the pull request being read", () => {
 
     await app.clearDraft();
     await agentWrites(adapter, aDraft({ summary: "Second look." }));
+    // What the watch does when the redraft lands: absorb, and the queue has it.
+    await app.loadQueue();
     await app.select(app.queue()[0]);
 
     const again = app.queries.findingsForPull(app.source, app.selected)[0];

@@ -15,15 +15,15 @@ import { probe } from "../state/health.js";
 import { Sync, deviceIdFor } from "../state/sync.js";
 import runners from "../state/runners.js";
 import { Commands } from "../commands/index.js";
-import { Queries } from "../queries/index.js";
+import { Queries, pullsFromDrafts } from "../queries/index.js";
 import { buildAdapter, MemoryAdapter } from "../adapters/index.js";
 import { recallHandle, rememberHandle, forgetHandle } from "../adapters/filesystem.js";
 import { buildDestination } from "../destinations/index.js";
 import { remember } from "./theirs.js";
 import { syncWidget } from "./widget.js";
 
-// How often the queue is asked for again. The destination is the slow, rate limited
-// part of this app, and a review request does not arrive every second.
+// How often the queue is read again. The watch already absorbs drafts as they
+// land; this is the backstop for a watch round the storage refused.
 const REFRESH = 5 * 60 * 1000;
 
 export class App {
@@ -88,7 +88,6 @@ export class App {
     // is the correct behaviour, not a limitation.
     this.source = null;
     this.login = "";
-    this.pulls = [];
     this.selected = null;
     this.files = [];
     this.headCommit = "";
@@ -526,28 +525,15 @@ export class App {
   // ---- The queue
 
   /**
-   * Ask the destination what is waiting.
+   * Read the reader's storage again, so the queue is current.
+   *
+   * The queue is the drafts: an entry exists because the sweep wrote one, and
+   * for no other reason. The destination is never asked what is waiting - it
+   * is asked per item, when one is opened or posted.
    *
    * @returns {Promise<void>} when the queue is current
    */
   async loadQueue() {
-    if (!this.destination) {
-      this.pulls = [];
-      this.changed();
-      await syncWidget(0);
-
-      return;
-    }
-
-    try {
-      this.pulls = await this.destination.queue();
-      this.problems.destination = "";
-    } catch (error) {
-      this.problems.destination = error.message;
-    }
-
-    // Reading the drafts for the queue is what makes a pull request show as
-    // ready before it has been opened.
     if (this.drafts) await this.drafts.loadAll();
 
     // That read can have cleared the very review being looked at, so this ends
@@ -596,7 +582,7 @@ export class App {
   queue() {
     if (!this.source) return [];
 
-    return this.queries.queue(this.source, this.pulls);
+    return this.queries.queue(this.source, this.pulls());
   }
 
   /**
@@ -607,7 +593,19 @@ export class App {
   dismissed() {
     if (!this.source) return [];
 
-    return this.queries.dismissed(this.source, this.pulls);
+    return this.queries.dismissed(this.source, this.pulls());
+  }
+
+  /**
+   * Every entry the drafts put on the queue, before the reader's decisions.
+   *
+   * Derived at read time rather than held, so a draft the watch absorbed
+   * mid-session surfaces on the next redraw without anything reloading.
+   *
+   * @returns {object[]} one entry per drafted pull request or issue
+   */
+  pulls() {
+    return this.drafts ? pullsFromDrafts(this.drafts.all()) : [];
   }
 
   /**

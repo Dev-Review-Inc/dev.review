@@ -8,7 +8,6 @@
 
 import {
   viewer,
-  reviewQueue,
   pullRequest,
   pullFiles,
   postComment,
@@ -43,7 +42,7 @@ export class GitHubDestination {
       key: "token",
       label: "Personal access token",
       secret: true,
-      hint: "Fine grained, scoped to the repositories you review: pull requests read and write, metadata read.",
+      hint: "Fine grained, scoped to the repositories you review: pull requests read and write, issues read and write, metadata read.",
     },
   ];
 
@@ -62,15 +61,6 @@ export class GitHubDestination {
     const account = await viewer(this.token);
 
     return { login: account.login, avatar: account.avatar_url || "" };
-  }
-
-  /**
-   * What is waiting on the reader.
-   *
-   * @returns {Promise<object[]>} one entry per pull request
-   */
-  queue() {
-    return reviewQueue(this.token);
   }
 
   /**
@@ -178,20 +168,5 @@ export class GitHubDestination {
     const posted = await postIssueComment(this.token, target, body);
 
     return { url: posted.html_url || "" };
-  }
-
-  /**
-   * Why an empty queue might be empty rather than genuinely empty.
-   *
-   * GitHub reports a fine grained token that an organisation has not approved
-   * as no results rather than as an error, which reads as "nothing to review"
-   * and sends people looking in the wrong place.
-   *
-   * @returns {string} something to show, or an empty string
-   */
-  emptyQueueHint() {
-    if (!String(this.token).startsWith("github_pat_")) return "";
-
-    return "A fine grained token that an organisation has not approved returns an empty queue rather than an error. Check the token is approved for those repositories.";
   }
 }

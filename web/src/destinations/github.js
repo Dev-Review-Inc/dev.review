@@ -7,31 +7,6 @@
 
 const API = "https://api.github.com";
 
-// Open pull requests waiting on the signed-in user, their own, and the issues
-// on their plate — search qualifiers cannot be OR-ed, so the queue is four
-// searches merged.
-const REQUESTED = "is:open is:pr review-requested:@me archived:false";
-const MINE = "is:open is:pr author:@me archived:false";
-const ASSIGNED = "is:open is:issue assignee:@me archived:false";
-const MENTIONED = "is:open is:issue mentions:@me archived:false";
-
-/**
- * Owner and repository of an API repository url.
- *
- * @param {string} url e.g. "https://api.github.com/repos/org/app"
- * @returns {{owner: string, repo: string}} the parsed pair
- * @throws {Error} if the url is not a repository url
- */
-export function parseRepository(url) {
-  const match = String(url).match(/\/repos\/([^/]+)\/([^/]+)$/);
-
-  if (!match) {
-    throw new Error(`not a repository url: ${url}`);
-  }
-
-  return { owner: match[1], repo: match[2] };
-}
-
 // GitHub allows exactly one review in progress per pull request per
 // reviewer. Leaving a comment on the Files tab of github.com starts one
 // without saying so, so a reader can hit this without ever having pressed
@@ -102,66 +77,6 @@ async function call(token, path, options = {}) {
  */
 export function viewer(token) {
   return call(token, "/user");
-}
-
-/**
- * Pull requests awaiting the signed-in user's review, their own, and the
- * issues assigned to or mentioning them, across every repository.
- *
- * Review requests come first; an entry answering more than one search — a
- * review asked of you on your own work, an assigned issue that also mentions
- * you — appears once, in the earliest search it answered.
- *
- * @param {string} token a personal access token
- * @returns {Promise<object[]>} one entry per pull request or issue
- */
-export async function reviewQueue(token) {
-  const [requested, mine, assigned, mentioned] = await Promise.all(
-    [REQUESTED, MINE, ASSIGNED, MENTIONED].map((query) =>
-      call(token, `/search/issues?q=${encodeURIComponent(query)}&per_page=50`),
-    ),
-  );
-
-  const seen = new Set();
-  const queue = [];
-
-  // Which search an entry came out of is the one thing the merge would lose,
-  // and it is what says the reader is being waited on. Requested is walked
-  // first so a pull request answering both keeps that, and for issues it is
-  // the assignee search that means waited on rather than merely named.
-  const searches = [
-    { items: requested.items || [], isRequested: true, isIssue: false },
-    { items: mine.items || [], isRequested: false, isIssue: false },
-    { items: assigned.items || [], isRequested: true, isIssue: true },
-    { items: mentioned.items || [], isRequested: false, isIssue: true },
-  ];
-
-  for (const search of searches) {
-    for (const item of search.items) {
-      const { owner, repo } = parseRepository(item.repository_url);
-      const key = `${owner}/${repo}#${item.number}`;
-
-      if (seen.has(key)) continue;
-
-      seen.add(key);
-      queue.push({
-        owner,
-        repo,
-        number: item.number,
-        title: item.title,
-        author: item.user?.login || "",
-        url: item.html_url,
-        updatedAt: item.updated_at,
-        createdAt: item.created_at,
-        isRequested: search.isRequested,
-        // The item's own pull_request key outranks which search answered it: a
-        // pull request that mentions the reader must not turn into an issue.
-        isIssue: search.isIssue && !item.pull_request,
-      });
-    }
-  }
-
-  return queue;
 }
 
 /**

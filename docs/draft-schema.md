@@ -8,7 +8,7 @@ The path is derived, not discovered. Each pull request — or issue: the two sha
 <owner>--<repo>-<number>/review.json
 ```
 
-so `org/app#42` is `org--app-42/review.json`. Media the draft refers to — QA recordings, frames — lives in that same directory, beside the draft. The app never lists the directory looking for work. It asks GitHub which pull requests await review, derives the filename for each, and requests it; a missing file means no draft has been written yet. This keeps the queue accurate for free, because a draft left behind after its review request is gone is simply never asked for.
+so `org/app#42` is `org--app-42/review.json`. Media the draft refers to — QA recordings, frames — lives in that same directory, beside the draft. The listing of that directory *is* the queue: the app never asks GitHub what awaits review, so nothing appears until an agent has drafted it, and every draft stays on the queue until the reader posts, dismisses, or clears it. Deciding what deserves a draft belongs to the agent doing the sweep, not to this app — which is also why the draft carries its own `title`, `url`, and `author`: they are all the app knows about the pull request or issue until the reader opens it.
 
 ## Shape
 
@@ -64,7 +64,8 @@ so `org/app#42` is `org--app-42/review.json`. Media the draft refers to — QA r
 |---|---|---|
 | `schema` | yes | Must be `3`. A draft written to a later schema is refused rather than half-understood. |
 | `owner`, `repo`, `number` | yes | Identify the pull request. They must agree with the filename. |
-| `title`, `url` | no | Shown in the header. |
+| `title`, `url` | no | Shown in the header and on the queue. The `url` is also how the app tells an issue draft from a pull request draft — `/issues/` or `/pull/` — so a draft without one renders nowhere. |
+| `author` | no | Login of whoever opened the pull request or issue, shown on the queue row. |
 | `reviewedAt` | no | The commit the review was written against. Shown so a stale draft is visible as stale, and sent as the review's `commit_id`. |
 | `draftedAt` | no | ISO 8601 timestamp of the most recent write — including an in-progress one. |
 | `finishedAt` | no | ISO 8601 timestamp set only on the write that finishes the review. Absent while still in progress, however much of `sections` and `findings` has landed so far. |
@@ -160,8 +161,8 @@ Videos are just files an agent writes next to its draft. An agent that wants the
 ## Issues
 
 An issue draft is the same file with a different proposal in it. There is no
-`kind` field and no second filename: the target says which it is, because the
-app asks GitHub, and a number is an issue or a pull request, never both.
+`kind` field and no second filename: the draft's own `url` says which it is,
+and a number is an issue or a pull request, never both.
 
 What changes is what the draft proposes. No `verdict` — there is no code to
 judge. Instead:

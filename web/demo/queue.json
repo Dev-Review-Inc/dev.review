@@ -1,49 +1,5 @@
 {
   "login": "you",
-  "pulls": [
-    {
-      "owner": "harbourline",
-      "repo": "storefront",
-      "number": 128,
-      "title": "Paginate the orders endpoint",
-      "author": "priya",
-      "url": "https://github.com/harbourline/storefront/pull/128",
-      "updatedAt": "2026-07-30T11:04:22Z",
-      "createdAt": "2026-07-30T09:50:00Z"
-    },
-    {
-      "owner": "harbourline",
-      "repo": "storefront",
-      "number": 131,
-      "title": "Round the order total once, at the end",
-      "author": "tomas",
-      "url": "https://github.com/harbourline/storefront/pull/131",
-      "updatedAt": "2026-07-30T14:12:09Z",
-      "createdAt": "2026-07-30T13:41:00Z"
-    },
-    {
-      "owner": "harbourline",
-      "repo": "storefront",
-      "number": 134,
-      "title": "Export button does nothing",
-      "author": "sofia",
-      "url": "https://github.com/harbourline/storefront/issues/134",
-      "updatedAt": "2026-07-30T16:20:41Z",
-      "createdAt": "2026-07-30T16:02:00Z",
-      "isIssue": true,
-      "isRequested": true
-    },
-    {
-      "owner": "dev-review",
-      "repo": "dev.review",
-      "number": 41,
-      "title": "Say why a storage backend cannot be used here",
-      "author": "maintainer",
-      "url": "https://github.com/dev-review/dev.review/pull/41",
-      "updatedAt": "2026-07-30T15:51:04Z",
-      "createdAt": "2026-07-30T15:20:00Z"
-    }
-  ],
   "files": {
     "harbourline/storefront#128": [
       {
