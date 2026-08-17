@@ -29,8 +29,8 @@ A draft's reviewer app already knows when its review was posted or dismissed —
 node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>   # delete drafts posted or dismissed, print which ones
 ```
 
-This deletes matching draft folders (and their QA media) from disk only. Commit and push the deletion the same way a draft write is: run the "Sync to git" step from **/dev-review** against `<drafts-dir>` — `git add -A`, commit, push — rather than a second git flow.
+This deletes matching draft folders (and their QA media) from disk only. Leave the storage synced the same way a draft write does: run the "Leave the storage synced" step from **/dev-review** against `<drafts-dir>` rather than a second flow of your own. On anything but a git-backed drafts directory that step does nothing, which is correct — the deletion is already visible.
 
 ## Finish with
 
-One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted or dismissed, and anything that failed and why — including any git sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted or dismissed, and anything that failed and why — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
