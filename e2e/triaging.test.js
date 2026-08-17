@@ -87,9 +87,12 @@ describe("Triaging an issue the agent drafted", () => {
     );
 
     await page.clickWhere(DESCRIPTION_LENS, "the Description row");
-    await page.until('!document.querySelector("#tab-description").hidden', "the description pane");
-
-    assert.equal(await page.count("#description .description-hunk"), 2);
+    // The hunks draw only after the live body arrives, so the pane being
+    // shown is not the pane being ready - wait for the diff itself.
+    await page.until(
+      'document.querySelectorAll("#description .description-hunk").length === 2',
+      "the proposal to be cut into hunks against the live body",
+    );
     assert.match(await page.text("#description .description-result .body"), /Orders export/);
   });
 
@@ -161,8 +164,12 @@ describe("Triaging an issue the agent drafted", () => {
       "the other issue to open",
     );
     await page.clickWhere(DESCRIPTION_LENS, "the Description row");
-    await page.until('!document.querySelector("#tab-description").hidden', "the description pane");
-    assert.equal(await page.count("#description .description-hunk"), 2);
+    // The hunks draw only after the live body arrives, so the pane being
+    // shown is not the pane being ready - wait for the diff itself.
+    await page.until(
+      'document.querySelectorAll("#description .description-hunk").length === 2',
+      "the proposal to be cut into hunks against the live body",
+    );
 
     // The reporter edits the ticket while the reader is looking at it.
     const moved = `${theIssueBody()}\n\nalso happens in safari`;
