@@ -126,6 +126,22 @@ test("does not prefix a review body the reader rewrote", () => {
   assert.strictEqual(body.comments[0].body, "[bot-assisted] never matches");
 });
 
+test("does not prefix a comment the reader wrote themselves", () => {
+  const withOwn = {
+    ...DRAFT,
+    findings: [DRAFT.findings[0], { id: "c", path: "a.rb", line: 3, body: "All mine.", mine: true }],
+  };
+
+  const body = reviewPayload(withOwn, {
+    commitId: "e612b1b",
+    dropped: new Set(),
+    prefix: "[bot-assisted]",
+  });
+
+  assert.strictEqual(body.comments[0].body, "[bot-assisted] never matches");
+  assert.strictEqual(body.comments[1].body, "All mine.");
+});
+
 test("does not prefix a finding the reader rewrote", () => {
   const edited = {
     ...DRAFT,

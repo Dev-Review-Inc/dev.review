@@ -71,7 +71,7 @@ export function reviewPayload(draft, options) {
       line: finding.line,
       // Findings anchor to the file's new state, which is GitHub's RIGHT side.
       side: "RIGHT",
-      body: withPrefix(finding.editedAt ? "" : options.prefix, bodyOf(finding)),
+      body: withPrefix(finding.editedAt || finding.mine ? "" : options.prefix, bodyOf(finding)),
     }));
 
   // An empty body is fine when the findings carry the review; a review with

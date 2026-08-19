@@ -162,7 +162,9 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
   }
 
   const prose = document.createElement("div");
-  prose.innerHTML = renderBody(withPrefix(finding.editedAt ? "" : prefix, finding.body));
+  prose.innerHTML = renderBody(
+    withPrefix(finding.editedAt || finding.mine ? "" : prefix, finding.body),
+  );
   body.append(prose);
 
   if (finding.suggestion) {

@@ -432,6 +432,10 @@ export class Commands {
       mine: true,
     });
 
+    // Writing it is the opt-in, the same reasoning as {@link editFinding}:
+    // nobody types a comment they do not mean to send.
+    this.track(source, "findings", event.objectId, "include");
+
     return this.queries
       .findingsForPull(source, pull)
       .find((finding) => finding.id === event.objectId);

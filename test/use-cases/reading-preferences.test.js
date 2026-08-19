@@ -164,6 +164,24 @@ describe("A prefix on every comment and summary", () => {
     );
   });
 
+  // The prefix marks the agent's words. A comment the reader wrote was never
+  // the agent's, so it goes out exactly as written from the moment it exists.
+  test("does not lead a comment the reader wrote themselves", async () => {
+    const app = await anApp();
+    await agentWrites(app.adapter, aDraft());
+    await app.drafts.loadAll();
+    const pull = app.open();
+    app.commands.setCommentPrefix(app.source, "[bot-assisted]");
+
+    const own = app.commands.addFinding(app.source, pull, {
+      path: "lib/error.rb",
+      line: 12,
+      body: "One thought of my own.",
+    });
+
+    assert.equal(app.queries.bodyToPost(app.source, own), "One thought of my own.");
+  });
+
   // The prefix marks the agent's words. A finding the reader rewrote is the
   // reader's, and marking it as the agent's would be a small lie in public.
   test("does not lead a finding the reader edited", async () => {
