@@ -248,6 +248,11 @@ export class Queries {
    * dismissal is what revives it, and one with nothing new behind it is the
    * question the dismissal already answered.
    *
+   * Unless the reader posted. A posted review answered for good, and the
+   * sweep pruning the handled draft then drafting the pull request again
+   * must not reopen it. Reviewing again after a post is the reader's own
+   * gesture - clearing the draft, which forgets the post - never a redraft.
+   *
    * Deciding it here is what keeps the queue and the dismissed list from
    * disagreeing: they are one decision read twice.
    *
@@ -259,6 +264,9 @@ export class Queries {
     const dismissedAt = decision.dismissedAt || null;
 
     if (!dismissedAt || !pull.isRequested) return dismissedAt;
+
+    // Posted spends nothing: no redraft revives an answered review.
+    if (decision.postedAt) return dismissedAt;
 
     // The draft carries an ISO 8601 string; a dismissal is this app's own
     // clock, in milliseconds. Neither is comparable until one of them moves.

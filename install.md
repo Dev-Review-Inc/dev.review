@@ -160,6 +160,8 @@ The queue tooling lives in this skill. It owns no paths — hand it the drafts d
 node ~/.claude/skills/dev-review-sweep/collector/queue.js next <drafts-dir> [limit]   # pull requests with no draft yet, plus what got deferred
 ```
 
+It skips what already has a draft, and also what the sync log says the reader already posted or dismissed — so pruning a handled draft never gets it redrafted. A dismissed pull request comes back only once it has moved since the dismissal; a posted one only when the reader clears it in the app.
+
 For each fresh PR, pipe your review flow into **/dev-review**.
 
 Hand the reviewing skill the `unattended` QA mode: nobody is waiting to be asked, so it runs its checkpoints without confirming — not without running them. A sweep that comes back with "QA skipped, unattended" has not done the job.
@@ -206,6 +208,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { selectNew, key, withinWorkspace, dedupe } from "./select-new.js";
+import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
 
@@ -247,7 +250,7 @@ function search(qualifier) {
         qualifier,
         "--state=open",
         "--limit", "40",
-        "--json", "number,title,repository,url",
+        "--json", "number,title,repository,url,updatedAt",
       ],
       { encoding: "utf8" },
     ),
@@ -287,7 +290,14 @@ if (command === "next" && draftsDir) {
 
   const scoped = withinWorkspace(openReviewRequests(), repos);
 
-  const { fresh, deferred } = selectNew(scoped, alreadyDrafted(draftsDir, scoped), Number(limit) || 4);
+  // The sync log keeps the selector honest after a prune: a pull the reader
+  // posted on or dismissed is not fresh just because its draft is gone.
+  const { fresh, deferred } = selectNew(
+    scoped,
+    alreadyDrafted(draftsDir, scoped),
+    Number(limit) || 4,
+    resolutions(readEvents(draftsDir)),
+  );
 
   console.log(
     JSON.stringify(
@@ -356,15 +366,38 @@ export function dedupe(...lists) {
  * re-draft on later pushes or comments. Nothing records what has been drafted —
  * the drafts are that record.
  *
+ * The sync log's word holds even after the draft is pruned: a posted pull is
+ * never re-drafted (reviewing it again is the reader's gesture, in the app),
+ * and a dismissed one only once it has moved since the dismissal — the same
+ * revival rule the app applies.
+ *
  * @param {object[]} prs open review requests
  * @param {Set<string>} drafted keys of pull requests a draft already exists for
  * @param {number} limit most pull requests to draft in one sweep
+ * @param {Map<string, {action: string, time: number}>} [resolved] terminal
+ *   resolutions from the sync log, as prune-drafts' `resolutions` folds them
  * @returns {{fresh: object[], deferred: object[]}}
  */
-export function selectNew(prs, drafted, limit) {
-  const undrafted = prs.filter((pr) => !drafted.has(key(pr)));
+export function selectNew(prs, drafted, limit, resolved = new Map()) {
+  const undrafted = prs.filter((pr) => !drafted.has(key(pr)) && !handled(pr, resolved.get(key(pr))));
 
   return { fresh: undrafted.slice(0, limit), deferred: undrafted.slice(limit) };
+}
+
+/**
+ * Whether the log already answers this pull request.
+ *
+ * @param {object} pr a pull request from `gh search prs --json`
+ * @param {{action: string, time: number}} [resolution] how its review ended
+ * @returns {boolean} whether drafting it would ask an answered question
+ */
+function handled(pr, resolution) {
+  if (!resolution) return false;
+  if (resolution.action === "post") return true;
+
+  // The search's ISO string against the log's millisecond clock; a missing
+  // or unparsable updatedAt is NaN, which never reads as newer.
+  return !(Date.parse(pr.updatedAt || "") > resolution.time);
 }
 
 /**
@@ -716,17 +749,18 @@ export function readEvents(draftsDir) {
 }
 
 /**
- * The pull requests whose review is done with: posted or dismissed, and not
- * since restored.
+ * How each pull request's review ended, for the ones that ended at all.
  *
  * A pull key's state is whatever its most recent `pulls`-collection event
  * says, across every device's log — not "has it ever had a post or dismiss
- * event". A restore after a dismiss puts it back on the queue.
+ * event". A restore after a dismiss puts it back on the queue, so a key
+ * whose latest word is a restore is absent here.
  *
  * @param {object[]} events parsed sync-log events, any collection
- * @returns {Set<string>} pull keys ("owner/repo#42") safe to delete the draft for
+ * @returns {Map<string, {action: string, time: number}>} terminal
+ *   resolutions by pull key ("owner/repo#42"), time in milliseconds
  */
-export function finishedPulls(events) {
+export function resolutions(events) {
   const latest = new Map();
 
   for (const event of events) {
@@ -739,13 +773,24 @@ export function finishedPulls(events) {
     if (!current || event.time > current.time) latest.set(event.objectId, { action: event.action, time: event.time });
   }
 
-  const finished = new Set();
+  const resolved = new Map();
 
-  for (const [key, { action }] of latest) {
-    if (TERMINAL.has(action)) finished.add(key);
+  for (const [key, state] of latest) {
+    if (TERMINAL.has(state.action)) resolved.set(key, state);
   }
 
-  return finished;
+  return resolved;
+}
+
+/**
+ * The pull requests whose review is done with: posted or dismissed, and not
+ * since restored.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @returns {Set<string>} pull keys ("owner/repo#42") safe to delete the draft for
+ */
+export function finishedPulls(events) {
+  return new Set(resolutions(events).keys());
 }
 
 /**

@@ -39,15 +39,38 @@ export function dedupe(...lists) {
  * re-draft on later pushes or comments. Nothing records what has been drafted —
  * the drafts are that record.
  *
+ * The sync log's word holds even after the draft is pruned: a posted pull is
+ * never re-drafted (reviewing it again is the reader's gesture, in the app),
+ * and a dismissed one only once it has moved since the dismissal — the same
+ * revival rule the app applies.
+ *
  * @param {object[]} prs open review requests
  * @param {Set<string>} drafted keys of pull requests a draft already exists for
  * @param {number} limit most pull requests to draft in one sweep
+ * @param {Map<string, {action: string, time: number}>} [resolved] terminal
+ *   resolutions from the sync log, as prune-drafts' `resolutions` folds them
  * @returns {{fresh: object[], deferred: object[]}}
  */
-export function selectNew(prs, drafted, limit) {
-  const undrafted = prs.filter((pr) => !drafted.has(key(pr)));
+export function selectNew(prs, drafted, limit, resolved = new Map()) {
+  const undrafted = prs.filter((pr) => !drafted.has(key(pr)) && !handled(pr, resolved.get(key(pr))));
 
   return { fresh: undrafted.slice(0, limit), deferred: undrafted.slice(limit) };
+}
+
+/**
+ * Whether the log already answers this pull request.
+ *
+ * @param {object} pr a pull request from `gh search prs --json`
+ * @param {{action: string, time: number}} [resolution] how its review ended
+ * @returns {boolean} whether drafting it would ask an answered question
+ */
+function handled(pr, resolution) {
+  if (!resolution) return false;
+  if (resolution.action === "post") return true;
+
+  // The search's ISO string against the log's millisecond clock; a missing
+  // or unparsable updatedAt is NaN, which never reads as newer.
+  return !(Date.parse(pr.updatedAt || "") > resolution.time);
 }
 
 /**

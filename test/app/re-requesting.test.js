@@ -84,6 +84,28 @@ describe("a dismissed pull request whose review is requested again", () => {
   });
 });
 
+describe("a pull request the reader posted on", () => {
+  // Posting spends the question for good: a redraft revives a plain
+  // dismissal, but "review it again" after a post is the reader's explicit
+  // gesture (clearing the draft), never a sweep side-effect.
+  test("stays off the queue however new the redraft is", async () => {
+    const pull = aPull({ isRequested: true, updatedAt: AFTER });
+    const app = await theApp({ pulls: [pull] });
+    const key = draftKey(pull.owner, pull.repo, pull.number);
+
+    await app.state.absorb(app.source.id, [
+      new EventStoreEvent("pulls", key, "post", { url: "https://github.com/org/app/pull/42#r1", event: "COMMENT" }, DISMISSED_AT),
+      new EventStoreEvent("pulls", key, "dismiss", null, DISMISSED_AT),
+    ]);
+
+    assert.deepEqual(app.queue(), []);
+    assert.deepEqual(
+      app.dismissed().map((one) => one.number),
+      [pull.number],
+    );
+  });
+});
+
 describe("a dismissed pull request of the reader's own", () => {
   // Every draft is waiting on the reader, their own work included, so the old
   // carve-out for one's own pull request is gone. What cannot revive it is a

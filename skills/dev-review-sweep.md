@@ -11,6 +11,8 @@ The queue tooling lives in this skill. It owns no paths — hand it the drafts d
 node ~/.claude/skills/dev-review-sweep/collector/queue.js next <drafts-dir> [limit]   # pull requests with no draft yet, plus what got deferred
 ```
 
+It skips what already has a draft, and also what the sync log says the reader already posted or dismissed — so pruning a handled draft never gets it redrafted. A dismissed pull request comes back only once it has moved since the dismissal; a posted one only when the reader clears it in the app.
+
 For each fresh PR, pipe your review flow into **/dev-review**.
 
 Hand the reviewing skill the `unattended` QA mode: nobody is waiting to be asked, so it runs its checkpoints without confirming — not without running them. A sweep that comes back with "QA skipped, unattended" has not done the job.

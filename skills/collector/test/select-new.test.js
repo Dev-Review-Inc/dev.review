@@ -26,6 +26,37 @@ test("keys by repository so the same number in two repos is distinct", () => {
   ]);
 });
 
+test("skips a pull the reader dismissed, so pruning its draft does not redraft it", () => {
+  const resolved = new Map([["org/app#1", { action: "dismiss", time: Date.parse("2026-08-10T00:00:00Z") }]]);
+  const stale = { ...pr(1), updatedAt: "2026-08-09T00:00:00Z" };
+
+  const { fresh } = selectNew([stale, pr(2)], new Set(), 10, resolved);
+  assert.deepStrictEqual(fresh.map((p) => p.number), [2]);
+});
+
+test("re-selects a dismissed pull that moved after the dismissal", () => {
+  const resolved = new Map([["org/app#1", { action: "dismiss", time: Date.parse("2026-08-10T00:00:00Z") }]]);
+  const moved = { ...pr(1), updatedAt: "2026-08-11T00:00:00Z" };
+
+  const { fresh } = selectNew([moved], new Set(), 10, resolved);
+  assert.deepStrictEqual(fresh.map((p) => p.number), [1]);
+});
+
+test("never re-selects a pull the reader posted on, however new the push", () => {
+  const resolved = new Map([["org/app#1", { action: "post", time: Date.parse("2026-08-10T00:00:00Z") }]]);
+  const moved = { ...pr(1), updatedAt: "2026-08-11T00:00:00Z" };
+
+  const { fresh } = selectNew([moved], new Set(), 10, resolved);
+  assert.deepStrictEqual(fresh, []);
+});
+
+test("a dismissed pull with no updatedAt from the search stays skipped", () => {
+  const resolved = new Map([["org/app#1", { action: "dismiss", time: 100 }]]);
+
+  const { fresh } = selectNew([pr(1)], new Set(), 10, resolved);
+  assert.deepStrictEqual(fresh, []);
+});
+
 test("caps the sweep and reports what it deferred rather than dropping it silently", () => {
   const { fresh, deferred } = selectNew([pr(1), pr(2), pr(3)], new Set(), 2);
   assert.deepStrictEqual(fresh.map((p) => p.number), [1, 2]);

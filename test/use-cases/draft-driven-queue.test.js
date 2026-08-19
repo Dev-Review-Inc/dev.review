@@ -121,6 +121,26 @@ describe("living with a draft-driven queue", () => {
     assert.equal(app.queue().length, 1);
   });
 
+  test("a redraft does not bring back a pull the reader posted on", async () => {
+    await agentWrites(adapter, anIssueDraft());
+    await app.loadQueue();
+
+    await app.commands.recordPostedTriage(app.source, app.queue()[0], {
+      url: "https://github.com/org/app/issues/7#issuecomment-1",
+    });
+
+    // The sweep pruning the handled draft and drafting it again must not
+    // reopen a question the posted review already answered.
+    await agentWrites(
+      adapter,
+      anIssueDraft({ draftedAt: new Date(Date.now() + 1000).toISOString() }),
+    );
+    await app.loadQueue();
+
+    assert.equal(app.queue().length, 0);
+    assert.equal(app.dismissed().length, 1);
+  });
+
   test("posting the triage leaves the queue", async () => {
     await agentWrites(adapter, anIssueDraft());
     await app.loadQueue();
