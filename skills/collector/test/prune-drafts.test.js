@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { finishedPulls, parseEventLines, readEvents, pruneDrafts } from "../prune-drafts.js";
+import { finishedPulls, resolutions, parseEventLines, readEvents, pruneDrafts } from "../prune-drafts.js";
 
 const event = (objectId, action, time, collection = "pulls") => ({ collection, objectId, action, time });
 
@@ -56,6 +56,30 @@ test("events out of file order still resolve by time, not by position", () => {
     event("org/app#1", "dismiss", 10),
   ]);
   assert.deepStrictEqual([...finished], []);
+});
+
+// ---- resolutions: the same fold, keeping when and how each pull ended
+
+test("a resolution carries its action and time", () => {
+  const resolved = resolutions([event("org/app#1", "post", 100)]);
+  assert.deepStrictEqual(resolved.get("org/app#1"), { action: "post", time: 100 });
+});
+
+test("a dismissal later restored resolves nothing", () => {
+  const resolved = resolutions([
+    event("org/app#1", "dismiss", 100),
+    event("org/app#1", "restore", 200),
+  ]);
+  assert.strictEqual(resolved.has("org/app#1"), false);
+});
+
+test("the latest terminal event is the resolution", () => {
+  const resolved = resolutions([
+    event("org/app#1", "dismiss", 100),
+    event("org/app#1", "restore", 200),
+    event("org/app#1", "dismiss", 300),
+  ]);
+  assert.deepStrictEqual(resolved.get("org/app#1"), { action: "dismiss", time: 300 });
 });
 
 // ---- parseEventLines: defensive against a partial or interrupted log

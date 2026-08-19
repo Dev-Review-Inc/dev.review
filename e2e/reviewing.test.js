@@ -894,9 +894,9 @@ describe("Moving between lenses in a long review", () => {
 });
 
 describe("A review request that comes back", () => {
-  // Posting a review takes the pull request off the queue, so a reader's
-  // dismissed list is everything they have ever reviewed. Someone asking for
-  // another look has to be able to get through that.
+  // Posting a review takes the pull request off the queue, and the sweep
+  // pruning the handled draft then drafting it again must not put it back:
+  // another look at a posted review is the reader's own gesture, in the app.
   let page;
 
   before(async () => {
@@ -930,23 +930,26 @@ describe("A review request that comes back", () => {
     assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), false);
   });
 
-  test("a redraft after the review puts it back on the queue", async () => {
-    // The branch moved and the sweep wrote the draft again: a draft newer
-    // than the reader's answer is a new question, and it has to reach them.
+  test("a redraft after the review does not put it back on the queue", async () => {
+    // The sweep drafting again - even a newer draft - is not a new question
+    // once the review is posted. The renamed title proves the redraft was
+    // read; the queue staying empty proves it revived nothing.
     await page.eval(`(() => {
       const draft = ${JSON.stringify(aDraft())};
 
+      draft.title = "Re-root the errors, take two";
       draft.draftedAt = new Date().toISOString();
       globalThis.__world.put("drafts/org--app-42/review.json", JSON.stringify(draft));
     })()`);
     await page.eval('window.dispatchEvent(new Event("focus"))');
 
     await page.until(
-      'document.querySelector("#queue-waiting").textContent === "1 to review"',
-      "the redraft to reach the queue",
+      'document.querySelector("#dismissed .setup-row .name")?.textContent === "Re-root the errors, take two"',
+      "the redraft to be read",
     );
 
-    assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), true);
+    assert.equal(await page.text("#queue-waiting"), "nothing to review");
+    assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), false);
   });
 
   test("nothing went wrong along the way", () => {

@@ -77,17 +77,18 @@ export function readEvents(draftsDir) {
 }
 
 /**
- * The pull requests whose review is done with: posted or dismissed, and not
- * since restored.
+ * How each pull request's review ended, for the ones that ended at all.
  *
  * A pull key's state is whatever its most recent `pulls`-collection event
  * says, across every device's log — not "has it ever had a post or dismiss
- * event". A restore after a dismiss puts it back on the queue.
+ * event". A restore after a dismiss puts it back on the queue, so a key
+ * whose latest word is a restore is absent here.
  *
  * @param {object[]} events parsed sync-log events, any collection
- * @returns {Set<string>} pull keys ("owner/repo#42") safe to delete the draft for
+ * @returns {Map<string, {action: string, time: number}>} terminal
+ *   resolutions by pull key ("owner/repo#42"), time in milliseconds
  */
-export function finishedPulls(events) {
+export function resolutions(events) {
   const latest = new Map();
 
   for (const event of events) {
@@ -100,13 +101,24 @@ export function finishedPulls(events) {
     if (!current || event.time > current.time) latest.set(event.objectId, { action: event.action, time: event.time });
   }
 
-  const finished = new Set();
+  const resolved = new Map();
 
-  for (const [key, { action }] of latest) {
-    if (TERMINAL.has(action)) finished.add(key);
+  for (const [key, state] of latest) {
+    if (TERMINAL.has(state.action)) resolved.set(key, state);
   }
 
-  return finished;
+  return resolved;
+}
+
+/**
+ * The pull requests whose review is done with: posted or dismissed, and not
+ * since restored.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @returns {Set<string>} pull keys ("owner/repo#42") safe to delete the draft for
+ */
+export function finishedPulls(events) {
+  return new Set(resolutions(events).keys());
 }
 
 /**

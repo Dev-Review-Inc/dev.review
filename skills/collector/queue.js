@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { selectNew, key, withinWorkspace, dedupe } from "./select-new.js";
+import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
 
@@ -53,7 +54,7 @@ function search(qualifier) {
         qualifier,
         "--state=open",
         "--limit", "40",
-        "--json", "number,title,repository,url",
+        "--json", "number,title,repository,url,updatedAt",
       ],
       { encoding: "utf8" },
     ),
@@ -93,7 +94,14 @@ if (command === "next" && draftsDir) {
 
   const scoped = withinWorkspace(openReviewRequests(), repos);
 
-  const { fresh, deferred } = selectNew(scoped, alreadyDrafted(draftsDir, scoped), Number(limit) || 4);
+  // The sync log keeps the selector honest after a prune: a pull the reader
+  // posted on or dismissed is not fresh just because its draft is gone.
+  const { fresh, deferred } = selectNew(
+    scoped,
+    alreadyDrafted(draftsDir, scoped),
+    Number(limit) || 4,
+    resolutions(readEvents(draftsDir)),
+  );
 
   console.log(
     JSON.stringify(
