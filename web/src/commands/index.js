@@ -150,12 +150,17 @@ export class Commands {
    * Answers when the dismissal is written down, not when it is decided, so a
    * caller about to show the queue without it can wait for that to be true.
    *
+   * The dismissal records which draft it answered - the draftedAt on screen
+   * when the reader said no. Revival then hinges on the draft changing, not
+   * on whose clock reads later, so an agent stamping its draft in the future
+   * cannot spend the dismissal the moment it is made.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @returns {Promise<void>} when it is in local storage
    */
   dismissPull(source, pull) {
-    this.track(source, "pulls", pull.key, "dismiss");
+    this.track(source, "pulls", pull.key, "dismiss", { seen: pull.draft?.draftedAt || "" });
 
     return this.state.settled();
   }
@@ -266,7 +271,7 @@ export class Commands {
     this.track(source, "pulls", pull.key, "post", review);
     // A sent review is done with, so it leaves the queue without the reader
     // having to say so twice.
-    this.track(source, "pulls", pull.key, "dismiss");
+    this.track(source, "pulls", pull.key, "dismiss", { seen: pull.draft?.draftedAt || "" });
 
     return this.state.settled();
   }
@@ -353,7 +358,7 @@ export class Commands {
    */
   recordPostedTriage(source, pull, { url }) {
     this.track(source, "pulls", pull.key, "post", { url, event: "" });
-    this.track(source, "pulls", pull.key, "dismiss");
+    this.track(source, "pulls", pull.key, "dismiss", { seen: pull.draft?.draftedAt || "" });
 
     return this.state.settled();
   }

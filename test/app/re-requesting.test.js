@@ -2,9 +2,11 @@
 //
 // A posted review dismisses the pull request, so everything the reader has ever
 // reviewed carries a dismissal for ever. On a draft-driven queue the new
-// question is the sweep drafting again: an entry's updatedAt is its draftedAt,
-// so a redraft newer than the dismissal is what brings one back, and a redraft
-// with nothing new behind it stays quiet.
+// question is the sweep drafting again: a dismissal records the draftedAt it
+// answered, a different draft brings one back, and the same draft stays quiet.
+// The raw events written here carry no such record, which is exactly what a
+// log from before the payload existed looks like - these tests pin that the
+// old time comparison still decides for those.
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -56,6 +58,24 @@ describe("a dismissed pull request whose review is requested again", () => {
 
   test("stays dismissed while nothing has changed upstream", async () => {
     const pull = aPull({ isRequested: true, updatedAt: BEFORE });
+    const app = await theApp({ pulls: [pull] });
+
+    await dismissedAt(app, pull, DISMISSED_AT);
+
+    assert.deepEqual(app.queue(), []);
+    assert.deepEqual(
+      app.dismissed().map((one) => one.number),
+      [pull.number],
+    );
+  });
+
+  // A raw dismiss event with no payload is one written before dismissals
+  // recorded which draft they answered. On that path the time comparison
+  // still decides - but a stamp from the future is a lie about the clock,
+  // and a lie does not outvote the reader.
+  test("a legacy dismissal ignores a claimed movement in the future", async () => {
+    const future = new Date(Date.now() + 4 * HOUR).toISOString();
+    const pull = aPull({ isRequested: true, updatedAt: future });
     const app = await theApp({ pulls: [pull] });
 
     await dismissedAt(app, pull, DISMISSED_AT);

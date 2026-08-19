@@ -88,8 +88,15 @@ export default {
   // Keyed by "owner/repo#number", so a decision survives the draft being
   // rewritten, deleted, or never written in the first place.
 
-  "pulls.dismiss": moment("dismissedAt"),
-  "pulls.restore": moment("dismissedAt", null),
+  // A dismissal keeps the draftedAt it answered, so revival can ask "is this
+  // a different draft?" instead of trusting a clock. Events written before
+  // the payload existed leave dismissedSeen undefined, and the queries fall
+  // back to comparing times for those.
+  "pulls.dismiss": change((data, event) => ({
+    dismissedAt: event.time,
+    dismissedSeen: data.seen,
+  })),
+  "pulls.restore": change(() => ({ dismissedAt: null, dismissedSeen: undefined })),
 
   // The review body. Null means the reader has not touched it and the agent's
   // own comment stands, which is not the same as the reader clearing it.
