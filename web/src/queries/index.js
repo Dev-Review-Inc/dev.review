@@ -85,8 +85,8 @@ export function pullsFromDrafts(drafts) {
       title: draft.title,
       author: draft.author || "",
       url,
-      // The revival rule reads this: a redraft newer than a dismissal is a
-      // new question, and reaches the reader again.
+      // The revival rule reads this: a draft other than the one a dismissal
+      // answered is a new question, and reaches the reader again.
       updatedAt: draft.draftedAt,
       createdAt: "",
       // A draft is, by definition, waiting on the reader.
@@ -243,10 +243,12 @@ export class Queries {
    * every pull request the reader has ever reviewed carries one for ever. Being
    * asked to look again is a new question, and it has to be able to reach them.
    *
-   * On a draft-driven queue the new question is a redraft: an entry's
-   * updatedAt is its draft's draftedAt, so a draft written after the
-   * dismissal is what revives it, and one with nothing new behind it is the
-   * question the dismissal already answered.
+   * On a draft-driven queue the new question is a redraft. The dismissal
+   * wrote down the draftedAt it answered, so a different stamp - newer,
+   * older, it does not matter - is a different draft and revives the entry,
+   * and the same stamp is the question already answered. No clock gets a
+   * vote: an agent stamping its draft in the future cannot spend the
+   * dismissal the instant it is made.
    *
    * Unless the reader posted. A posted review answered for good, and the
    * sweep pruning the handled draft then drafting the pull request again
@@ -268,11 +270,17 @@ export class Queries {
     // Posted spends nothing: no redraft revives an answered review.
     if (decision.postedAt) return dismissedAt;
 
-    // The draft carries an ISO 8601 string; a dismissal is this app's own
-    // clock, in milliseconds. Neither is comparable until one of them moves.
+    // A different draft is a new question; the same one is answered.
+    if (decision.dismissedSeen !== undefined) {
+      return pull.updatedAt !== decision.dismissedSeen ? null : dismissedAt;
+    }
+
+    // A dismissal from before it recorded what it saw. The old time
+    // comparison decides, except that a stamp from the future is a lie
+    // about the clock and does not outvote the reader.
     const movedAt = Date.parse(pull.updatedAt || "");
 
-    return movedAt > dismissedAt ? null : dismissedAt;
+    return movedAt > dismissedAt && movedAt <= Date.now() ? null : dismissedAt;
   }
 
   /**

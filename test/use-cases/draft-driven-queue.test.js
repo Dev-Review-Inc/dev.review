@@ -121,6 +121,37 @@ describe("living with a draft-driven queue", () => {
     assert.equal(app.queue().length, 1);
   });
 
+  test("a draft with a future timestamp cannot spend the dismissal", async () => {
+    // A drafting agent invents a stamp hours ahead of the real clock. The
+    // dismissal answers the draft the reader actually saw, however its stamp
+    // reads, so the row leaves the queue and stays gone.
+    const future = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+
+    await agentWrites(adapter, anIssueDraft({ draftedAt: future }));
+    await app.loadQueue();
+
+    app.commands.dismissPull(app.source, app.queue()[0]);
+
+    assert.equal(app.queue().length, 0);
+    assert.equal(app.dismissed().length, 1);
+  });
+
+  test("a genuinely new draft still revives, even one stamped in the past", async () => {
+    await agentWrites(adapter, anIssueDraft());
+    await app.loadQueue();
+
+    app.commands.dismissPull(app.source, app.queue()[0]);
+
+    assert.equal(app.queue().length, 0);
+
+    // A different draft is a different question, whatever its stamp says
+    // about when it was written.
+    await agentWrites(adapter, anIssueDraft({ draftedAt: "2026-08-15T08:00:00Z" }));
+    await app.loadQueue();
+
+    assert.equal(app.queue().length, 1);
+  });
+
   test("a redraft does not bring back a pull the reader posted on", async () => {
     await agentWrites(adapter, anIssueDraft());
     await app.loadQueue();
