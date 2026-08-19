@@ -452,8 +452,11 @@ export class Queries {
    * @returns {string} the markdown to send
    */
   bodyToPost(source, finding) {
-    // The prefix marks the agent's words; one the reader rewrote is theirs.
-    return withPrefix(finding.editedAt ? "" : this.commentPrefixFor(source), bodyOf(finding));
+    // The prefix marks the agent's words; one the reader rewrote is theirs,
+    // and one they wrote themselves never was the agent's at all.
+    const theirs = finding.editedAt || finding.mine;
+
+    return withPrefix(theirs ? "" : this.commentPrefixFor(source), bodyOf(finding));
   }
 
   /**

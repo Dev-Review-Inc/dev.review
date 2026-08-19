@@ -236,6 +236,22 @@ describe("Deciding what goes out", () => {
     assert.equal(app.queries.findingsForPull(app.source, pull).length, 4);
   });
 
+  test("a comment the reader writes is part of the send from the moment it exists", () => {
+    const own = app.commands.addFinding(app.source, pull, {
+      path: "lib/error.rb",
+      line: 12,
+      body: "One thought.",
+    });
+
+    // Writing it was the opt-in, the same reasoning as editing: nobody types
+    // a comment they do not mean to send, and a second gesture to include
+    // their own words would only ever be forgotten.
+    assert.ok(own.includedAt);
+    assert.ok(
+      app.queries.findingsToPost(app.source, pull).some((finding) => finding.id === own.id),
+    );
+  });
+
   test("a comment the reader wrote can be taken back", () => {
     const own = app.commands.addFinding(app.source, pull, {
       path: "lib/error.rb",
