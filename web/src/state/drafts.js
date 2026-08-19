@@ -256,6 +256,13 @@ export class Drafts {
 
     if (!key) return null;
 
+    // A key this round changed nothing about is not reported: every report is
+    // a redraw the reader can see, and storage is free to refresh timestamps
+    // without moving a byte - a git pull re-materialising the same files does
+    // it every round. The signature is whatever state was reached, so an
+    // outage is news once, not once per round for as long as it lasts.
+    const before = this._byKey.get(key)?.signature;
+
     let bytes;
 
     try {
@@ -267,30 +274,40 @@ export class Drafts {
       // that was deleted: forgetting it here takes the ready mark off the
       // queue row, which reports the storage's outage as the agent having
       // nothing waiting.
-      this._byKey.set(key, { draft: null, problem: { cause: UNREAD, detail: error.message } });
+      const signature = `${UNREAD}:${error.message}`;
 
-      return key;
+      this._byKey.set(key, {
+        draft: null,
+        problem: { cause: UNREAD, detail: error.message },
+        signature,
+      });
+
+      return signature === before ? null : key;
     }
 
     if (!bytes) {
       this._byKey.delete(key);
 
-      return key;
+      return before === undefined ? null : key;
     }
+
+    const text = new TextDecoder().decode(bytes);
 
     try {
       this._byKey.set(key, {
-        draft: parseDraft(JSON.parse(new TextDecoder().decode(bytes))),
+        draft: parseDraft(JSON.parse(text)),
         problem: null,
+        signature: text,
       });
     } catch (error) {
       this._byKey.set(key, {
         draft: this._byKey.get(key)?.draft || null,
         problem: { cause: UNPARSED, detail: error.message },
+        signature: text,
       });
     }
 
-    return key;
+    return text === before ? null : key;
   }
 }
 
