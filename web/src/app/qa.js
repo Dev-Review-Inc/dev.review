@@ -15,18 +15,38 @@ const QA_WORD = { pass: "passed", fail: "failed", skip: "not run" };
 // Where a draft's video paths are relative to, matching what Drafts reads.
 const ROOT = "drafts/";
 
-// Every object URL currently on the page, so the next draw can give them back.
-const held = new Set();
+// Every recording currently held, keyed by the owning draft's draftedAt plus
+// the path. Held across draws on purpose: the interface redraws whole on every
+// change, and a recording re-fetched each time flashes blank and forgets its
+// place, which reads as the app reloading. The draftedAt in the key is the
+// honest invalidation - a redraft is the one moment the bytes may genuinely
+// differ, so it reads again; every other redraw reuses the url synchronously.
+const held = new Map();
+
+// Where the reader had got to in each recording, by path rather than by draw,
+// so their place survives both a redraw and a redraft.
+const places = new Map();
 
 /**
- * Give back every recording the last draw took out.
+ * Give back every recording the last draw did not use.
+ *
+ * Called at the top of each draw. An entry the previous draw used is kept and
+ * its mark cleared, so one draw's grace is the most any unused blob outlives
+ * its last appearance.
  *
  * @returns {void}
  */
 export function releaseMedia() {
-  for (const release of held) release();
+  for (const [key, entry] of held) {
+    if (entry.used) {
+      entry.used = false;
 
-  held.clear();
+      continue;
+    }
+
+    entry.release?.();
+    held.delete(key);
+  }
 }
 
 /**
@@ -142,26 +162,50 @@ function recording(app, run) {
   video.controls = true;
   video.preload = "metadata";
 
+  // Put the reader back where they were once the new element can seek.
+  video.addEventListener("timeupdate", () => places.set(run.video, video.currentTime));
+  video.addEventListener("loadedmetadata", () => {
+    const place = places.get(run.video);
+
+    if (place) video.currentTime = place;
+  });
+
+  const key = `${app.selected?.draft?.draftedAt || ""}|${run.video}`;
+  const kept = held.get(key);
+
+  if (kept) {
+    kept.used = true;
+
+    // Synchronously: an async re-fetch here is a blank frame on every redraw.
+    if (kept.url) video.src = kept.url;
+
+    return video;
+  }
+
+  const entry = { url: "", release: null, used: true };
+
+  held.set(key, entry);
+
   app.adapter
     .media(`${ROOT}${run.video}`)
     .then((media) => {
       if (!media) {
+        held.delete(key);
         video.replaceWith(element("div", "scenario-missing", "recording is missing"));
 
         return;
       }
 
-      // A draw that has already been replaced must not leave its blob behind.
-      if (!video.isConnected) {
-        media.release();
+      entry.url = media.url;
+      entry.release = media.release;
 
-        return;
-      }
-
+      // Even when this draw has already been replaced: the entry owns the
+      // blob now, the next draw reuses its url, and releaseMedia gives it
+      // back once no draw does.
       video.src = media.url;
-      held.add(media.release);
     })
     .catch((failure) => {
+      held.delete(key);
       say(`could not read the recording: ${failure.message}`, "error");
       video.replaceWith(element("div", "scenario-missing", "recording could not be read"));
     });

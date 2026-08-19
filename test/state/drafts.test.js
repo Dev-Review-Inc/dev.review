@@ -256,3 +256,51 @@ describe("all", () => {
     assert.equal(held.get("org/app#42").title, aDraft().title);
   });
 });
+
+// A watch round is a redraw, and a redraw the reader can see. Storage that
+// refreshes timestamps without changing bytes - a git pull re-materialising
+// the same files - must not turn into an interface that flickers every two
+// seconds while nothing is different.
+describe("a draft re-read unchanged", () => {
+  test("is not reported as a change", async () => {
+    const adapter = new MemoryAdapter();
+
+    await agentWrites(adapter, aDraft());
+
+    const drafts = new Drafts({ adapter });
+
+    assert.deepEqual(await drafts._absorb([PATH]), [KEY]);
+    assert.deepEqual(await drafts._absorb([PATH]), []);
+  });
+
+  test("is reported again the moment its bytes actually move", async () => {
+    const adapter = new MemoryAdapter();
+
+    await agentWrites(adapter, aDraft());
+
+    const drafts = new Drafts({ adapter });
+
+    await drafts._absorb([PATH]);
+    await agentWrites(adapter, aDraft({ summary: "Now it says something else." }));
+
+    assert.deepEqual(await drafts._absorb([PATH]), [KEY]);
+  });
+
+  test("still reports a deletion, an outage, and a recovery", async () => {
+    const adapter = await storageThatCanRefuseReads();
+    const drafts = new Drafts({ adapter });
+
+    await drafts._absorb([PATH]);
+
+    adapter.refusing = true;
+    assert.deepEqual(await drafts._absorb([PATH]), [KEY], "the outage is news");
+    assert.deepEqual(await drafts._absorb([PATH]), [], "the outage continuing is not");
+
+    adapter.refusing = false;
+    assert.deepEqual(await drafts._absorb([PATH]), [KEY], "the recovery is news");
+
+    await adapter.remove(PATH);
+    assert.deepEqual(await drafts._absorb([PATH]), [KEY], "the deletion is news");
+    assert.deepEqual(await drafts._absorb([PATH]), [], "staying gone is not");
+  });
+});
