@@ -60,6 +60,8 @@ As review input comes in, keep `org--app-42/review.json` up-to-date so the human
 3. **Before QA starts**, write and sync once more regardless of whether anything changed since the last write. QA is usually the slowest part of a review — a human should never be looking at a draft that is behind by everything QA takes to run, when every finding QA doesn't touch was already sitting there finished.
 4. **Finish** by writing the complete draft with `finishedAt` set (ISO 8601). `finishedAt` is the one signal the app trusts to mean done — never set it on an intermediate write, never leave it off the final one. Everything before it, the app shows as work in progress; posting stays locked until it appears.
 
+**Every timestamp is read from the clock, never composed.** Run `date -u +%Y-%m-%dT%H:%M:%SZ` and paste what it prints as `draftedAt` and `finishedAt`. A time typed from memory drifts into the future, and the app compares these stamps against the reader's decisions — a future stamp made their dismissals impossible to keep. A suspiciously round time like `15:25:00Z` is the tell.
+
 Leave the storage synced after each of these writes too — same section below.
 
 ## Leave the storage synced
