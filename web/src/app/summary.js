@@ -373,7 +373,10 @@ export function blankState(app) {
     );
   }
 
-  if (app.problem) {
+  // A problem borrows the whole pane only when there is nothing to read. A
+  // queue drawn from what the source last held reads on, and the outage is
+  // said in the footer and on the source's row instead.
+  if (app.problem && !app.queue().length) {
     // A lapsed folder permission is the common case here, and it is fixed by
     // choosing the folder again. The fix belongs where the problem is stated.
     return withAction(

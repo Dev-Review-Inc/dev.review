@@ -26,21 +26,61 @@ export const ROOT = "drafts/";
 export const UNREAD = "unread";
 export const UNPARSED = "unparsed";
 
+// The one key the local snapshot lives under. One object rather than one
+// entry per draft, because the snapshot is only ever read whole and written
+// whole, and a partial one would claim drafts were cleared that were not.
+const SNAPSHOT = "snapshot";
+
 export class Drafts {
   /**
    * @param {object} options what to read through
    * @param {object} options.adapter the source's reader
+   * @param {object} [options.store] a key value store holding the last
+   *   successful read, so an unreachable source degrades to what it last held
    */
-  constructor({ adapter }) {
+  constructor({ adapter, store }) {
     this.adapter = adapter;
+    this.store = store || null;
     this._byKey = new Map();
     this._listeners = new Set();
     this._unwatch = null;
+
+    // What the store holds, mirrored here so persisting is a serialise rather
+    // than a read-modify-write. Raw text by key: the same bytes a read hands
+    // over, parsed on the way back in exactly as a fresh read would be.
+    this._held = new Map();
+    this._dirty = false;
 
     // Set by loadAll: true when drafts/ is empty but the source root holds
     // something shaped like a draft, which is what a source looks like the
     // day somebody nests their agent's files at the wrong level.
     this.misconfigured = false;
+  }
+
+  /**
+   * Seed the projection from the last successful read, before the first fresh
+   * one.
+   *
+   * The drafts were read in past sessions and the reader's decisions are
+   * local, so an unreachable source should cost fresh fetches and posting,
+   * never reading. Each held text goes through the same parse a fresh read
+   * does, and keeps its text as its signature, so the first fresh read that
+   * answers with the same bytes changes nothing and reports nothing.
+   *
+   * A store that cannot be read seeds nothing, which is only the wall this
+   * exists to avoid, not a new failure.
+   *
+   * @returns {Promise<void>} when whatever was held is in
+   */
+  async restore() {
+    if (!this.store) return;
+
+    const held = (await this.store.getItem(SNAPSHOT).catch(() => null)) || {};
+
+    for (const [key, text] of Object.entries(held)) {
+      this._held.set(key, text);
+      this._record(key, text);
+    }
   }
 
   /**
@@ -110,27 +150,19 @@ export class Drafts {
 
     if (!bytes) {
       this._byKey.delete(key);
+      this._drop(key);
+      await this._persist();
 
       return null;
     }
 
-    try {
-      const draft = parseDraft(JSON.parse(new TextDecoder().decode(bytes)));
+    const text = new TextDecoder().decode(bytes);
+    const draft = this._record(key, text);
 
-      this._byKey.set(key, { draft, problem: null });
+    this._hold(key, text);
+    await this._persist();
 
-      return draft;
-    } catch (error) {
-      // A half-written draft parses as broken for a moment. Keeping the last
-      // good one beside the problem means the pane does not blink empty while
-      // an agent is mid-write.
-      this._byKey.set(key, {
-        draft: this._byKey.get(key)?.draft || null,
-        problem: { cause: UNPARSED, detail: error.message },
-      });
-
-      return null;
-    }
+    return draft;
   }
 
   /**
@@ -147,6 +179,8 @@ export class Drafts {
     await this.adapter.remove(draftPath(pull.owner, pull.repo, pull.number));
 
     this._byKey.delete(key);
+    this._drop(key);
+    await this._persist();
   }
 
   /**
@@ -168,7 +202,10 @@ export class Drafts {
     const held = new Set(paths.map(keyOf).filter(Boolean));
     const gone = [...this._byKey.keys()].filter((key) => !held.has(key));
 
-    for (const key of gone) this._byKey.delete(key);
+    for (const key of gone) {
+      this._byKey.delete(key);
+      this._drop(key);
+    }
 
     // An empty drafts/ is unremarkable on a source nobody has written to yet.
     // It only means something once the root shows what a draft looks like
@@ -241,6 +278,8 @@ export class Drafts {
   async _absorb(paths) {
     const results = await Promise.all(paths.map((path) => this._absorbOne(path)));
 
+    await this._persist();
+
     return results.filter(Boolean);
   }
 
@@ -287,27 +326,76 @@ export class Drafts {
 
     if (!bytes) {
       this._byKey.delete(key);
+      this._drop(key);
 
       return before === undefined ? null : key;
     }
 
     const text = new TextDecoder().decode(bytes);
 
+    this._record(key, text);
+    this._hold(key, text);
+
+    return text === before ? null : key;
+  }
+
+  /**
+   * Fold one draft's text in, wherever the text came from.
+   *
+   * The one parse every way in shares: a fresh read, an opened pull request
+   * and the local snapshot all land here, so what a held draft means cannot
+   * drift from what a read one does. A text that does not parse keeps the last
+   * good draft beside the problem, so the pane does not blink empty while an
+   * agent is mid-write.
+   *
+   * @param {string} key e.g. "org/app#42"
+   * @param {string} text the draft file's text, kept as the signature
+   * @returns {object|null} the parsed draft, or null when it would not parse
+   */
+  _record(key, text) {
     try {
-      this._byKey.set(key, {
-        draft: parseDraft(JSON.parse(text)),
-        problem: null,
-        signature: text,
-      });
+      const draft = parseDraft(JSON.parse(text));
+
+      this._byKey.set(key, { draft, problem: null, signature: text });
+
+      return draft;
     } catch (error) {
       this._byKey.set(key, {
         draft: this._byKey.get(key)?.draft || null,
         problem: { cause: UNPARSED, detail: error.message },
         signature: text,
       });
-    }
 
-    return text === before ? null : key;
+      return null;
+    }
+  }
+
+  // The snapshot is the last successful read, so only a read that handed
+  // bytes over touches it: a failed read leaves what the last good one held,
+  // and only a listing that no longer names a draft, or handed back nothing
+  // for it, takes it out.
+  _hold(key, text) {
+    if (!this.store || this._held.get(key) === text) return;
+
+    this._held.set(key, text);
+    this._dirty = true;
+  }
+
+  _drop(key) {
+    if (!this.store || !this._held.has(key)) return;
+
+    this._held.delete(key);
+    this._dirty = true;
+  }
+
+  // Written whole, once per round rather than once per draft, and never
+  // thrown: a browser that cannot keep the snapshot costs the next outage its
+  // cache, not this session its reading.
+  async _persist() {
+    if (!this._dirty) return;
+
+    this._dirty = false;
+    await this.store.setItem(SNAPSHOT, Object.fromEntries(this._held)).catch(() => {});
   }
 }
 

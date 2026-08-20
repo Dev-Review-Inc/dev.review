@@ -179,6 +179,8 @@ export async function anApp({ adapter = new MemoryAdapter(), deviceId = "device-
  *   tells the reader something, standing in for the footer
  * @param {object} [options.destination] destination methods to lay over the
  *   stubs, for a test that watches or breaks one
+ * @param {boolean} [options.attach] whether to attach a source and destination;
+ *   false for a second boot over a database that already holds them
  * @returns {Promise<object>} the app, booted, with a destination and a source
  */
 export async function theApp({
@@ -187,6 +189,7 @@ export async function theApp({
   database = () => new MemoryKeyValueStore(),
   report,
   destination = {},
+  attach = true,
 } = {}) {
   for (const pull of pulls) {
     // A draft the test already wrote is the draft: the seed only fills absence.
@@ -212,8 +215,11 @@ export async function theApp({
   });
 
   await app.boot();
-  await app.addDestination({ type: "github", label: "GitHub", secret: { token: "t" } });
-  await app.addSource({ name: "Work", adapter: { type: "memory" } });
+
+  if (attach) {
+    await app.addDestination({ type: "github", label: "GitHub", secret: { token: "t" } });
+    await app.addSource({ name: "Work", adapter: { type: "memory" } });
+  }
 
   return app;
 }
