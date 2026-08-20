@@ -56,9 +56,14 @@ export class App {
       forget: forgetHandle,
     };
 
+    // Kept for the drafts snapshot as well as handed to the log: the
+    // projection's cache lives in a database of its own, beside the source's
+    // log, scoped the same way.
+    this._database = database || ((name) => new IndexedDBKeyValueStore(name));
+
     this.state = new MultiEventStore({
       runners,
-      database: database || ((name) => new IndexedDBKeyValueStore(name)),
+      database: this._database,
       secrets,
     });
 
@@ -559,7 +564,10 @@ export class App {
     try {
       await this.loadQueue();
     } catch (failure) {
-      this.problems.source = failure.message;
+      // A source on cache stays readable: the wall is only for a reader with
+      // nothing held, so an outage mid-session marks the source's row and
+      // leaves the queue standing.
+      if (!this.drafts || !this.drafts.all().size) this.problems.source = failure.message;
 
       if (this.source) {
         this.health[this.source.id] = {
@@ -822,8 +830,16 @@ export class App {
 
     this.problems.source = "";
     this.adapter = await this._buildAdapter(this.source);
-    this.drafts = new Drafts({ adapter: this.adapter });
+    this.drafts = new Drafts({
+      adapter: this.adapter,
+      store: this._database(`reviewer-${this.source.id}-drafts`),
+    });
     this.queries.drafts = this.drafts;
+
+    // What the last successful read left here, back before the source is
+    // asked anything, so the queue can be drawn from it the moment the source
+    // cannot answer.
+    await this.drafts.restore();
 
     const ready = await this.adapter.ready();
 
@@ -832,9 +848,39 @@ export class App {
     // yes and throw away the only explanation the reader is going to get.
     if (!this.problems.source) this.problems.source = ready.ok ? "" : ready.reason;
 
+    // A source that cannot be read but has been read before is an outage, not
+    // a wall: the drafts were read in past sessions and the decisions are
+    // local, so what is lost is fresh fetches, never reading. The problem is
+    // taken off the pane and said in the footer instead; the health sweep
+    // still asks the adapter itself, so the source's row stays honest about
+    // why. A source nothing was ever read from keeps the wall, because there
+    // is nothing here to read instead.
+    let outage = "";
+
+    if (this.problems.source && this.drafts.all().size) {
+      outage = this.problems.source;
+      this.problems.source = "";
+    }
+
     if (this.problems.source) return;
 
-    await this.drafts.loadAll();
+    if (!outage) {
+      try {
+        await this.drafts.loadAll();
+      } catch (failure) {
+        if (!this.drafts.all().size) {
+          this.problems.source = failure.message;
+
+          return;
+        }
+
+        outage = failure.message;
+      }
+    }
+
+    if (outage) {
+      this._report("this source is not answering - reading what it last held", "error");
+    }
 
     // Every source needs a top-level drafts/ directory - it is where every
     // adapter is told to read and write - and forgetting to nest an agent's
@@ -871,7 +917,11 @@ export class App {
     // seconds. Stopping here would mean a source that opens into nothing
     // because another device's log was briefly unreadable.
     await this.commands.sync.pull(this.source).catch(() => {});
-    await this.loadQueue();
+
+    // During an outage the fresh read underneath this throws; the queue is
+    // already drawn from what was held, and the watch and the timer below keep
+    // asking. The redraw is still owed either way.
+    await this.loadQueue().catch(() => this.reselect());
 
     clearInterval(this._refresh);
     this._refresh = setInterval(() => this.refreshQueue(), REFRESH);

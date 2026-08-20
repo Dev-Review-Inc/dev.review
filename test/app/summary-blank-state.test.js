@@ -20,6 +20,10 @@ function fakeDocument() {
     className: "",
     textContent: "",
     children: [],
+    style: { cssText: "", setProperty() {} },
+    setAttribute() {},
+    removeAttribute() {},
+    addEventListener() {},
     append(...nodes) {
       this.children.push(...nodes);
     },
@@ -62,6 +66,50 @@ describe("a draft file that exists", () => {
     };
 
     assert.equal(blankState(app), null);
+  });
+});
+
+describe("a source that cannot be read", () => {
+  afterEach(() => {
+    delete globalThis.document;
+  });
+
+  test("borrows the pane only when nothing is held: a queue drawn from cache reads on", () => {
+    globalThis.document = fakeDocument();
+
+    const app = {
+      source: {},
+      problem: "Bad credentials",
+      destination: {},
+      selected: null,
+      drafts: null,
+      filter: {},
+      queue: () => [{ key: "org/app#42" }],
+    };
+
+    const state = blankState(app);
+    const inner = state.children[0];
+
+    assert.ok(inner.children.some((child) => child.textContent === "Nothing open."));
+  });
+
+  test("still borrows the whole pane when nothing has ever been read from it", () => {
+    globalThis.document = fakeDocument();
+
+    const app = {
+      source: {},
+      problem: "Bad credentials",
+      destination: {},
+      selected: null,
+      drafts: null,
+      filter: {},
+      queue: () => [],
+    };
+
+    const state = blankState(app);
+    const inner = state.children[0];
+
+    assert.ok(inner.children.some((child) => child.textContent === "That source cannot be read."));
   });
 });
 
