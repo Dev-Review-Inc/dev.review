@@ -22,7 +22,7 @@ function aDestination() {
     identify: async () => ({ login: "reader" }),
     queue: async () => [aPull()],
     files: async () => [],
-    headCommit: async () => "e612b1b",
+    pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
     comment: async () => ({ url: "https://github.com/comment/1" }),
     review: async () => ({ url: "https://github.com/review/1" }),
   };

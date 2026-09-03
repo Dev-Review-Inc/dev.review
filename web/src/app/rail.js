@@ -116,6 +116,22 @@ function drawBlurb(app) {
   line.className = "pull-line";
   line.append(pullName(pull, address));
 
+  // A draft outlives its pull request, so what opened may already be merged or
+  // closed on the destination. Said here, beside the number, because it is a
+  // fact about the pull request rather than about the draft. Open says
+  // nothing, and so does unknown: a destination that would not answer has not
+  // said the conversation is over.
+  if (app.settled && app.settled.state !== "open") {
+    // Merged is the good ending. A closed, unmerged pull request died on the
+    // vine; a closed issue is usually just done, so it does not wear red.
+    const tone =
+      app.settled.state === "merged" ? "ok" : pull.isIssue ? "neutral" : "critical";
+
+    line.append(
+      element("span", `settled-chip verdict-badge mono is-${tone}`, app.settled.state),
+    );
+  }
+
   // Nothing to copy, so nothing offering to. A button that put a url the
   // reader cannot follow on their clipboard would be offering a dead end.
   if (address) line.append(copyButton(address, Boolean(pull.isIssue)));

@@ -26,6 +26,22 @@ import { syncWidget } from "./widget.js";
 // land; this is the backstop for a watch round the storage refused.
 const REFRESH = 5 * 60 * 1000;
 
+// A destination's answer folded to the one question the interface asks: is
+// this conversation still open, and since when is it not. "merged" outranks
+// "closed" because GitHub marks a merged pull request as both.
+function settledPull(detail) {
+  if (detail.merged) return { state: "merged", at: detail.mergedAt || null };
+  if (detail.state === "closed") return { state: "closed", at: detail.closedAt || null };
+
+  return { state: "open", at: null };
+}
+
+function settledIssue(issue) {
+  return issue.state === "closed"
+    ? { state: "closed", at: issue.closedAt || null }
+    : { state: "open", at: null };
+}
+
 export class App {
   /**
    * @param {object} [options] what to build against, for tests
@@ -102,6 +118,12 @@ export class App {
     // rewrite checks the destination still agrees with it.
     this.issue = null;
     this.issueProblem = "";
+
+    // Whether what is open has already been merged or closed on the
+    // destination, since the queue is the drafts and a draft outlives its pull
+    // request. Null until the destination has answered, and null again when it
+    // would not: unknown is not open.
+    this.settled = null;
 
     // Why the diff or the head commit is missing, when they were asked for and
     // did not come. Kept apart from `problems` because it belongs to the pull
@@ -628,6 +650,7 @@ export class App {
     this.headCommit = "";
     this.issue = null;
     this.issueProblem = "";
+    this.settled = null;
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
@@ -649,15 +672,27 @@ export class App {
     const isIssue = Boolean(this.selected.isIssue);
     const wantsBody = isIssue || Boolean(this.selected.draft?.description);
 
-    const [files, commit, issue] = await Promise.allSettled([
+    const [files, detail, issue] = await Promise.allSettled([
       isIssue ? [] : this.destination.files(pull),
-      isIssue ? "" : this.destination.headCommit(pull),
+      isIssue ? null : this.destination.pullDetail(pull),
       wantsBody ? this.destination.issue(pull) : null,
     ]);
 
     if (files.status === "fulfilled") this.files = files.value;
-    if (commit.status === "fulfilled") this.headCommit = commit.value;
+
+    if (detail.status === "fulfilled" && detail.value) {
+      this.headCommit = detail.value.headCommit;
+      this.settled = settledPull(detail.value);
+    }
+
     if (issue.status === "fulfilled") this.issue = issue.value;
+
+    // An issue's fate rides on the same response as its body. Only an issue's:
+    // a pull request already answered above, from the endpoint that knows
+    // about merging.
+    if (isIssue && issue.status === "fulfilled" && issue.value) {
+      this.settled = settledIssue(issue.value);
+    }
 
     this.issueProblem =
       issue.status === "rejected"
@@ -670,7 +705,7 @@ export class App {
     // about the connection. The head commit is worth saying even when the diff
     // arrived: posting a finding fetches it again, and the reader should not
     // first learn the destination is refusing at the moment they press post.
-    const refused = [files, commit].find((answer) => answer.status === "rejected");
+    const refused = [files, detail].find((answer) => answer.status === "rejected");
 
     this.diffProblem = refused
       ? refused.reason?.message || "the destination did not say why"
@@ -745,7 +780,7 @@ export class App {
    */
   async postFinding(finding) {
     const pull = this.selected;
-    const commitId = this.headCommit || (await this.destination.headCommit(pull));
+    const commitId = this.headCommit || (await this.destination.pullDetail(pull)).headCommit;
 
     const posted = await this.destination.comment(pull, {
       commitId,

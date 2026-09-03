@@ -43,7 +43,23 @@ describe("a demo destination with sample data behind it", () => {
     const destination = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(aSeed()) });
 
     assert.equal((await destination.files(aPull()))[0].filename, "lib/error.rb");
-    assert.equal(await destination.headCommit(aPull()), "e612b1b");
+    assert.equal((await destination.pullDetail(aPull())).headCommit, "e612b1b");
+  });
+
+  test("answers open for everything, unless the seed marks otherwise", async () => {
+    const marked = {
+      ...aSeed(),
+      settled: { "org/app#1": { state: "closed", merged: true, mergedAt: "2026-08-30T10:00:00Z" } },
+    };
+
+    const plain = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(aSeed()) });
+
+    assert.equal((await plain.pullDetail(aPull())).state, "open");
+    assert.equal((await plain.issue(aPull())).state, "open");
+
+    const settled = new DemoDestination({ seed: "/demo/queue.json", fetch: serving(marked) });
+
+    assert.equal((await settled.pullDetail(aPull())).merged, true);
   });
 
   test("answers nothing for a pull request its seed does not carry", async () => {
@@ -51,7 +67,7 @@ describe("a demo destination with sample data behind it", () => {
     const stranger = { ...aPull(), number: 99 };
 
     assert.deepEqual(await destination.files(stranger), []);
-    assert.equal(await destination.headCommit(stranger), "");
+    assert.equal((await destination.pullDetail(stranger)).headCommit, "");
   });
 
   test("asks for the seed once however much is read from it", async () => {

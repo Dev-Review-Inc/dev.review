@@ -20,7 +20,7 @@ const FILES = [{ filename: "lib/error.rb", additions: 3, deletions: 1, patch: ""
 
 // A destination that answers the queue but can be made to refuse the two
 // things `select` asks for after it, each on its own.
-async function anAppWhoseDestination({ files, headCommit }) {
+async function anAppWhoseDestination({ files, pullDetail }) {
   const adapter = new MemoryAdapter();
 
   await agentWrites(adapter, aDraft());
@@ -31,7 +31,7 @@ async function anAppWhoseDestination({ files, headCommit }) {
     destination: () => ({
       identify: async () => ({ login: "reader" }),
       files,
-      headCommit,
+      pullDetail,
     }),
   });
 
@@ -50,7 +50,7 @@ describe("a diff the destination would not give up", () => {
   test("lets the reader go on reading the draft", async () => {
     const app = await anAppWhoseDestination({
       files: refuse("files"),
-      headCommit: async () => "e612b1b",
+      pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
     });
 
     await app.select(app.queue()[0]);
@@ -61,7 +61,7 @@ describe("a diff the destination would not give up", () => {
   test("is not left looking like a pull request that changed nothing", async () => {
     const app = await anAppWhoseDestination({
       files: refuse("files"),
-      headCommit: async () => "e612b1b",
+      pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
     });
 
     await app.select(app.queue()[0]);
@@ -74,7 +74,7 @@ describe("a diff the destination would not give up", () => {
   test("says so when it was the head commit that could not be fetched", async () => {
     const app = await anAppWhoseDestination({
       files: async () => FILES,
-      headCommit: refuse("head commit"),
+      pullDetail: refuse("head commit"),
     });
 
     await app.select(app.queue()[0]);
@@ -87,7 +87,7 @@ describe("a diff the destination would not give up", () => {
   test("says nothing when both arrived", async () => {
     const app = await anAppWhoseDestination({
       files: async () => FILES,
-      headCommit: async () => "e612b1b",
+      pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
     });
 
     await app.select(app.queue()[0]);
@@ -105,7 +105,7 @@ describe("a diff the destination would not give up", () => {
 
         return FILES;
       },
-      headCommit: async () => "e612b1b",
+      pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
     });
 
     await app.select(app.queue()[0]);

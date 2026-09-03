@@ -144,6 +144,9 @@
           body: issueBodies.get(key) ?? "",
           title: entry?.title || "",
           html_url: entry?.html_url || "",
+          state: entry?.state || "open",
+          state_reason: entry?.state_reason || null,
+          closed_at: entry?.closed_at || null,
         });
       }
 
@@ -185,7 +188,18 @@
     // that can hand the seed a hostile one.
     const pullUrl = seed.postedUrl || `https://github.com/${owner}/${repo}/pull/${number}`;
 
-    if (!part) return json({ head: { sha: seed.headCommit } });
+    // The state fields ride the same response as the head sha, the way GitHub
+    // serves them: open unless the seed settles it.
+    if (!part) {
+      return json({
+        head: { sha: seed.headCommit },
+        state: "open",
+        merged: false,
+        merged_at: null,
+        closed_at: null,
+        ...seed.pull,
+      });
+    }
     if (part === "/files") return json(seed.files);
 
     if (part === "/reviews" && method === "POST") {

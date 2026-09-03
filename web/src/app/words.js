@@ -88,6 +88,28 @@ export function postNote(app) {
 }
 
 /**
+ * What the sheet says when the conversation this send would land on is over.
+ *
+ * The queue is the drafts, so a draft can outlive its pull request: the send
+ * still works - GitHub takes reviews and comments on closed conversations -
+ * so nothing is disabled. Saying so is the job.
+ *
+ * @param {object} app the application
+ * @returns {string} the warning, or nothing while open or unknown
+ */
+export function settledNote(app) {
+  if (!app.settled || app.settled.state === "open") return "";
+
+  if (app.selected?.isIssue) {
+    return "this issue is already closed - the triage will land on a closed conversation";
+  }
+
+  return app.settled.state === "merged"
+    ? "this pull request is already merged - the review will land on a closed conversation"
+    : "this pull request is already closed - the review will land on a closed conversation";
+}
+
+/**
  * What the control beside the destination does, and what it is called.
  *
  * Signing out of the demo is meaningless: there is no token to forget, and
