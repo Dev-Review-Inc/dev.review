@@ -164,6 +164,14 @@ export default {
   "findings.editBody": change((data, event) => ({ body: data.body, editedAt: event.time })),
   "findings.resetBody": change(() => ({ body: null, editedAt: null })),
 
+  // The committable suggestion, on the same terms as the body: null means the
+  // agent's still stands, "" means the reader removed the block from the send.
+  "findings.editSuggestion": change((data, event) => ({
+    suggestion: data.suggestion,
+    suggestionEditedAt: event.time,
+  })),
+  "findings.resetSuggestion": change(() => ({ suggestion: null, suggestionEditedAt: null })),
+
   "findings.post": change((data, event) => ({
     postedAt: event.time,
     postedUrl: data.url || "",

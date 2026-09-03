@@ -341,6 +341,145 @@ describe("Deciding what goes out", () => {
   });
 });
 
+describe("Editing a committable suggestion", () => {
+  let app;
+  let pull;
+
+  const suggests = () =>
+    aDraft({
+      findings: [
+        {
+          id: "inert-catch-all",
+          section: "correctness",
+          path: "lib/error.rb",
+          line: 12,
+          kind: "bug",
+          color: "critical",
+          blocking: true,
+          body: "The rescue clause now parses and never matches.",
+          suggestion: "rescue Error => e\n",
+        },
+      ],
+    });
+
+  beforeEach(async () => {
+    app = await anApp();
+    await agentWrites(app.adapter, suggests());
+    await app.drafts.loadAll();
+    pull = app.open();
+  });
+
+  test("editing a suggestion keeps what the agent wrote", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    const [edited] = app.queries.findingsForPull(app.source, pull);
+    assert.equal(edited.suggestion, "raise Error\n");
+    assert.equal(edited.draftedSuggestion, "rescue Error => e\n");
+    assert.ok(edited.suggestionEditedAt);
+    // The prose is untouched: the suggestion is its own edit.
+    assert.equal(edited.body, "The rescue clause now parses and never matches.");
+    assert.equal(edited.editedAt, null);
+  });
+
+  test("an edited suggestion is what a posted comment carries", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    const [edited] = app.queries.findingsForPull(app.source, pull);
+
+    assert.match(app.queries.bodyToPost(app.source, edited), /```suggestion\nraise Error\n```$/);
+  });
+
+  test("rewriting a suggestion is opting the finding in - the reader would not bother otherwise", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    const [edited] = app.queries.findingsForPull(app.source, pull);
+    assert.ok(edited.includedAt);
+  });
+
+  test("a suggestion edited to nothing leaves the block out of the send", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.editSuggestion(app.source, pull, finding, "");
+
+    const [removed] = app.queries.findingsForPull(app.source, pull);
+    // "" is the reader removing it; only null means the agent's still stands.
+    assert.equal(removed.suggestion, "");
+    assert.equal(
+      app.queries.bodyToPost(app.source, removed),
+      "The rescue clause now parses and never matches.",
+    );
+  });
+
+  test("a suggestion edit can be put back to what was drafted", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    app.commands.resetSuggestion(app.source, pull, finding);
+
+    const [reset] = app.queries.findingsForPull(app.source, pull);
+    assert.equal(reset.suggestion, "rescue Error => e\n");
+    assert.equal(reset.draftedSuggestion, null);
+    assert.equal(reset.suggestionEditedAt, null);
+  });
+
+  test("resetting the body leaves the suggestion edit standing, and the other way round", () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.editFinding(app.source, pull, finding, "Said my way.");
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    app.commands.resetFinding(app.source, pull, finding);
+
+    const [after] = app.queries.findingsForPull(app.source, pull);
+    assert.equal(after.body, "The rescue clause now parses and never matches.");
+    assert.equal(after.suggestion, "raise Error\n");
+    assert.ok(after.suggestionEditedAt);
+  });
+
+  test("an edited suggestion does not shed the agent's prefix from unedited prose", () => {
+    app.commands.setCommentPrefix(app.source, "[bot-assisted]");
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    const [edited] = app.queries.findingsForPull(app.source, pull);
+    assert.match(
+      app.queries.bodyToPost(app.source, edited),
+      /^\[bot-assisted\] The rescue clause/,
+    );
+  });
+
+  test("the agent redrafting does not take the suggestion edit with it", async () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    const redrafted = suggests();
+    redrafted.findings[0].suggestion = "rescue StandardError => e\n";
+    await agentWrites(app.adapter, redrafted);
+    await app.drafts.loadAll();
+
+    const [after] = app.queries.findingsForPull(app.source, app.open());
+    assert.equal(after.suggestion, "raise Error\n");
+    assert.equal(after.draftedSuggestion, "rescue StandardError => e\n");
+  });
+
+  test("a suggestion edit survives the browser being closed", async () => {
+    const [finding] = app.queries.findingsForPull(app.source, pull);
+    app.commands.editSuggestion(app.source, pull, finding, "raise Error\n");
+
+    // The same logs, read back from scratch, as a reload would.
+    await app.state.restore();
+
+    const [again] = app.queries.findingsForPull(app.source, app.open());
+    assert.equal(again.suggestion, "raise Error\n");
+    assert.ok(again.suggestionEditedAt);
+  });
+});
+
 describe("Coming back to a review later", () => {
   test("every decision survives the browser being closed", async () => {
     const adapter = new MemoryAdapter();

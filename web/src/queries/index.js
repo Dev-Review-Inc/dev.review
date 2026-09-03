@@ -578,6 +578,7 @@ export class Queries {
   _merge(source, pull, finding) {
     const decision = this._object(source, "findings", `${pull.key}:${finding.id}`);
     const edited = decision.body !== null && decision.body !== undefined;
+    const suggested = decision.suggestion !== null && decision.suggestion !== undefined;
 
     return {
       ...finding,
@@ -586,6 +587,11 @@ export class Queries {
       drafted: edited ? finding.body : null,
       body: edited ? decision.body : finding.body,
       editedAt: decision.editedAt || null,
+      // The suggestion on the same terms, layered separately so rewording the
+      // prose and rewriting the patch are two decisions, not one.
+      draftedSuggestion: suggested ? finding.suggestion || null : null,
+      suggestion: suggested ? decision.suggestion : finding.suggestion,
+      suggestionEditedAt: decision.suggestionEditedAt || null,
       includedAt: decision.includedAt || null,
       postedAt: decision.postedAt || null,
       postedUrl: decision.postedUrl || "",
@@ -603,6 +609,8 @@ export class Queries {
         color: "accent",
         blocking: false,
         suggestion: null,
+        draftedSuggestion: null,
+        suggestionEditedAt: null,
         drafted: null,
         ...finding,
         includedAt: finding.includedAt || null,
