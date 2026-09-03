@@ -408,6 +408,9 @@ export class Commands {
   /**
    * Put a finding back to what the agent wrote.
    *
+   * The body alone: a suggestion edit is its own decision with its own way
+   * back, so reverting the prose never takes a rewritten patch with it.
+   *
    * @param {object} source the source being read
    * @param {object} pull which pull request
    * @param {object} finding which finding
@@ -415,6 +418,34 @@ export class Commands {
    */
   resetFinding(source, pull, finding) {
     this.track(source, "findings", this._finding(pull, finding), "resetBody");
+  }
+
+  /**
+   * Rewriting a finding's committable suggestion is opting it in, the same
+   * reasoning as {@link editFinding}. An empty string is the reader removing
+   * the block from the send, which is not the same as never touching it.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @param {string} suggestion the replacement code as the reader wants it
+   * @returns {void}
+   */
+  editSuggestion(source, pull, finding, suggestion) {
+    this.track(source, "findings", this._finding(pull, finding), "editSuggestion", { suggestion });
+    this.track(source, "findings", this._finding(pull, finding), "include");
+  }
+
+  /**
+   * Put a finding's suggestion back to what the agent wrote.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @param {object} finding which finding
+   * @returns {void}
+   */
+  resetSuggestion(source, pull, finding) {
+    this.track(source, "findings", this._finding(pull, finding), "resetSuggestion");
   }
 
   /**

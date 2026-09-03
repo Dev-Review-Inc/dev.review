@@ -99,6 +99,50 @@ test("keeps a suggestion's trailing newline, which GitHub needs to apply it", ()
   assert.strictEqual(body.comments[0].body, "x\n\n```suggestion\none\ntwo\n```");
 });
 
+test("posts a suggestion the reader edited, trailing newline intact", () => {
+  // The merge hands reviewPayload the reader's suggestion in place of the
+  // agent's; the newline rule holds for it the same way.
+  const body = reviewPayload(
+    {
+      ...DRAFT,
+      findings: [
+        {
+          id: "b",
+          path: "a.rb",
+          line: 1,
+          body: "x",
+          suggestion: "theirs\nnow",
+          suggestionEditedAt: "2026-08-17T10:00:00Z",
+        },
+      ],
+    },
+    { commitId: "abc", dropped: new Set() },
+  );
+
+  assert.strictEqual(body.comments[0].body, "x\n\n```suggestion\ntheirs\nnow\n```");
+});
+
+test("leaves out a suggestion the reader edited away", () => {
+  const body = reviewPayload(
+    {
+      ...DRAFT,
+      findings: [
+        {
+          id: "b",
+          path: "a.rb",
+          line: 1,
+          body: "x",
+          suggestion: "",
+          suggestionEditedAt: "2026-08-17T10:00:00Z",
+        },
+      ],
+    },
+    { commitId: "abc", dropped: new Set() },
+  );
+
+  assert.strictEqual(body.comments[0].body, "x");
+});
+
 test("puts a prefix ahead of the review body and every comment", () => {
   const body = payload({ prefix: "[bot-assisted]" });
 
@@ -140,6 +184,29 @@ test("does not prefix a comment the reader wrote themselves", () => {
 
   assert.strictEqual(body.comments[0].body, "[bot-assisted] never matches");
   assert.strictEqual(body.comments[1].body, "All mine.");
+});
+
+test("keeps the prefix on a finding whose suggestion alone was edited", () => {
+  // The prose is still the agent's words; only editedAt - the body's own
+  // edit - or the reader's authorship takes the mark off.
+  const edited = {
+    ...DRAFT,
+    findings: [
+      {
+        ...DRAFT.findings[1],
+        suggestion: "theirs\n",
+        suggestionEditedAt: "2026-08-17T10:00:00Z",
+      },
+    ],
+  };
+
+  const body = reviewPayload(edited, {
+    commitId: "e612b1b",
+    dropped: new Set(),
+    prefix: "[bot-assisted]",
+  });
+
+  assert.strictEqual(body.comments[0].body, "[bot-assisted] cannot fail\n\n```suggestion\ntheirs\n```");
 });
 
 test("does not prefix a finding the reader rewrote", () => {

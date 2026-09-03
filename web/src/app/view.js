@@ -53,6 +53,7 @@ const app = new App({
 app.editing = false;
 app.editingDescription = false;
 app.editingFinding = null;
+app.editingSuggestion = null;
 // The confirmation sheet's own summary editor, which is not the pane's: the
 // pane's sits behind the sheet, where nothing can be typed into it.
 app.editingConfirm = false;
@@ -192,6 +193,7 @@ function open(pull) {
   app.editing = false;
   app.editingDescription = false;
   app.editingFinding = null;
+  app.editingSuggestion = null;
   app.editingConfirm = false;
   app.addingAt = null;
   say("");

@@ -131,6 +131,7 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
 
   if (finding.kind) head.append(element("span", `kind is-${finding.color}`, finding.kind));
   if (finding.editedAt) head.append(element("span", "edited mono", "edited"));
+  if (finding.suggestionEditedAt) head.append(element("span", "edited mono", "suggestion edited"));
   if (finding.postedAt) head.append(element("span", "sent mono", "posted ✓"));
 
   card.append(head);
@@ -167,7 +168,9 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
   );
   body.append(prose);
 
-  if (finding.suggestion) {
+  if (actions && app.editingSuggestion && app.editingSuggestion.id === finding.id) {
+    body.append(suggestionEditor(app, pull, finding));
+  } else if (finding.suggestion) {
     const block = document.createElement("div");
     block.className = "suggestion";
     block.append(element("div", "suggestion-head", "suggested change · committable"));
@@ -186,6 +189,67 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
   card.append(body);
 
   return card;
+}
+
+/**
+ * The suggestion open for rewriting: the block's own head, the editor over the
+ * reader's text, and the same gestures the body's editor offers.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request the finding belongs to
+ * @param {object} finding the finding whose suggestion is being rewritten
+ * @returns {HTMLElement} the block
+ */
+function suggestionEditor(app, pull, finding) {
+  const block = document.createElement("div");
+  block.className = "suggestion";
+  block.append(element("div", "suggestion-head", "suggested change · committable"));
+  block.append(editorFor(app, app.editingSuggestion, `suggestion:${finding.id}`));
+
+  const actions = document.createElement("div");
+  actions.className = "finding-actions";
+
+  const save = render(
+    button({
+      label: "Save",
+      onClick: () => {
+        app.commands.editSuggestion(app.source, pull, finding, app.editingSuggestion.body);
+        app.editingSuggestion = null;
+        app.reselect();
+      },
+    }),
+  );
+
+  const cancel = render(
+    button({
+      label: "Cancel",
+      onClick: () => {
+        app.editingSuggestion = null;
+        app.changed();
+      },
+    }),
+  );
+
+  actions.append(save, cancel, element("span", "spacer", ""));
+
+  if (finding.suggestionEditedAt) {
+    const revert = render(
+      button({
+        label: "Revert to drafted",
+        onClick: () => {
+          app.commands.resetSuggestion(app.source, pull, finding);
+          app.editingSuggestion = null;
+          app.reselect();
+        },
+      }),
+    );
+
+    actions.append(revert);
+  }
+
+  block.append(actions);
+
+  return block;
 }
 
 function editorActions(app, pull, finding) {
@@ -272,6 +336,21 @@ function cardActions(app, pull, finding) {
 
   const include = findingInclude(app, pull, finding);
 
+  // Offered while there is a suggestion to rewrite - or one edited away,
+  // because the editor's revert is the way back to the agent's.
+  const editable = finding.suggestion || finding.suggestionEditedAt;
+  const editSuggestion = editable
+    ? render(
+        button({
+          label: "Edit suggestion",
+          onClick: () => {
+            app.editingSuggestion = { id: finding.id, body: finding.suggestion || "", focus: true };
+            app.changed();
+          },
+        }),
+      )
+    : null;
+
   const words = commentWords(app);
   const send = render(button({ label: words.label, title: words.title, arms: true }));
 
@@ -291,7 +370,8 @@ function cardActions(app, pull, finding) {
     }
   });
 
-  controls.append(edit, send, element("span", "spacer", ""), include);
+  if (editSuggestion) controls.append(edit, editSuggestion, send, element("span", "spacer", ""), include);
+  else controls.append(edit, send, element("span", "spacer", ""), include);
 
   // An excluded comment of your own can go entirely - unlike the agent's,
   // which stay readable so what it said is never lost.
