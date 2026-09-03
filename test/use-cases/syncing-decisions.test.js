@@ -104,7 +104,7 @@ function aDestination(pulls = [aPull()]) {
     identify: async () => ({ login: "reader" }),
     queue: async () => pulls,
     files: async () => [],
-    headCommit: async () => "e612b1b",
+    pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
   };
 }
 

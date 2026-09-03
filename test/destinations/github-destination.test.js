@@ -39,6 +39,63 @@ describe("a github destination reading and writing issues", () => {
       title: "The error is rooted wrong",
       isPull: false,
       url: "https://github.com/org/app/issues/7",
+      state: "open",
+      stateReason: null,
+      closedAt: null,
+    });
+  });
+
+  test("carries a closed issue's state, reason and moment", async () => {
+    stub({
+      number: 7,
+      title: "t",
+      body: "b",
+      html_url: "https://github.com/org/app/issues/7",
+      state: "closed",
+      state_reason: "completed",
+      closed_at: "2026-08-30T10:00:00Z",
+    });
+
+    const destination = new GitHubDestination({ token: "t" });
+    const answered = await destination.issue(anIssue());
+
+    assert.equal(answered.state, "closed");
+    assert.equal(answered.stateReason, "completed");
+    assert.equal(answered.closedAt, "2026-08-30T10:00:00Z");
+  });
+
+  test("answers the head commit and the pull request's fate from one fetch", async () => {
+    const calls = stub({
+      head: { sha: "e612b1b" },
+      state: "closed",
+      merged: true,
+      merged_at: "2026-08-30T10:00:00Z",
+      closed_at: "2026-08-30T10:00:00Z",
+    });
+
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.deepEqual(await destination.pullDetail(anIssue()), {
+      headCommit: "e612b1b",
+      state: "closed",
+      merged: true,
+      mergedAt: "2026-08-30T10:00:00Z",
+      closedAt: "2026-08-30T10:00:00Z",
+    });
+    assert.equal(calls.length, 1);
+  });
+
+  test("an open pull request answers open, with nothing settled", async () => {
+    stub({ head: { sha: "e612b1b" }, state: "open", merged: false, merged_at: null, closed_at: null });
+
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.deepEqual(await destination.pullDetail(anIssue()), {
+      headCommit: "e612b1b",
+      state: "open",
+      merged: false,
+      mergedAt: null,
+      closedAt: null,
     });
   });
 

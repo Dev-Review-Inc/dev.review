@@ -9,7 +9,14 @@ import { descriptionPlan } from "./description-pane.js";
 import { findingCard } from "./findings.js";
 import { VERDICT_TONE, closeWords } from "./footer.js";
 import { reviewText } from "./summary.js";
-import { dismissedWords, postLabel, postNote, postedWords } from "./words.js";
+import { dismissedWords, postLabel, postNote, postedWords, settledNote } from "./words.js";
+
+// The note under the sheet: the destination's own promise, led by the warning
+// when the conversation this send would land on is already over. One string,
+// because the note area is one line and both sheets fill it the same way.
+function noteWords(app) {
+  return [settledNote(app), postNote(app)].filter(Boolean).join(" · ");
+}
 
 // The one line the sheet and the footer both say about the rewrite.
 function planWords(plan) {
@@ -117,7 +124,7 @@ export function openConfirm(app) {
     preview.append(findingCard(app, pull, finding, { snippet: true, actions: false, prefix }));
   }
 
-  find("confirm-note").textContent = postNote(app);
+  find("confirm-note").textContent = noteWords(app);
   find("confirm").hidden = false;
   settle(app);
 }
@@ -152,7 +159,7 @@ function openTriageConfirm(app) {
 
   if (close) preview.append(closeLine(app, pull, close, dropped));
 
-  find("confirm-note").textContent = postNote(app);
+  find("confirm-note").textContent = noteWords(app);
   find("confirm").hidden = false;
   settle(app);
 }

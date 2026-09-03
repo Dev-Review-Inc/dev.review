@@ -64,15 +64,26 @@ export class GitHubDestination {
   }
 
   /**
-   * The commit a review would be pinned to.
+   * The pull request as it stands: the commit a review would be pinned to,
+   * and whether the conversation it would land on is still open.
+   *
+   * One fetch answers both, because it is one response: /pulls/{n} carries the
+   * head sha and the state together, and asking twice would spend a request to
+   * learn what was already in hand.
    *
    * @param {object} pull which pull request
-   * @returns {Promise<string>} the head commit
+   * @returns {Promise<{headCommit: string, state: string, merged: boolean, mergedAt: string|null, closedAt: string|null}>} the detail
    */
-  async headCommit(pull) {
+  async pullDetail(pull) {
     const detail = await pullRequest(this.token, pull);
 
-    return detail.head?.sha || "";
+    return {
+      headCommit: detail.head?.sha || "",
+      state: detail.state || "open",
+      merged: Boolean(detail.merged),
+      mergedAt: detail.merged_at || null,
+      closedAt: detail.closed_at || null,
+    };
   }
 
   /**
@@ -118,7 +129,7 @@ export class GitHubDestination {
    * `pull_request` key, so the caller can tell before writing anything.
    *
    * @param {object} target which issue
-   * @returns {Promise<{body: string, title: string, isPull: boolean, url: string}>} the issue
+   * @returns {Promise<{body: string, title: string, isPull: boolean, url: string, state: string, stateReason: string|null, closedAt: string|null}>} the issue
    */
   async issue(target) {
     const detail = await issueDetail(this.token, target);
@@ -128,6 +139,9 @@ export class GitHubDestination {
       title: detail.title || "",
       isPull: Boolean(detail.pull_request),
       url: detail.html_url || "",
+      state: detail.state || "open",
+      stateReason: detail.state_reason || null,
+      closedAt: detail.closed_at || null,
     };
   }
 

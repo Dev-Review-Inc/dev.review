@@ -38,10 +38,10 @@ async function opened({ draft, pull, issue }) {
 
         return [];
       },
-      headCommit: async () => {
+      pullDetail: async () => {
         calls.push("commit");
 
-        return "e612b1b";
+        return { headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null };
       },
       issue:
         issue ||

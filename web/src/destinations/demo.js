@@ -76,13 +76,23 @@ export class DemoDestination {
   }
 
   /**
+   * The pull request as the seed holds it: everything answers open, unless the
+   * seed says otherwise under `settled`, keyed the way `commits` is.
+   *
    * @param {object} pull which pull request
-   * @returns {Promise<string>} the commit a review would be pinned to
+   * @returns {Promise<{headCommit: string, state: string, merged: boolean, mergedAt: string|null, closedAt: string|null}>} the detail
    */
-  async headCommit(pull) {
+  async pullDetail(pull) {
     await this._loaded();
 
-    return (this._document.commits || {})[seedKey(pull)] || "";
+    return {
+      headCommit: (this._document.commits || {})[seedKey(pull)] || "",
+      state: "open",
+      merged: false,
+      mergedAt: null,
+      closedAt: null,
+      ...(this._document.settled || {})[seedKey(pull)],
+    };
   }
 
   /**
@@ -133,12 +143,17 @@ export class DemoDestination {
 
     const body = (this._document.issues || {})[seedKey(target)];
 
+    // Always open: the demo's tickets are props, and a prop that is already
+    // closed would teach the wrong lesson on the tour.
     if (body === undefined) {
       return {
         body: "A sample issue, standing in for one of yours.",
         title: "A sample issue",
         isPull: false,
         url: target.url || "",
+        state: "open",
+        stateReason: null,
+        closedAt: null,
       };
     }
 
@@ -147,6 +162,9 @@ export class DemoDestination {
       title: target.title || "",
       isPull: false,
       url: target.url || "",
+      state: "open",
+      stateReason: null,
+      closedAt: null,
     };
   }
 

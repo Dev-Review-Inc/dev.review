@@ -226,6 +226,7 @@ export function written(draft) {
  * @param {object} [world.objects] object key to contents
  * @param {object[]} [world.issues] each issue's detail beyond its body
  * @param {object} [world.issueBodies] each issue's live body, keyed "owner/repo#n"
+ * @param {object} [world.pull] the pull request's fate beyond its head sha - state, merged, merged_at, closed_at
  * @param {string} [world.login] who the token belongs to
  * @param {string} [world.postedUrl] what a send's response points back at
  * @returns {Promise<object>} the page, loaded and idle
@@ -241,6 +242,7 @@ export async function openApp(browser, origin, world = {}) {
     issues: world.issues || [],
     issueBodies: world.issueBodies || {},
     headCommit: "e612b1b",
+    pull: world.pull || {},
     files: theFiles(),
     objects: world.objects || written(aDraft()),
   };
