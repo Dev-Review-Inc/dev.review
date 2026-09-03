@@ -28,11 +28,14 @@ No `gh pr comment`, `gh pr review`, `gh pr merge`, or anything else that posts. 
 A draft's reviewer app already knows when its review was posted or dismissed — that is what the sync log is for. Once the fresh PRs above are drafted, clear out the drafts that are done with:
 
 ```bash
-node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>   # delete drafts posted or dismissed, print which ones
+node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>       # delete drafts posted or dismissed, print which ones
+node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js settled <drafts-dir>   # delete drafts merged or closed upstream, print which and what failed
 ```
 
-This deletes matching draft folders (and their QA media) from disk only. Leave the storage synced the same way a draft write does: run the "Leave the storage synced" step from **/dev-review** against `<drafts-dir>` rather than a second flow of your own. On anything but a git-backed drafts directory that step does nothing, which is correct — the deletion is already visible.
+The second pass asks GitHub: a merged or closed pull request or issue is done with, drafted or not — even one the reader has unposted decisions on, because that conversation is over — so its draft goes too. A state that cannot be read prunes nothing for that key; it comes back in `failed`, and you report it rather than swallow it.
+
+These delete matching draft folders (and their QA media) from disk only. Leave the storage synced the same way a draft write does: run the "Leave the storage synced" step from **/dev-review** against `<drafts-dir>` rather than a second flow of your own. On anything but a git-backed drafts directory that step does nothing, which is correct — the deletion is already visible.
 
 ## Finish with
 
-One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted or dismissed, and anything that failed and why — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.

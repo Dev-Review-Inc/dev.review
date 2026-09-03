@@ -1,10 +1,19 @@
 import test from "node:test";
 import assert from "node:assert";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { finishedPulls, resolutions, parseEventLines, readEvents, pruneDrafts } from "../prune-drafts.js";
+import {
+  finishedPulls,
+  resolutions,
+  parseEventLines,
+  readEvents,
+  pruneDrafts,
+  draftedKeys,
+  pruneSettled,
+} from "../prune-drafts.js";
 
 const event = (objectId, action, time, collection = "pulls") => ({ collection, objectId, action, time });
 
@@ -181,4 +190,97 @@ test("skips a finished pull with no draft folder on disk, without error", () => 
   writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
 
   assert.deepStrictEqual(pruneDrafts(draftsDir), []);
+});
+
+// ---- draftedKeys: the drafts on disk, identified by their own review.json
+
+function writeDraft(draftsDir, folder, { owner, repo, number }) {
+  const dir = path.join(draftsDir, folder);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "review.json"), JSON.stringify({ owner, repo, number }));
+  return dir;
+}
+
+test("reads each draft's review.json for its identity", () => {
+  const { draftsDir } = tempSource();
+  writeDraft(draftsDir, "Dev-Review-Inc--dev.review-9", { owner: "Dev-Review-Inc", repo: "dev.review", number: 9 });
+  writeDraft(draftsDir, "org--app-1", { owner: "org", repo: "app", number: 1 });
+
+  assert.deepStrictEqual(
+    [...draftedKeys(draftsDir).keys()].sort(),
+    ["Dev-Review-Inc/dev.review#9", "org/app#1"],
+  );
+});
+
+test("a draft folder without a readable review.json has no key", () => {
+  const { draftsDir } = tempSource();
+  fs.mkdirSync(path.join(draftsDir, "org--app-1"), { recursive: true });
+  fs.writeFileSync(path.join(draftsDir, "org--app-1", "review.json"), "not json");
+  fs.mkdirSync(path.join(draftsDir, "org--app-2"), { recursive: true });
+
+  assert.deepStrictEqual([...draftedKeys(draftsDir).keys()], []);
+});
+
+// ---- pruneSettled: drafts whose pull request or issue is settled upstream
+
+test("deletes a draft whose item is closed upstream", () => {
+  const { draftsDir } = tempSource();
+  const dir = writeDraft(draftsDir, "org--app-1", { owner: "org", repo: "app", number: 1 });
+
+  const { pruned, failed } = pruneSettled(draftsDir, () => "closed");
+
+  assert.deepStrictEqual(pruned, ["org/app#1"]);
+  assert.deepStrictEqual(failed, []);
+  assert.strictEqual(fs.existsSync(dir), false);
+});
+
+test("leaves a draft alone while its item is open upstream", () => {
+  const { draftsDir } = tempSource();
+  const dir = writeDraft(draftsDir, "org--app-1", { owner: "org", repo: "app", number: 1 });
+
+  const { pruned } = pruneSettled(draftsDir, () => "open");
+
+  assert.deepStrictEqual(pruned, []);
+  assert.strictEqual(fs.existsSync(dir), true);
+});
+
+test("a state that cannot be read prunes nothing for that key, and is reported", () => {
+  const { draftsDir } = tempSource();
+  const dir = writeDraft(draftsDir, "org--app-1", { owner: "org", repo: "app", number: 1 });
+  writeDraft(draftsDir, "org--app-2", { owner: "org", repo: "app", number: 2 });
+
+  const { pruned, failed } = pruneSettled(draftsDir, (key) => {
+    if (key === "org/app#1") throw new Error("network down");
+    return "closed";
+  });
+
+  assert.deepStrictEqual(pruned, ["org/app#2"]);
+  assert.deepStrictEqual(failed, [{ key: "org/app#1", error: "network down" }]);
+  assert.strictEqual(fs.existsSync(dir), true);
+});
+
+test("the CLI answers even when invoked through a symlink", () => {
+  // The installed skill symlinks into this repository, so argv[1] and the
+  // module's resolved filename differ. The CLI must still run.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "reviewer-link-"));
+  const link = path.join(root, "prune-drafts.js");
+  fs.symlinkSync(path.join(import.meta.dirname, "..", "prune-drafts.js"), link);
+
+  const result = spawnSync(process.execPath, [link], { encoding: "utf8" });
+
+  assert.strictEqual(result.status, 1);
+  assert.match(result.stderr, /usage/);
+});
+
+test("asks upstream once per drafted key, and only for drafted keys", () => {
+  const { draftsDir } = tempSource();
+  writeDraft(draftsDir, "org--app-1", { owner: "org", repo: "app", number: 1 });
+  const asked = [];
+
+  pruneSettled(draftsDir, (key) => {
+    asked.push(key);
+    return "open";
+  });
+
+  assert.deepStrictEqual(asked, ["org/app#1"]);
 });

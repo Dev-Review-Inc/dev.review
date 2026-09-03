@@ -2,17 +2,20 @@
 // Delete drafts whose review is done with, so the drafts directory does not
 // hold onto pull requests nobody will read about again.
 //
-//   prune-drafts.js run <drafts-dir>   delete finished drafts, print which ones
+//   prune-drafts.js run <drafts-dir>       delete finished drafts, print which ones
+//   prune-drafts.js settled <drafts-dir>   delete drafts closed or merged upstream
 //
-// "Done with" comes from the app's own sync log, not from age or from
-// GitHub: a pull request is finished once its most recent `pulls`-collection
-// event is "post" or "dismiss". A later "restore" undoes that, so the pull
-// request goes back on the queue and its draft is left alone.
+// "Done with" comes from two places. `run` reads the app's own sync log, not
+// age or GitHub: a pull request is finished once its most recent
+// `pulls`-collection event is "post" or "dismiss", and a later "restore"
+// undoes that. `settled` asks GitHub: a merged or closed pull request or
+// issue is over regardless of what the reader did about its draft.
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { draftPath } from "./draft-path.js";
+import { draftPath, draftKey } from "./draft-path.js";
 
 const TERMINAL = new Set(["post", "dismiss"]);
 const KEY = /^([^/]+)\/([^#]+)#(\d+)$/;
@@ -159,15 +162,135 @@ export function pruneDrafts(draftsDir) {
   return pruned;
 }
 
-if (process.argv[1] === import.meta.filename) {
+/**
+ * The drafts on disk, identified by their own review.json rather than by
+ * parsing folder names — `--` and `-` both appear inside owner and repository
+ * names, so the name alone is ambiguous.
+ *
+ * A folder whose review.json is missing or unreadable has no key here, and so
+ * is never a candidate for settled pruning: a draft that cannot say what it
+ * is for cannot be safely deleted.
+ *
+ * @param {string} draftsDir the drafts directory
+ * @returns {Map<string, string>} draft key ("owner/repo#42") to its directory
+ */
+export function draftedKeys(draftsDir) {
+  const keys = new Map();
+  let entries;
+
+  try {
+    entries = fs.readdirSync(draftsDir, { withFileTypes: true });
+  } catch {
+    return keys;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const dir = path.join(draftsDir, entry.name);
+
+    try {
+      const { owner, repo, number } = JSON.parse(fs.readFileSync(path.join(dir, "review.json"), "utf8"));
+      keys.set(draftKey(owner, repo, number), dir);
+    } catch {
+      // Not a draft this tool understands; leave it be.
+    }
+  }
+
+  return keys;
+}
+
+/**
+ * A pull request or issue's state, asked of GitHub.
+ *
+ * Pull requests and issues share the number space, and the issues endpoint
+ * answers for both — a merged pull request reads as "closed", which is all
+ * this caller needs to know.
+ *
+ * @param {string} key "owner/repo#42"
+ * @returns {string} "open" or "closed"
+ * @throws {Error} if gh cannot answer (network, auth, deleted repo)
+ */
+export function issueState(key) {
+  const parts = key.match(KEY);
+
+  if (!parts) throw new Error(`unusable key: ${key}`);
+
+  return execFileSync(
+    "gh",
+    ["api", `repos/${parts[1]}/${parts[2]}/issues/${parts[3]}`, "--jq", ".state"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  ).trim();
+}
+
+/**
+ * Delete every draft whose pull request or issue is settled upstream: merged
+ * or closed. The conversation those drafts belong to is over, whether or not
+ * the reader got to them.
+ *
+ * A key whose state cannot be read is pruned NOT AT ALL and reported —
+ * deleting an unread draft on a guess is the one unacceptable failure here.
+ * An open item's draft is untouched.
+ *
+ * @param {string} draftsDir the drafts directory
+ * @param {(key: string) => string} [state] answers "open" or "closed" for a
+ *   key, throwing when it cannot; defaults to asking gh
+ * @returns {{pruned: string[], failed: {key: string, error: string}[]}}
+ */
+export function pruneSettled(draftsDir, state = issueState) {
+  const pruned = [];
+  const failed = [];
+
+  for (const [key, dir] of draftedKeys(draftsDir)) {
+    let answer;
+
+    try {
+      answer = state(key);
+    } catch (error) {
+      failed.push({ key, error: error.message });
+      continue;
+    }
+
+    if (answer !== "closed") continue;
+
+    fs.rmSync(dir, { recursive: true, force: true });
+    pruned.push(key);
+  }
+
+  return { pruned, failed };
+}
+
+/**
+ * Whether this module is the script node was asked to run.
+ *
+ * The installed skill reaches this file through a symlink, and node resolves
+ * `import.meta.filename` to the real path while argv[1] stays as typed — so
+ * the two are compared as real paths, or the installed CLI silently does
+ * nothing.
+ *
+ * @returns {boolean}
+ */
+function invokedDirectly() {
+  try {
+    return fs.realpathSync(process.argv[1]) === import.meta.filename;
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
   const [command, draftsDir] = process.argv.slice(2);
 
   if (command === "run" && draftsDir) {
     const pruned = pruneDrafts(draftsDir);
 
     console.log(JSON.stringify({ pruned, count: pruned.length }, null, 2));
+  } else if (command === "settled" && draftsDir) {
+    const { pruned, failed } = pruneSettled(draftsDir);
+
+    console.log(JSON.stringify({ pruned, count: pruned.length, failed }, null, 2));
   } else {
-    console.error("usage: prune-drafts.js run <drafts-dir>");
+    console.error("usage: prune-drafts.js run|settled <drafts-dir>");
     process.exit(1);
   }
 }
