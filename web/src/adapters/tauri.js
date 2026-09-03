@@ -132,6 +132,17 @@ export class TauriAdapter extends Adapter {
       return { ok: false, reason: "no folder has been chosen yet" };
     }
 
+    // A folder is only reachable this run because it was just picked, on a
+    // build sandboxed for the App Store: the grant the dialog handed the
+    // process does not survive a relaunch, and this asks Rust for it back
+    // through the bookmark storage_pick_root saved - see storage.rs's own
+    // comment on storage_resume_root. Best effort and ignored either way:
+    // the Developer ID build and a folder picked earlier this same run have
+    // nothing to resume, and answer with the no-op that command already is
+    // there, while a folder that really did lose access surfaces that on the
+    // read that needed it, with a clearer reason than this could give.
+    await this._invoke("storage_resume_root", {}).catch(() => {});
+
     return { ok: true, reason: "" };
   }
 

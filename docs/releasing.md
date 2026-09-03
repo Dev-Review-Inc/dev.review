@@ -75,3 +75,29 @@ Notarisation authenticates separately, with an App Store Connect API key rather 
 - **Fails on notarisation with a 403 naming an agreement.** Apple will not notarise for a team with an unsigned or expired Program License Agreement, however valid the key is. The Account Holder accepts it at [developer.apple.com/account](https://developer.apple.com/account), and it reappears whenever Apple revises the terms — so a release that has worked for a year can fail this way on a Tuesday, having changed nothing.
 - **Fails on notarisation otherwise.** Usually the API key's access is below Developer, or the membership has lapsed. `xcrun notarytool log` against the submission ID in the run output gives Apple's own reason.
 - **Builds, then fails `stapler validate`.** The app was signed but never notarised. This is the failure worth having: it is the one that used to reach users instead.
+
+## The App Store build
+
+This is a second, sandboxed macOS bundle for TestFlight and the App Store, alongside the `.dmg` above rather than instead of it. Nothing above changes for it: the `.dmg` still builds, signs and notarises exactly as it always has, from the same `tauri.conf.json`.
+
+The App Store build lives in two extra files instead:
+
+- `src-tauri/tauri.conf.appstore.json` — merged on top of `tauri.conf.json` with `--config`, not a fork of it. It narrows `bundle.targets` to `app` (no `.dmg`, no installer — the App Store does not take either) and points at the entitlements file below.
+- `src-tauri/reviewer_macOS.entitlements` — App Sandbox, plus exactly the two entitlements the app still needs sandboxed: read-write on the folder the reader picked, and outgoing network. See the comment in that file for why nothing else is there.
+
+Sandboxing costs the app its native git transport: App Sandbox forbids spawning a subprocess, so `git.rs` is compiled out under the `appstore` Cargo feature the same way it already is for iOS, and the frontend falls back to `git-isomorphic.js` automatically — see `git.rs`'s and `git.js`'s own comments. In its place, `bookmark.rs` keeps the chosen folder reachable across a relaunch with a security-scoped bookmark, which App Sandbox requires in place of a plain remembered path.
+
+Build it locally with:
+
+```bash
+cd src-tauri
+cargo tauri build --config tauri.conf.appstore.json --features appstore
+```
+
+This produces an unsigned (or ad-hoc-signed) `.app` under `target/*/release/bundle/macos/`, not a TestFlight build. What is still manual, because none of it can happen without an Apple Developer Program membership and a Distribution certificate that do not exist yet:
+
+- Opening the generated Xcode project (or the `.app`) and selecting a signing team and a Distribution certificate — this mints the certificate itself on the first Archive if one does not already exist.
+- Archiving and uploading through Xcode or `xcrun altool`/`notarytool` to App Store Connect.
+- Confirming, by hand, that a folder picked before quitting the app is still reachable after relaunching it. A security-scoped bookmark that resolves in a unit test is not the same claim as one that survives an actual quit-and-reopen, and nothing in this repository can drive that check — it needs a person, once, before this ships.
+
+There is no CI job for this build yet. Automating the sign-and-upload step is follow-up work for once the certificate exists.

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the sandboxed macOS bundle - App Store/TestFlight
+  distribution, built by merging tauri.conf.appstore.json over tauri.conf.json
+  with the appstore Cargo feature turned on; see docs/releasing.md for the
+  exact command. Not used by the Developer ID `.dmg` build, which is not
+  sandboxed and carries no entitlements file at all.
+
+  Unlike reviewer_iOS.entitlements, this one is not known to need copying back
+  into a gitignored gen/ directory after a regen step - `cargo tauri build`
+  for macOS has no xcodegen-driven init that wipes and rebuilds a project the
+  way `cargo tauri ios init` does for gen/apple/. If that turns out not to
+  hold once this is actually built through Xcode, treat it the same way as
+  the iOS file and add the same kind of restore step here.
+
+  App Sandbox is the whole point of this bundle - see git.rs and bookmark.rs
+  for what it costs (no subprocess) and what it requires in return (a
+  bookmark to survive a relaunch). The other two keys are what the app
+  actually still needs once sandboxed:
+
+  - files.user-selected.read-write: the folder-picker source (storage.rs) is
+    read AND written - drafts are saved back into it, not just read from it.
+  - network.client: every remote this app talks to - api.github.com, an
+    S3-compatible bucket, a git remote over HTTPS through git-isomorphic's
+    own transport - is an outgoing connection this process starts, never one
+    it listens for.
+
+  Nothing broader is granted. No iCloud or app-group keys: those exist only
+  for icloud.rs and widget.rs, both `#[cfg(target_os = "ios")]` and unreachable
+  from this build - see lib.rs and web/src/app/widget.js's inTauriIOS() gate.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>
