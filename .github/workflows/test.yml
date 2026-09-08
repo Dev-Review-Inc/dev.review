@@ -22,6 +22,13 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # A ceiling, not a target: the suite itself finishes in well under two
+    # minutes. This exists for the run that doesn't - Chrome failing to launch
+    # left one job silent for three hours and forty-seven minutes on 2026-09-08
+    # before GitHub's own default finally killed it, with nothing in this file
+    # stopping it sooner. Whatever hangs next, known cause or not, fails loud
+    # in twenty minutes instead of burning an afternoon of runner time.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
