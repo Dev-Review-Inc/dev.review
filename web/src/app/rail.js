@@ -144,7 +144,77 @@ function drawBlurb(app) {
   provenance.append(line);
 
   inner.append(provenance);
+
+  // What moved since the draft was written, right beside what already says
+  // the conversation is over. Drawn only when the destination actually said
+  // something did: unknown reads as nothing, same as app.settled staying null.
+  if (app.drift) {
+    line.append(driftChip(app, pull));
+
+    if (app.driftExpanded) inner.append(driftList(app.drift));
+  }
+
   blurb.append(inner);
+}
+
+/**
+ * The badge saying what moved since the draft was written, and the toggle
+ * that expands it in place.
+ *
+ * @param {object} app the application
+ * @param {object} pull the pull request being read
+ * @returns {HTMLElement} the badge
+ */
+function driftChip(app, pull) {
+  const words = pull.isIssue
+    ? plural(app.drift.count, "comment", "since triage")
+    : plural(app.drift.count, "commit", "since review");
+
+  const chip = document.createElement("button");
+  chip.className = "drift-chip verdict-badge mono is-accent";
+  chip.type = "button";
+  chip.textContent = words;
+  chip.setAttribute("aria-expanded", String(Boolean(app.driftExpanded)));
+  chip.addEventListener("click", () => {
+    app.driftExpanded = !app.driftExpanded;
+    app.changed();
+  });
+
+  return chip;
+}
+
+function plural(count, noun, suffix) {
+  return `${count} ${noun}${count === 1 ? "" : "s"} ${suffix}`;
+}
+
+/**
+ * The expanded list behind the drift badge: each commit's short sha, subject
+ * and author, or each comment's author and a truncated body. Oldest first,
+ * the order both endpoints already answer in.
+ *
+ * @param {{commits: object[]}|{comments: object[]}} drift what moved
+ * @returns {HTMLElement} the list
+ */
+function driftList(drift) {
+  const list = document.createElement("div");
+  list.className = "drift-list";
+
+  const rows = drift.commits
+    ? drift.commits.map((commit) => [commit.sha.slice(0, 7), commit.message, commit.author])
+    : drift.comments.map((comment) => [comment.author, truncate(comment.body, 140)]);
+
+  for (const cells of rows) {
+    const row = document.createElement("div");
+    row.className = "drift-row";
+    row.append(...cells.filter(Boolean).map((text) => element("span", "drift-cell", text)));
+    list.append(row);
+  }
+
+  return list;
+}
+
+function truncate(text, max) {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 /**

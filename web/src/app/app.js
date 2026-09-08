@@ -148,6 +148,11 @@ export class App {
     // to be dropped the moment a different one is.
     this.dismissing = false;
 
+    // Whether the drift badge's list is open. View-only, same reasoning as
+    // dismissing: a decision about the pull request that is open, dropped the
+    // moment a different one is.
+    this.driftExpanded = false;
+
     // Kept apart by where they came from. A source opening cleanly says
     // nothing about whether the destination's token is any good, so one clearing its
     // own complaint must not clear the other's.
@@ -665,6 +670,7 @@ export class App {
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
     this.dismissing = false;
+    this.driftExpanded = false;
     this.changed();
 
     if (this.drafts) await this.drafts.load(pull, pull.key);
