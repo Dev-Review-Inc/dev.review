@@ -18,6 +18,7 @@
 
 import { Adapter, contain } from "./adapter.js";
 import { inTauri } from "./tauri.js";
+import { nativeGitAvailable } from "./git-native.js";
 
 // Who a commit is by when the customer has not said. It is the app writing,
 // not a person, and signing it as the person would be a lie in the log.
@@ -273,7 +274,14 @@ export class GitAdapter extends Adapter {
   async _pick() {
     if (this._transport) return this._transport;
 
-    if (inTauri()) {
+    // Whether git.rs's commands are even registered in this build, asked of
+    // Rust rather than assumed from being in Tauri at all: the iOS app and
+    // the App Store's sandboxed macOS build are both inside Tauri and both
+    // compile git.rs out, because neither may spawn the subprocess it shells
+    // out to - see the comment at that file's top. Checked once per source
+    // and then trusted for its lifetime, the same as everything else `_pick`
+    // decides here.
+    if (inTauri() && (await nativeGitAvailable())) {
       const { NativeTransport } = await import("./git-native.js");
 
       this._transport = new NativeTransport(() => this.settings());
