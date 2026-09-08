@@ -125,6 +125,15 @@ export class App {
     // would not: unknown is not open.
     this.settled = null;
 
+    // What has moved since the draft was written: commits pushed since
+    // `reviewedAt` for a pull request, or comments left since `draftedAt` for
+    // an issue. One field for both, shaped `{count, commits}` or
+    // `{count, comments}` - the rail and the sheet key off `count` alone, so
+    // neither has to know which kind of drift it is looking at. Null exactly
+    // like `settled`: no signal, no fetch attempted, or the fetch refused -
+    // never a false "nothing changed".
+    this.drift = null;
+
     // Why the diff or the head commit is missing, when they were asked for and
     // did not come. Kept apart from `problems` because it belongs to the pull
     // request that is open rather than to the source or the destination, and is
@@ -651,6 +660,7 @@ export class App {
     this.issue = null;
     this.issueProblem = "";
     this.settled = null;
+    this.drift = null;
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
@@ -711,7 +721,57 @@ export class App {
       ? refused.reason?.message || "the destination did not say why"
       : "";
 
+    await this._loadDrift(pull, isIssue);
+
     this.changed();
+  }
+
+  /**
+   * What has moved since the draft was written, if anything has.
+   *
+   * A separate fetch, sequenced after the batch above rather than folded into
+   * it, because both branches need what that batch produced - the head commit
+   * for a pull request, the live issue for an issue - before there is
+   * anything to ask for. Fetched only when a cheap signal already on hand
+   * says something might have: `reviewedAt` differing from the head commit,
+   * or `updatedAt` outrunning `draftedAt`. A destination that will not answer
+   * leaves `this.drift` null, same as `this.settled` on a failed fetch:
+   * unknown is not "nothing changed".
+   *
+   * @param {object} pull the pull request or issue being opened
+   * @param {boolean} isIssue whether it is an issue rather than a pull request
+   * @returns {Promise<void>} when the answer, or the lack of one, is in
+   */
+  async _loadDrift(pull, isIssue) {
+    const draft = this.selected.draft;
+
+    if (!isIssue) {
+      if (!draft?.reviewedAt || draft.reviewedAt === this.headCommit) return;
+
+      try {
+        const compared = await this.destination.compare(pull, draft.reviewedAt, this.headCommit);
+
+        this.drift = { count: compared.aheadBy, commits: compared.commits };
+      } catch {
+        this.drift = null;
+      }
+
+      return;
+    }
+
+    if (!draft?.draftedAt || !this.issue?.updatedAt || this.issue.updatedAt <= draft.draftedAt) return;
+
+    try {
+      const comments = (await this.destination.issueComments(pull)).filter(
+        (comment) => comment.createdAt > draft.draftedAt,
+      );
+
+      // Something bumped updated_at - a label, an edit - but no comment
+      // actually postdates the draft. That is not drift worth showing.
+      this.drift = comments.length ? { count: comments.length, comments } : null;
+    } catch {
+      this.drift = null;
+    }
   }
 
   /**
