@@ -75,7 +75,51 @@ pub async fn storage_pick_root(app: tauri::AppHandle) -> Result<Option<String>, 
             )
         })?;
 
+    // The dialog's own grant to this path dies with the process under App
+    // Sandbox - see the comment at the top of bookmark.rs. Saved here rather
+    // than left to storage_resume_root to discover missing, because this is
+    // the one moment a bookmark can be made at all: only a path the dialog
+    // itself just handed back carries the access a bookmark can capture.
+    #[cfg(all(target_os = "macos", feature = "appstore"))]
+    crate::bookmark::save(&app, &path)?;
+
     Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+/// Ask App Sandbox for the access a bookmark saved earlier, for a root the
+/// reader already chose in some previous run.
+///
+/// Called once per relaunch, before the first read against a remembered
+/// root: the plain path in `root` opened everything last time only because
+/// `storage_pick_root` had just run in the same process, and that grant does
+/// not survive a quit. Elsewhere - the Developer ID build, or a fresh pick in
+/// this same run - the path already works and this is a deliberate no-op, so
+/// the frontend can call it unconditionally without knowing which build it is
+/// in.
+#[cfg(not(target_os = "ios"))]
+#[tauri::command]
+pub async fn storage_resume_root(
+    #[allow(unused_variables)] app: tauri::AppHandle,
+    root: String,
+) -> Result<(), String> {
+    // Fingerprinted by the path exactly as storage_pick_root returned it,
+    // because that is exactly the path bookmark::save fingerprinted it by -
+    // canonicalizing here first, before access is back, would both risk
+    // failing on the very thing this command exists to restore and look the
+    // bookmark up under a path that never got saved.
+    #[cfg(all(target_os = "macos", feature = "appstore"))]
+    {
+        if !root.is_empty() {
+            crate::bookmark::resume(&app, Path::new(&root))?;
+        }
+    }
+
+    #[cfg(not(all(target_os = "macos", feature = "appstore")))]
+    {
+        let _ = root;
+    }
+
+    Ok(())
 }
 
 /// What the dialog answered, with the one dismissal told apart from the rest.

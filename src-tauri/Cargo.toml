@@ -33,6 +33,25 @@ codegen-units = 1
 lto = true
 strip = true
 
+# The sandboxed macOS bundle - see tauri.conf.appstore.json and
+# reviewer_macOS.entitlements. App Sandbox forbids spawning a subprocess, so
+# git.rs (see the comment at its top) is compiled out under this feature the
+# same way it already is for iOS; bookmark.rs, which App Sandbox needs
+# instead, is compiled in. Off by default: a plain `cargo build` or the
+# Developer ID `.dmg` target never sees either, and never links objc2 in on
+# their behalf either, since both macOS deps below are optional and only
+# `appstore` turns them on.
+[features]
+appstore = ["dep:objc2", "dep:objc2-foundation"]
+
+# NSURL's security-scoped bookmark methods are what bookmark.rs is built on -
+# see the comment at its top for why App Sandbox needs them at all. Optional
+# and macOS-only so the Developer ID `.dmg` target, which never enables
+# `appstore`, links none of it in.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6.2", optional = true }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSURL", "NSString", "NSData", "NSError", "NSArray", "std"], optional = true }
+
 # Gating the Keychain's actual Face ID prompt is only meaningful where a
 # Keychain exists to gate - iOS. Desktop keeps using the same IndexedDB
 # secret storage it always has; nothing here is a security regression for

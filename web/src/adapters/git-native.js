@@ -25,6 +25,33 @@ export function unavailability() {
 }
 
 /**
+ * Whether git.rs's commands are registered in this build at all.
+ *
+ * Outside Tauri there is nothing to ask, and the answer is the same as
+ * `unavailability`'s: no. Inside it, being in Tauri is not enough - the iOS
+ * app and the App Store's sandboxed macOS build both compile git.rs out,
+ * because App Sandbox forbids the subprocess it shells out to just as
+ * strictly as iOS does, and asking is the only way to tell either of those
+ * apart from the desktop build that has it. git.js's `_pick` is the caller;
+ * see the comment there for what this decides.
+ *
+ * @returns {Promise<boolean>} true only where `invoke("git_open")` and its
+ *   siblings would actually reach a command
+ */
+export async function nativeGitAvailable() {
+  const api = globalThis.__TAURI__;
+  const core = typeof api?.core?.invoke === "function" ? api.core : api;
+
+  if (typeof core?.invoke !== "function") return false;
+
+  try {
+    return await core.invoke("git_native_available");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A Transport, as git.js defines one, over the git on this machine.
  *
  * Settings are the only thing it is given. The clone's folder is not a setting:
