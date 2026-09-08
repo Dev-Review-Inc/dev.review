@@ -220,6 +220,8 @@ export async function theApp({
         state: "open",
         stateReason: null,
         closedAt: null,
+        commentsCount: 0,
+        updatedAt: null,
       }),
       patchDescription: async () => ({ url: "" }),
       commentOnIssue: async () => ({ url: "" }),

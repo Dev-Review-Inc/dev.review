@@ -9,6 +9,8 @@ import {
   patchIssueBody,
   postIssueComment,
   closeIssue,
+  compareCommits,
+  issueComments,
 } from "../web/src/destinations/github.js";
 
 // stub replaces fetch for one call, recording what the module asked for.
@@ -159,4 +161,22 @@ test("posts a prepared review payload untouched", async () => {
   await postReview("t", { owner: "o", repo: "r", number: 1 }, payload);
 
   assert.deepStrictEqual(JSON.parse(calls[0].options.body), payload);
+});
+
+test("compares two commits", async () => {
+  const calls = stub({ ahead_by: 2, commits: [] });
+
+  await compareCommits("t", { owner: "org", repo: "app", number: 42 }, "e612b1b", "a1b2c3d");
+
+  assert.match(calls[0].url, /\/repos\/org\/app\/compare\/e612b1b\.\.\.a1b2c3d$/);
+  assert.strictEqual(calls[0].options.method, "GET");
+});
+
+test("asks for an issue's comments", async () => {
+  const calls = stub([]);
+
+  await issueComments("t", { owner: "org", repo: "app", number: 7 });
+
+  assert.match(calls[0].url, /\/repos\/org\/app\/issues\/7\/comments$/);
+  assert.strictEqual(calls[0].options.method, "GET");
 });

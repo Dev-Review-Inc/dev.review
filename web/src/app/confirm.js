@@ -9,13 +9,14 @@ import { descriptionPlan } from "./description-pane.js";
 import { findingCard } from "./findings.js";
 import { VERDICT_TONE, closeWords } from "./footer.js";
 import { reviewText } from "./summary.js";
-import { dismissedWords, postLabel, postNote, postedWords, settledNote } from "./words.js";
+import { dismissedWords, driftNote, postLabel, postNote, postedWords, settledNote } from "./words.js";
 
 // The note under the sheet: the destination's own promise, led by the warning
-// when the conversation this send would land on is already over. One string,
-// because the note area is one line and both sheets fill it the same way.
+// when the conversation this send would land on is already over, and what has
+// moved since the draft was written. One string, because the note area is one
+// line and both sheets fill it the same way.
 function noteWords(app) {
-  return [settledNote(app), postNote(app)].filter(Boolean).join(" · ");
+  return [settledNote(app), driftNote(app), postNote(app)].filter(Boolean).join(" · ");
 }
 
 // The one line the sheet and the footer both say about the rewrite.

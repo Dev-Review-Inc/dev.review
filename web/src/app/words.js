@@ -110,6 +110,32 @@ export function settledNote(app) {
 }
 
 /**
+ * What the sheet says when something has moved since the draft was written.
+ *
+ * Not a reason to hold back - GitHub takes the send either way - so nothing is
+ * disabled here either, same as settledNote's own philosophy. Saying so is
+ * the job.
+ *
+ * @param {object} app the application
+ * @returns {string} the note, or "" when nothing has moved
+ */
+export function driftNote(app) {
+  if (!app.drift) return "";
+
+  const count = app.drift.count;
+
+  if (app.drift.commits) {
+    return count === 1
+      ? "1 commit has been pushed since this review was written"
+      : `${count} commits have been pushed since this review was written`;
+  }
+
+  return count === 1
+    ? "1 comment has been added since this ticket was triaged"
+    : `${count} comments have been added since this ticket was triaged`;
+}
+
+/**
  * What the control beside the destination does, and what it is called.
  *
  * Signing out of the demo is meaningless: there is no token to forget, and
