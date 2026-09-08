@@ -11,13 +11,13 @@ import { GitHubDestination } from "../../web/src/destinations/github-destination
 const anIssue = () => ({ owner: "org", repo: "app", number: 7 });
 
 // stub replaces fetch for one call, recording what the destination asked for.
-function stub(payload) {
+function stub(payload, { ok = true, status = 200 } = {}) {
   const calls = [];
 
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options });
 
-    return { ok: true, status: 200, json: async () => payload };
+    return { ok, status, json: async () => payload };
   };
 
   return calls;
@@ -42,6 +42,8 @@ describe("a github destination reading and writing issues", () => {
       state: "open",
       stateReason: null,
       closedAt: null,
+      commentsCount: 0,
+      updatedAt: null,
     });
   });
 
@@ -148,5 +150,86 @@ describe("a github destination reading and writing issues", () => {
 
     assert.equal(calls[0].options.method, "POST");
     assert.deepEqual(posted, { url: "https://github.com/org/app/issues/7#issuecomment-1" });
+  });
+
+  test("carries the comment count and the last update, from the same fetch as the body", async () => {
+    stub({
+      number: 7,
+      title: "t",
+      body: "b",
+      html_url: "https://github.com/org/app/issues/7",
+      comments: 3,
+      updated_at: "2026-08-30T10:00:00Z",
+    });
+
+    const destination = new GitHubDestination({ token: "t" });
+    const answered = await destination.issue(anIssue());
+
+    assert.equal(answered.commentsCount, 3);
+    assert.equal(answered.updatedAt, "2026-08-30T10:00:00Z");
+  });
+});
+
+describe("a github destination reading drift since a draft was written", () => {
+  test("compares two commits", async () => {
+    const calls = stub({
+      ahead_by: 2,
+      commits: [
+        {
+          sha: "a1b2c3d4e5f6",
+          commit: {
+            message: "Fix the family catch-all\n\nLonger body explaining why.",
+            author: { name: "Someone", date: "2026-08-30T09:00:00Z" },
+          },
+          author: { login: "someone" },
+        },
+        {
+          sha: "b2c3d4e5f6a1",
+          commit: {
+            message: "Tidy up",
+            author: { name: "No Login", date: "2026-08-30T10:00:00Z" },
+          },
+          author: null,
+        },
+      ],
+    });
+
+    const destination = new GitHubDestination({ token: "t" });
+    const compared = await destination.compare({ owner: "org", repo: "app", number: 42 }, "e612b1b", "a1b2c3d");
+
+    assert.match(calls[0].url, /\/repos\/org\/app\/compare\/e612b1b\.\.\.a1b2c3d$/);
+    assert.deepEqual(compared, {
+      aheadBy: 2,
+      commits: [
+        { sha: "a1b2c3d4e5f6", message: "Fix the family catch-all", author: "someone", date: "2026-08-30T09:00:00Z" },
+        { sha: "b2c3d4e5f6a1", message: "Tidy up", author: "No Login", date: "2026-08-30T10:00:00Z" },
+      ],
+    });
+  });
+
+  test("a base ref that no longer exists rejects, rather than being swallowed", async () => {
+    stub({ message: "No common ancestor between e612b1b and a1b2c3d" }, { ok: false, status: 404 });
+
+    const destination = new GitHubDestination({ token: "t" });
+
+    await assert.rejects(
+      destination.compare({ owner: "org", repo: "app", number: 42 }, "e612b1b", "a1b2c3d"),
+      /No common ancestor/,
+    );
+  });
+
+  test("asks for an issue's comments, mapped to author, body and moment", async () => {
+    stub([
+      { created_at: "2026-08-30T09:00:00Z", user: { login: "sofia" }, body: "still broken for me" },
+      { created_at: "2026-08-30T10:00:00Z", user: { login: "tomas" }, body: "confirmed" },
+    ]);
+
+    const destination = new GitHubDestination({ token: "t" });
+    const comments = await destination.issueComments({ owner: "org", repo: "app", number: 7 });
+
+    assert.deepEqual(comments, [
+      { author: "sofia", body: "still broken for me", createdAt: "2026-08-30T09:00:00Z" },
+      { author: "tomas", body: "confirmed", createdAt: "2026-08-30T10:00:00Z" },
+    ]);
   });
 });

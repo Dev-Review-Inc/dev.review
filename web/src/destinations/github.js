@@ -161,6 +161,35 @@ export function postIssueComment(token, { owner, repo, number }, body) {
 }
 
 /**
+ * The commits between two refs, for drift since a review was drafted.
+ *
+ * A `base` no longer reachable - a force-push rewrote history out from under it
+ * - 404s like any other bad ref; the caller decides what an unreachable base
+ * means, so it is left to surface as a normal rejection rather than swallowed
+ * here.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} pull which pull request
+ * @param {string} base the ref the review was written against
+ * @param {string} head the ref to compare it to
+ * @returns {Promise<object>} GitHub's comparison
+ */
+export function compareCommits(token, { owner, repo }, base, head) {
+  return call(token, `/repos/${owner}/${repo}/compare/${base}...${head}`);
+}
+
+/**
+ * The comments on an issue, for activity since it was triaged.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} target which issue
+ * @returns {Promise<object[]>} one entry per comment
+ */
+export function issueComments(token, { owner, repo, number }) {
+  return call(token, `/repos/${owner}/${repo}/issues/${number}/comments`);
+}
+
+/**
  * Post one comment on one line, on its own, ahead of any review.
  *
  * @param {string} token a personal access token

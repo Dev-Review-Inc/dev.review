@@ -16,6 +16,8 @@ import {
   patchIssueBody,
   postIssueComment,
   closeIssue,
+  compareCommits,
+  issueComments as issueCommentsList,
 } from "./github.js";
 
 export class GitHubDestination {
@@ -129,7 +131,7 @@ export class GitHubDestination {
    * `pull_request` key, so the caller can tell before writing anything.
    *
    * @param {object} target which issue
-   * @returns {Promise<{body: string, title: string, isPull: boolean, url: string, state: string, stateReason: string|null, closedAt: string|null}>} the issue
+   * @returns {Promise<{body: string, title: string, isPull: boolean, url: string, state: string, stateReason: string|null, closedAt: string|null, commentsCount: number, updatedAt: string|null}>} the issue
    */
   async issue(target) {
     const detail = await issueDetail(this.token, target);
@@ -142,7 +144,50 @@ export class GitHubDestination {
       state: detail.state || "open",
       stateReason: detail.state_reason || null,
       closedAt: detail.closed_at || null,
+      // Already in this one response - free, so long as the caller only asks
+      // for comments themselves when this says something moved.
+      commentsCount: detail.comments || 0,
+      updatedAt: detail.updated_at || null,
     };
+  }
+
+  /**
+   * The commits pushed since a review was drafted.
+   *
+   * @param {object} pull which pull request
+   * @param {string} base the commit the review was written against
+   * @param {string} head the commit now at the tip
+   * @returns {Promise<{aheadBy: number, commits: {sha: string, message: string, author: string, date: string}[]}>} the drift
+   */
+  async compare(pull, base, head) {
+    const compared = await compareCommits(this.token, pull, base, head);
+
+    return {
+      aheadBy: compared.ahead_by || 0,
+      commits: (compared.commits || []).map((commit) => ({
+        sha: commit.sha,
+        message: (commit.commit?.message || "").split("\n")[0],
+        author: commit.author?.login || commit.commit?.author?.name || "",
+        date: commit.commit?.author?.date || "",
+      })),
+    };
+  }
+
+  /**
+   * The comments left on an issue since it was triaged - the caller filters
+   * to what actually postdates the draft.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{author: string, body: string, createdAt: string}[]>} every comment
+   */
+  async issueComments(target) {
+    const comments = await issueCommentsList(this.token, target);
+
+    return comments.map((comment) => ({
+      author: comment.user?.login || "",
+      body: comment.body || "",
+      createdAt: comment.created_at || "",
+    }));
   }
 
   /**
