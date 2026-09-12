@@ -721,10 +721,15 @@
   .pull-link:hover { text-decoration: underline; }
   .pull-line { display: flex; align-items: center; gap: 6px; }
 
-  /* Same badge as the settled chip, but this one is a button: what moved
-     since the draft was written is worth opening, not just reading. */
-  .drift-chip { background: none; font-family: inherit; cursor: pointer; }
-  .drift-chip:hover { background: var(--panel2); }
+  /* Its own shape rather than the settled chip's: that badge is a single
+     status word ("merged"), sized and uppercased for one. This one carries a
+     whole phrase ("3 commits since review"), so it takes the hunk-toggle's
+     shape instead - a short-phrase control, not a status pill. */
+  .drift-chip {
+    border: 1px solid var(--border); border-radius: 5px; background: none;
+    color: var(--dim); font-size: var(--textSmall); padding: 2px 8px; cursor: pointer;
+  }
+  .drift-chip:hover { color: var(--accent); border-color: var(--accent); }
 
   .drift-list { display: grid; gap: 4px; padding-top: 4px; }
   .drift-row { display: flex; gap: 8px; font-size: var(--textSmall); color: var(--dim2); }

@@ -91,6 +91,28 @@ describe("the drift badge beside the number", () => {
     return { app, doc, chip: chip(doc.getElementById("blurb")) };
   }
 
+  test("a reviewed sha that diverged without moving ahead wears no badge", async () => {
+    // A force-push can leave reviewedAt and headCommit different while GitHub's
+    // own compare says nothing is actually ahead - history moved sideways, not
+    // forward. Zero is not a count worth wearing: it reads as "something
+    // happened" when nothing did, the exact false positive this badge exists
+    // to avoid on the other side.
+    const { chip: badge } = await railChip({
+      destination: {
+        pullDetail: async () => ({
+          headCommit: "a1b2c3d",
+          state: "open",
+          merged: false,
+          mergedAt: null,
+          closedAt: null,
+        }),
+        compare: async () => ({ aheadBy: 0, commits: [] }),
+      },
+    });
+
+    assert.equal(badge, undefined);
+  });
+
   test("a pull request with commits pushed since the review wears a count", async () => {
     const { chip: badge } = await railChip({
       destination: {
