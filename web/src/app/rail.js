@@ -147,8 +147,11 @@ function drawBlurb(app) {
 
   // What moved since the draft was written, right beside what already says
   // the conversation is over. Drawn only when the destination actually said
-  // something did: unknown reads as nothing, same as app.settled staying null.
-  if (app.drift) {
+  // something did: unknown reads as nothing, same as app.settled staying null
+  // - and a count of zero, which a force-push can produce even though the sha
+  // moved, reads as nothing too. A "0 commits" badge would say the opposite
+  // of what it means.
+  if (app.drift && app.drift.count > 0) {
     line.append(driftChip(app, pull));
 
     if (app.driftExpanded) inner.append(driftList(app.drift));
@@ -171,7 +174,7 @@ function driftChip(app, pull) {
     : plural(app.drift.count, "commit", "since review");
 
   const chip = document.createElement("button");
-  chip.className = "drift-chip verdict-badge mono is-accent";
+  chip.className = "drift-chip mono";
   chip.type = "button";
   chip.textContent = words;
   chip.setAttribute("aria-expanded", String(Boolean(app.driftExpanded)));
