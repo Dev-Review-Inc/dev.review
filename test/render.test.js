@@ -112,3 +112,26 @@ test("does not leave a live closing tag behind a rejected opening tag", () => {
 test("escapes a quote that would break out of an attribute", () => {
   assert.doesNotMatch(renderBody('title is " onmouseover="alert(1)'), /onmouseover="alert/);
 });
+
+test("renders a known shortcode as the emoji it names", () => {
+  assert.match(renderBody("when i :robot: it"), /<p>when i 🤖 it<\/p>/);
+});
+
+test("renders every alias a shortcode has, not just one spelling", () => {
+  assert.match(renderBody(":+1:"), /👍/);
+  assert.match(renderBody(":thumbsup:"), /👍/);
+});
+
+test("leaves an unknown shortcode as the literal text it was", () => {
+  assert.match(renderBody("a :made_up_thing: here"), /:made_up_thing:/);
+});
+
+test("leaves a shortcode inside a code span untouched, matching GitHub", () => {
+  const html = renderBody("write `:robot:` in the draft");
+
+  assert.match(html, /<code>:robot:<\/code>/);
+});
+
+test("leaves a GitHub-custom shortcode as text - there is no character for it", () => {
+  assert.match(renderBody(":octocat:"), /:octocat:/);
+});
