@@ -284,3 +284,51 @@ test("asks upstream once per drafted key, and only for drafted keys", () => {
 
   assert.deepStrictEqual(asked, ["org/app#1"]);
 });
+
+// ---- redrafts: a pull dismissed, moved, and drafted again
+
+function writeStamped(draftsDir, folder, review) {
+  fs.mkdirSync(path.join(draftsDir, folder), { recursive: true });
+  fs.writeFileSync(path.join(draftsDir, folder, "review.json"), JSON.stringify(review));
+}
+
+test("spares a draft written after its pull's dismissal", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: new Date(500).toISOString() });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
+
+  const pruned = pruneDrafts(draftsDir);
+
+  assert.deepStrictEqual(pruned, []);
+  assert.strictEqual(fs.existsSync(path.join(draftsDir, "org--app-1")), true);
+});
+
+test("spares a draft whose finishedAt alone postdates the resolution", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: new Date(50).toISOString(), finishedAt: new Date(500).toISOString() });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "post", 100)]);
+
+  const pruned = pruneDrafts(draftsDir);
+
+  assert.deepStrictEqual(pruned, []);
+  assert.strictEqual(fs.existsSync(path.join(draftsDir, "org--app-1")), true);
+});
+
+test("deletes a draft written before its pull's dismissal", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: new Date(50).toISOString(), finishedAt: new Date(60).toISOString() });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
+
+  const pruned = pruneDrafts(draftsDir);
+
+  assert.deepStrictEqual(pruned, ["org/app#1"]);
+  assert.strictEqual(fs.existsSync(path.join(draftsDir, "org--app-1")), false);
+});
+
+test("deletes a draft whose review.json carries no parsable timestamp", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: "not a date" });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
+
+  assert.deepStrictEqual(pruneDrafts(draftsDir), ["org/app#1"]);
+});

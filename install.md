@@ -204,7 +204,7 @@ A `logError` in the output means the review is out but the sync log is behind. R
 
 ## After every fresh PR is drafted: prune finished ones
 
-A draft's reviewer app already knows when its review was posted or dismissed — that is what the sync log is for. Once the fresh PRs above are drafted, clear out the drafts that are done with:
+A draft's reviewer app already knows when its review was posted or dismissed — that is what the sync log is for. A draft written after that word — the redraft of a dismissed pull request that came back — is spared, so pruning right after drafting never eats this sweep's own work. Once the fresh PRs above are drafted, clear out the drafts that are done with:
 
 ```bash
 node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>       # delete drafts posted or dismissed, print which ones
@@ -778,8 +778,10 @@ if (process.argv[1] === import.meta.filename) {
 // "Done with" comes from two places. `run` reads the app's own sync log, not
 // age or GitHub: a pull request is finished once its most recent
 // `pulls`-collection event is "post" or "dismiss", and a later "restore"
-// undoes that. `settled` asks GitHub: a merged or closed pull request or
-// issue is over regardless of what the reader did about its draft.
+// undoes that. A draft written after that terminal event is a redraft — the
+// queue re-offers a dismissed pull request once it moves — and is left alone.
+// `settled` asks GitHub: a merged or closed pull request or issue is over
+// regardless of what the reader did about its draft.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -895,8 +897,37 @@ export function finishedPulls(events) {
 }
 
 /**
+ * Whether the draft in `dir` was written after `time`.
+ *
+ * A draft newer than the post or dismiss it would be pruned for is not the
+ * draft that post or dismiss answered: the queue re-offers a dismissed pull
+ * request once it has moved, and the redraft must outlive the old resolution
+ * or the sweep deletes its own fresh work. A draft whose review.json is
+ * unreadable or carries no parsable timestamp cannot claim to be newer, so
+ * the resolution's word stands.
+ *
+ * @param {string} dir the draft's directory
+ * @param {number} time a resolution's time, milliseconds since the epoch
+ * @returns {boolean} true when review.json's draftedAt or finishedAt is later
+ */
+export function draftedAfter(dir, time) {
+  let review;
+
+  try {
+    review = JSON.parse(fs.readFileSync(path.join(dir, "review.json"), "utf8"));
+  } catch {
+    return false;
+  }
+
+  return [review.draftedAt, review.finishedAt]
+    .map((stamp) => Date.parse(stamp || ""))
+    .some((ms) => Number.isFinite(ms) && ms > time);
+}
+
+/**
  * Delete every draft (and its media — qa.mp4, frames/, whatever sits beside
- * review.json) whose pull request is finished.
+ * review.json) whose pull request is finished, sparing drafts written after
+ * their pull's resolution — those are redrafts of a pull that came back.
  *
  * Only removes files on disk. Making the deletion visible to whatever reads
  * the storage is the sweep's job, reusing the same "Leave the storage synced"
@@ -908,7 +939,7 @@ export function finishedPulls(events) {
 export function pruneDrafts(draftsDir) {
   const pruned = [];
 
-  for (const key of finishedPulls(readEvents(draftsDir))) {
+  for (const [key, resolution] of resolutions(readEvents(draftsDir))) {
     const parts = key.match(KEY);
 
     if (!parts) continue;
@@ -924,6 +955,7 @@ export function pruneDrafts(draftsDir) {
     const dir = path.join(draftsDir, path.dirname(relative));
 
     if (!fs.existsSync(dir)) continue;
+    if (draftedAfter(dir, resolution.time)) continue;
 
     fs.rmSync(dir, { recursive: true, force: true });
     pruned.push(key);
