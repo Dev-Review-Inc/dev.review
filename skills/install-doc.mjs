@@ -36,7 +36,7 @@ const SKILLS = [
 // the app's own translation, so what the sweep posts is what the app posts.
 const COLLECTOR = [
   "queue.js", "select-new.js", "draft-path.js", "resolve-repo.js", "prune-drafts.js",
-  "rules.js", "post.js", "review.js",
+  "search-args.js", "rules.js", "post.js", "review.js",
 ];
 const COLLECTOR_TO = "~/.claude/skills/dev-review-sweep/collector";
 

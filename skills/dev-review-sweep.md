@@ -53,7 +53,7 @@ A `logError` in the output means the review is out but the sync log is behind. R
 
 ## After every fresh PR is drafted: prune finished ones
 
-A draft's reviewer app already knows when its review was posted or dismissed — that is what the sync log is for. Once the fresh PRs above are drafted, clear out the drafts that are done with:
+A draft's reviewer app already knows when its review was posted or dismissed — that is what the sync log is for. A draft written after that word — the redraft of a dismissed pull request that came back — is spared, so pruning right after drafting never eats this sweep's own work. Once the fresh PRs above are drafted, clear out the drafts that are done with:
 
 ```bash
 node ~/.claude/skills/dev-review-sweep/collector/prune-drafts.js run <drafts-dir>       # delete drafts posted or dismissed, print which ones
