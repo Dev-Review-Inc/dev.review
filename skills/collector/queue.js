@@ -14,8 +14,9 @@ import path from "node:path";
 import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
 import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
-import { readRules } from "./rules.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
+import { searchArgs } from "./search-args.js";
+import { readRules } from "./rules.js";
 
 /**
  * The pull requests a draft already exists for.
@@ -49,17 +50,7 @@ function alreadyDrafted(drafts, prs) {
  */
 function search(qualifier) {
   return JSON.parse(
-    execFileSync(
-      "gh",
-      [
-        "search", "prs",
-        qualifier,
-        "--state=open",
-        "--limit", "40",
-        "--json", "number,title,repository,url,updatedAt,author,isDraft,labels",
-      ],
-      { encoding: "utf8" },
-    ),
+    execFileSync("gh", searchArgs(qualifier), { encoding: "utf8" }),
   );
 }
 
