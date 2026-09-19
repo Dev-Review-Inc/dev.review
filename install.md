@@ -1,6 +1,6 @@
 # Install
 
-Two skills that draft code reviews and post nothing. Everything they need is in this file, so there is nothing else to fetch.
+Two skills that draft code reviews, and post one only where your rules file says so. Everything they need is in this file, so there is nothing else to fetch.
 
 **Reading this as an agent?** Write each block below to the path above it, exactly as it is. Then tell the reader which skills are installed and what to set as their drafts directory.
 
@@ -151,7 +151,7 @@ Finds what is waiting and runs the first over each.
 ````markdown
 ---
 name: dev-review-sweep
-description: Find the pull requests awaiting your or your team's review, including your own, and get each one drafted through dev-review so they can be read later in the reviewer app. Unattended — never asks, never posts to GitHub. Use on the hourly sweep or when asked to sweep the review queue.
+description: Find the pull requests awaiting your or your team's review, including your own, and get each one drafted through dev-review so they can be read later in the reviewer app. Unattended: never asks, and posts to GitHub only where the reader's rules file says so. Use on the hourly sweep or when asked to sweep the review queue.
 ---
 
 Find the pull requests awaiting your or your team's review, including your own. Get each one drafted, so they can be read later in the reviewer app.
@@ -170,9 +170,37 @@ Hand the reviewing skill the `unattended` QA mode: nobody is waiting to be asked
 
 You're unattended: never ask a question, never wait for a go-ahead. If one pull request fails, say why and carry on to the next. HOWEVER, THE RULES DON'T CHANGE JUST BECAUSE YOU'RE "DOING A SWEEP." Never use a "sweep" as an excuse.
 
-## Never write to GitHub
+## The rules file
 
-No `gh pr comment`, `gh pr review`, `gh pr merge`, or anything else that posts. The deliverable is a local draft a person reads; posting is their call, made in the app.
+The reader decides ahead of time what the sweep does with a pull request. The rules live in `rules.json` in the drafts directory:
+
+```json
+{ "rules": [ { "when": { "author": "someone" }, "then": "post" } ] }
+```
+
+A rule has a `when` and a `then`. The conditions in `when` are `author`, `repo` ("owner/name"), `verdict`, `label` (one label or a list, any of which matches, in any letter case) and `isDraft` (true or false). Every condition in a rule must hold. A fact that is not known never satisfies a condition.
+
+The `then` is one of three actions. `post` drafts the review and then posts it. `skip` leaves the pull request out of the sweep. `draft` drafts the review and leaves it for the reader. The first rule that matches wins. A pull request that no rule matches gets `draft`. No rules file means no rules.
+
+The queue applies the rules. Each fresh entry carries its `author` and its `action`, and `skipped` lists the keys a rule left out. The `action` is provisional, because no verdict exists before drafting. An `action` of `post` means a rule posts this pull request under at least one verdict.
+
+A rules file that is not understood in full is refused whole. The queue prints `rulesError` with the reason, every pull request gets `draft`, nothing is skipped, and nothing is posted.
+
+## Write to GitHub through post.js only
+
+The sweep writes to GitHub through `post.js` and nothing else. `gh pr comment`, `gh pr review`, `gh pr merge` and anything else that posts stay forbidden.
+
+After /dev-review finishes a draft whose queue `action` was `post`, run post.js for that key:
+
+```bash
+node ~/.claude/skills/dev-review-sweep/collector/post.js run <drafts-dir> <owner/repo#n>   # post the finished draft if a rule says so, print what happened
+```
+
+It prints `{ "posted": { key, url, event } }` or `{ "refused": { key, reason } }`. It records a post in the sync log, so the app and the prune step see the draft as posted.
+
+post.js decides, not the sweep. It checks the rules again, against the finished draft and the live pull request, and refuses unless a rule says `post`. A refusal is a normal outcome. It leaves the draft for the reader, and you report it with its reason. Never retry a refusal, never work around one, and never post a draft that post.js refused. Never run post.js for a draft whose queue `action` was `draft`.
+
+A `logError` in the output means the review is out but the sync log is behind. Report it prominently, because the app still shows that draft as not posted.
 
 ## After every fresh PR is drafted: prune finished ones
 
@@ -189,12 +217,12 @@ These delete matching draft folders (and their QA media) from disk only. Leave t
 
 ## Finish with
 
-One short paragraph: what you drafted, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
 ````
 
 ## The queue helper
 
-The sweep asks this which pull requests have no draft yet. The four modules import each other by relative path, so they belong in `~/.claude/skills/dev-review-sweep/collector/` together.
+The sweep asks this which pull requests have no draft yet, and posts through it where the reader's rules say so. The modules import each other by relative path, so they belong in `~/.claude/skills/dev-review-sweep/collector/` together.
 
 ### `~/.claude/skills/dev-review-sweep/collector/queue.js`
 
@@ -212,9 +240,10 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { selectNew, key, withinWorkspace, dedupe } from "./select-new.js";
+import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
 import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
+import { readRules } from "./rules.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
 
 /**
@@ -244,7 +273,8 @@ function alreadyDrafted(drafts, prs) {
  * One `gh search prs` call.
  *
  * @param {string} qualifier e.g. "--review-requested=@me"
- * @returns {object[]} pull requests with number, title, repository, url
+ * @returns {object[]} pull requests with number, title, repository, url, and
+ *   the author, isDraft and labels the rules read
  */
 function search(qualifier) {
   return JSON.parse(
@@ -255,7 +285,7 @@ function search(qualifier) {
         qualifier,
         "--state=open",
         "--limit", "40",
-        "--json", "number,title,repository,url,updatedAt",
+        "--json", "number,title,repository,url,updatedAt,author,isDraft,labels",
       ],
       { encoding: "utf8" },
     ),
@@ -293,7 +323,22 @@ if (command === "next" && draftsDir) {
     })
     .filter(Boolean);
 
-  const scoped = withinWorkspace(openReviewRequests(), repos);
+  // A rules file that is not understood in full is refused whole: everything
+  // is drafted, nothing is skipped, and the error is printed.
+  let rules = [];
+  let rulesError;
+
+  try {
+    rules = readRules(draftsDir);
+  } catch (error) {
+    rulesError = error.message;
+  }
+
+  // Skipped pull requests leave before the limit applies, so they never eat it.
+  const { kept: scoped, skipped } = splitByRules(
+    withinWorkspace(openReviewRequests(), repos),
+    rules,
+  );
 
   // The sync log keeps the selector honest after a prune: a pull the reader
   // posted on or dismissed is not fresh just because its draft is gone.
@@ -313,9 +358,13 @@ if (command === "next" && draftsDir) {
           number: pr.number,
           title: pr.title,
           url: pr.url,
+          author: pr.author?.login,
+          action: pr.action,
         })),
         deferredCount: deferred.length,
         deferred: deferred.map(key),
+        skipped: skipped.map(key),
+        ...(rulesError ? { rulesError } : {}),
       },
       null,
       2,
@@ -330,6 +379,11 @@ if (command === "next" && draftsDir) {
 ### `~/.claude/skills/dev-review-sweep/collector/select-new.js`
 
 ```javascript
+import { actionFor } from "./rules.js";
+
+// The verdicts a finished draft can carry.
+const VERDICTS = ["APPROVE", "COMMENT", "REQUEST_CHANGES"];
+
 /**
  * Identity of a pull request in the seen-state file.
  *
@@ -420,6 +474,45 @@ export function withinWorkspace(prs, repos) {
   const known = new Set(repos.map((repo) => repo.toLowerCase()));
 
   return prs.filter((pr) => known.has(pr.repository.nameWithOwner.toLowerCase()));
+}
+
+/**
+ * Split the pull requests by what the reader's rules say before any draft
+ * exists: the ones a rule skips, and the ones to carry on with.
+ *
+ * The action is provisional. No verdict exists yet, so "post" means some
+ * verdict would post; post.js checks again against the finished draft.
+ *
+ * @param {object[]} prs pull requests from `gh search prs --json`
+ * @param {object[]} rules the reader's rules, as `readRules` returns them
+ * @returns {{kept: object[], skipped: object[]}} `kept` are copies carrying
+ *   their `action`, "post" or "draft"
+ */
+export function splitByRules(prs, rules) {
+  const kept = [];
+  const skipped = [];
+
+  for (const pr of prs) {
+    const facts = {
+      author: pr.author?.login,
+      repo: pr.repository.nameWithOwner,
+      labels: (pr.labels || []).map((label) => label.name),
+      isDraft: pr.isDraft,
+    };
+
+    if (actionFor(rules, facts) === "skip") {
+      skipped.push(pr);
+      continue;
+    }
+
+    const mayPost = [undefined, ...VERDICTS].some(
+      (verdict) => actionFor(rules, { ...facts, verdict }) === "post",
+    );
+
+    kept.push({ ...pr, action: mayPost ? "post" : "draft" });
+  }
+
+  return { kept, skipped };
 }
 ```
 
@@ -970,6 +1063,536 @@ if (invokedDirectly()) {
     console.error("usage: prune-drafts.js run|settled <drafts-dir>");
     process.exit(1);
   }
+}
+```
+
+### `~/.claude/skills/dev-review-sweep/collector/rules.js`
+
+```javascript
+// What the sweep does with a pull request, as its reader configured it.
+//
+//   <drafts-dir>/rules.json
+//   { "rules": [ { "when": { "author": "priya" }, "then": "post" } ] }
+//
+// The first rule whose every condition holds decides. A pull request no rule
+// names is drafted for a person to read, which is what the sweep always did.
+// A file that is only half understood is refused whole: a typo in a condition
+// must never widen what gets posted.
+
+import fs from "node:fs";
+import path from "node:path";
+
+// What a rule can ask for: post the finished draft, never draft it, or leave
+// it as a draft for the reader.
+export const ACTIONS = ["post", "skip", "draft"];
+
+// Conditions whose value is text (one value, or a list meaning any of them).
+const TEXT = ["author", "repo", "verdict", "label"];
+
+// Conditions whose value is true or false.
+const FLAGS = ["isDraft"];
+
+/**
+ * A condition's value as a lowercased list.
+ *
+ * @param {string} name the condition, for the error
+ * @param {string|string[]} value one value or several
+ * @returns {string[]} the values to match any of
+ * @throws {Error} if a value is not text
+ */
+function wanted(name, value) {
+  const values = Array.isArray(value) ? value : [value];
+
+  if (!values.length || values.some((one) => typeof one !== "string" || !one)) {
+    throw new Error(`rules.json: ${name} must be text, or a list of text`);
+  }
+
+  return values.map((one) => one.toLowerCase());
+}
+
+/**
+ * One rule, checked.
+ *
+ * @param {object} rule a rule as written in the file
+ * @returns {{when: object, then: string}} the rule with its text conditions normalised
+ * @throws {Error} if any part of it is not understood
+ */
+function parseRule(rule) {
+  if (!rule || typeof rule !== "object" || !rule.when || typeof rule.when !== "object") {
+    throw new Error("rules.json: every rule needs a when and a then");
+  }
+
+  if (!ACTIONS.includes(rule.then)) {
+    throw new Error(`rules.json: ${rule.then} is not something a rule can do`);
+  }
+
+  const names = Object.keys(rule.when);
+
+  if (!names.length) {
+    throw new Error("rules.json: a rule needs at least one condition");
+  }
+
+  const when = {};
+
+  for (const name of names) {
+    if (TEXT.includes(name)) {
+      when[name] = wanted(name, rule.when[name]);
+    } else if (FLAGS.includes(name)) {
+      if (typeof rule.when[name] !== "boolean") {
+        throw new Error(`rules.json: ${name} must be true or false`);
+      }
+
+      when[name] = rule.when[name];
+    } else {
+      throw new Error(`rules.json: ${name} is not a condition`);
+    }
+  }
+
+  return { when, then: rule.then };
+}
+
+/**
+ * The rules in a rules file.
+ *
+ * @param {string} json the file's contents
+ * @returns {object[]} the rules, in the order they are tried
+ * @throws {Error} if the file is not understood in full
+ */
+export function parseRules(json) {
+  let document;
+
+  try {
+    document = JSON.parse(json);
+  } catch (error) {
+    throw new Error(`rules.json: ${error.message}`);
+  }
+
+  if (!document || !Array.isArray(document.rules)) {
+    throw new Error("rules.json: expected { \"rules\": [ ... ] }");
+  }
+
+  return document.rules.map(parseRule);
+}
+
+/**
+ * The rules a drafts directory carries. No file means no rules.
+ *
+ * @param {string} draftsDir the drafts directory
+ * @returns {object[]} the rules, in the order they are tried
+ * @throws {Error} if the file is there and not understood in full
+ */
+export function readRules(draftsDir) {
+  const file = path.join(draftsDir, "rules.json");
+
+  return fs.existsSync(file) ? parseRules(fs.readFileSync(file, "utf8")) : [];
+}
+
+/**
+ * Whether one condition holds. A fact nobody knows never satisfies it.
+ *
+ * @param {string} name the condition
+ * @param {string[]|boolean} value what the rule asks for
+ * @param {object} facts what is known about the pull request
+ * @returns {boolean} whether it holds
+ */
+function holds(name, value, facts) {
+  if (FLAGS.includes(name)) return facts[name] === value;
+
+  const known = name === "label" ? facts.labels : facts[name];
+  const have = (Array.isArray(known) ? known : [known])
+    .filter((one) => typeof one === "string")
+    .map((one) => one.toLowerCase());
+
+  return have.some((one) => value.includes(one));
+}
+
+/**
+ * What to do with a pull request.
+ *
+ * @param {object[]} rules rules from parseRules
+ * @param {{author?: string, repo?: string, verdict?: string, labels?: string[], isDraft?: boolean}} facts what is known about it
+ * @returns {string} "post", "skip" or "draft"
+ */
+export function actionFor(rules, facts) {
+  const rule = rules.find(({ when }) =>
+    Object.entries(when).every(([name, value]) => holds(name, value, facts)),
+  );
+
+  return rule ? rule.then : "draft";
+}
+```
+
+### `~/.claude/skills/dev-review-sweep/collector/post.js`
+
+```javascript
+#!/usr/bin/env node
+// Post one finished draft to GitHub as a review, when the reader's rules say
+// that pull request may go out without being read first.
+//
+//   post.js run <drafts-dir> <owner/repo#n>
+//
+// Prints `{ "posted": { key, url, event } }` or `{ "refused": { key, reason } }`
+// and exits 0 for both: a refusal is an answer, not a fault. A non-zero exit
+// means something unexpected broke (gh could not be reached, GitHub said no),
+// and the draft stays a draft for a person to read.
+//
+// This is the one place the sweep writes to GitHub, so it trusts nothing it
+// was told. The caller names a pull request and nothing else; the draft, the
+// rules, the live pull request and the sync log are all read again here, and
+// any one of them can refuse. What is sent is the untouched draft, built by
+// the same translation the app sends through, and the post is written into
+// the sync log the way the app writes its own, so the app and the next sweep
+// both see a pull request that is done with.
+
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+// The app's own translation from a draft to a review. review.js is a link to
+// web/src/domain/review.js: a second copy of it here would be a second opinion
+// about what a draft means.
+import { reviewPayload } from "./review.js";
+
+import { draftPath, draftKey } from "./draft-path.js";
+import { readEvents } from "./prune-drafts.js";
+import { actionFor, readRules } from "./rules.js";
+
+// The sweep's own file in the sync log. The app reads every file in
+// `.reviewer/events/` whatever it is called, skipping only the one named for
+// its own device id — and it rewrites that one whole on every push. Device ids
+// are uuids, so a name that is not one can never be a browser's own file:
+// every device takes these events in, and none of them writes over them.
+export const SWEEP_LOG = "sweep.jsonl";
+
+// The review events GitHub accepts, which are the verdicts a draft may carry.
+const EVENTS = ["APPROVE", "COMMENT", "REQUEST_CHANGES"];
+
+// The sync log's event schema, as web/src/state/event-store-event.js writes it.
+const VERSION = "v1";
+
+const KEY = /^([^/]+)\/([^#]+)#(\d+)$/;
+
+/**
+ * The parts of a pull request key, checked as safe to put in a path.
+ *
+ * @param {string} key "owner/repo#42"
+ * @returns {{owner: string, repo: string, number: number}|null} null when the
+ *   key is not one, or names something that could walk out of the drafts
+ *   directory
+ */
+function parseKey(key) {
+  const parts = typeof key === "string" ? key.match(KEY) : null;
+
+  if (!parts) return null;
+
+  const pull = { owner: parts[1], repo: parts[2], number: Number(parts[3]) };
+
+  try {
+    draftKey(pull.owner, pull.repo, pull.number);
+  } catch {
+    return null;
+  }
+
+  return pull;
+}
+
+/**
+ * Whether the sync log has ever recorded a review going out for a pull request.
+ *
+ * Any post counts, not only the latest word: the app follows every post with
+ * a dismiss, so the latest event on a posted pull request is never the post.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @param {string} key "owner/repo#42"
+ * @returns {boolean}
+ */
+export function alreadyPosted(events, key) {
+  return events.some(
+    (event) => event && event.collection === "pulls" && event.objectId === key && event.action === "post",
+  );
+}
+
+/**
+ * Whether a draft was written against the commit the pull request is at now.
+ *
+ * A draft records the commit as `reviewedAt`, usually abbreviated, so the
+ * live sha is matched by prefix.
+ *
+ * @param {string} reviewedAt the draft's commit, full or abbreviated
+ * @param {string} head the pull request's head sha
+ * @returns {boolean}
+ */
+function sameCommit(reviewedAt, head) {
+  return String(head).toLowerCase().startsWith(reviewedAt.toLowerCase());
+}
+
+/**
+ * Write a sent review into the sync log, as the app records its own: the
+ * post, then the dismiss that takes it off the queue (see `recordPostedReview`
+ * in web/src/commands/index.js). The dismiss is a millisecond later so every
+ * reader agrees which came last.
+ *
+ * @param {string} draftsDir the drafts directory
+ * @param {string} file the log file's name within `.reviewer/events/`
+ * @param {string} key "owner/repo#42"
+ * @param {{url: string, event: string}} review what was sent, and where it landed
+ * @param {number} time when it was sent, milliseconds since the epoch
+ * @returns {void}
+ * @throws {Error} if the log cannot be written
+ */
+function record(draftsDir, file, key, review, time) {
+  const dir = path.join(draftsDir, "..", ".reviewer", "events");
+
+  const lines = [
+    { collection: "pulls", objectId: key, action: "post", data: review, time, version: VERSION },
+    { collection: "pulls", objectId: key, action: "dismiss", data: null, time: time + 1, version: VERSION },
+  ];
+
+  fs.mkdirSync(dir, { recursive: true });
+  fs.appendFileSync(path.join(dir, file), lines.map((line) => `${JSON.stringify(line)}\n`).join(""));
+}
+
+/**
+ * Post one pull request's finished draft as a review, or say why not.
+ *
+ * @param {object} options
+ * @param {string} options.draftsDir the drafts directory
+ * @param {string} options.key which pull request, "owner/repo#42"
+ * @param {(args: string[], stdin?: string) => string} options.gh runs gh with
+ *   these arguments (and this on stdin), answering its stdout
+ * @param {() => number} [options.now] the time, milliseconds since the epoch
+ * @param {string} [options.logFile] the sync-log file to record the post in
+ * @returns {{posted: {key: string, url: string, event: string}, logError?: string}|{refused: {key: string, reason: string}}}
+ *   `logError` is set when the review went out and the sync log could not be
+ *   written: the post stands, and nothing on disk knows about it
+ * @throws {Error} if gh fails, or answers with something that is not JSON
+ */
+export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }) {
+  const refuse = (reason) => ({ refused: { key, reason } });
+  const pull = parseKey(key);
+
+  if (!pull) return refuse("the key is not an owner/repo#number");
+
+  const file = path.join(draftsDir, draftPath(pull.owner, pull.repo, pull.number).replace(/^drafts\//, ""));
+
+  if (!fs.existsSync(file)) return refuse("there is no draft for this pull request");
+
+  let draft;
+
+  try {
+    draft = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    return refuse(`the draft is unreadable: ${error.message}`);
+  }
+
+  if (!draft || typeof draft !== "object") return refuse("the draft is unreadable: it is not an object");
+  if (!draft.finishedAt) return refuse("the draft is not finished");
+  if (!EVENTS.includes(draft.verdict)) return refuse(`the draft's verdict, ${draft.verdict}, is not a review event`);
+
+  let rules;
+
+  try {
+    rules = readRules(draftsDir);
+  } catch (error) {
+    return refuse(`the rules could not be read: ${error.message}`);
+  }
+
+  const api = `repos/${pull.owner}/${pull.repo}/pulls/${pull.number}`;
+  const live = JSON.parse(gh(["api", api]));
+  const author = live.user?.login || "";
+  const head = live.head?.sha || "";
+
+  if (live.state !== "open") return refuse(`the pull request is ${live.state}, not open`);
+
+  if (!author || author.toLowerCase() !== String(draft.author || "").toLowerCase()) {
+    return refuse(`the pull request's author is ${author}, and the draft was written for ${draft.author}`);
+  }
+
+  if (draft.reviewedAt && !sameCommit(draft.reviewedAt, head)) {
+    return refuse(`the draft is stale: it reviewed ${draft.reviewedAt}, and the pull request is at ${head}`);
+  }
+
+  // The rules are asked again here, on what GitHub says now, rather than
+  // taken from whoever called: a label added since the sweep began counts.
+  const action = actionFor(rules, {
+    author,
+    repo: `${pull.owner}/${pull.repo}`,
+    verdict: draft.verdict,
+    labels: (live.labels || []).map((label) => label.name),
+    isDraft: live.draft,
+  });
+
+  if (action !== "post") return refuse(`the rules say ${action} for this pull request, not post`);
+
+  if (alreadyPosted(readEvents(draftsDir), key)) {
+    return refuse("a review was already posted for this pull request");
+  }
+
+  let payload;
+
+  try {
+    // Nothing is dropped. The app sends every finding the reader has not
+    // dropped and that has not already been posted (`findingsToPost` in
+    // web/src/queries/index.js); flagged-only is a reading mode and changes
+    // nothing that is sent. An auto-post is the draft nobody has touched, so
+    // the reader's drops, edits and verdict in the sync log are not consulted:
+    // a pull request they have started deciding about is theirs to send.
+    payload = reviewPayload(draft, { commitId: head, dropped: new Set() });
+  } catch (error) {
+    return refuse(`there is nothing to post: ${error.message}`);
+  }
+
+  const sent = JSON.parse(gh(["api", "--method", "POST", `${api}/reviews`, "--input", "-"], JSON.stringify(payload)));
+  const posted = { key, url: sent.html_url, event: payload.event };
+
+  try {
+    record(draftsDir, logFile, key, { url: posted.url, event: posted.event }, now());
+  } catch (error) {
+    return { posted, logError: error.message };
+  }
+
+  return { posted };
+}
+
+/**
+ * Run the real gh.
+ *
+ * @param {string[]} args gh's arguments
+ * @param {string} [stdin] what to feed it
+ * @returns {string} what it printed
+ * @throws {Error} if gh exits non-zero
+ */
+function runGh(args, stdin) {
+  return execFileSync("gh", args, {
+    encoding: "utf8",
+    input: stdin,
+    stdio: ["pipe", "pipe", "pipe"],
+    maxBuffer: 16 * 1024 * 1024,
+  });
+}
+
+/**
+ * Whether this module is the script node was asked to run.
+ *
+ * The installed skill reaches this file through a symlink, and node resolves
+ * `import.meta.filename` to the real path while argv[1] stays as typed — so
+ * the two are compared as real paths, or the installed CLI silently does
+ * nothing.
+ *
+ * @returns {boolean}
+ */
+function invokedDirectly() {
+  try {
+    return fs.realpathSync(process.argv[1]) === import.meta.filename;
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
+  const [command, draftsDir, key] = process.argv.slice(2);
+
+  if (command === "run" && draftsDir && key) {
+    console.log(JSON.stringify(post({ draftsDir, key, gh: runGh }), null, 2));
+  } else {
+    console.error("usage: post.js run <drafts-dir> <owner/repo#n>");
+    process.exit(1);
+  }
+}
+```
+
+### `~/.claude/skills/dev-review-sweep/collector/review.js`
+
+```javascript
+// Turning a draft the reader has been through into what GitHub is sent.
+//
+// This is the last point at which the review is still ours. Everything the
+// reader decided — an edited body, a different verdict, findings they dropped —
+// is applied here, so the request that goes out is exactly what they approved.
+
+// The review events GitHub accepts.
+const EVENTS = ["APPROVE", "COMMENT", "REQUEST_CHANGES"];
+
+/**
+ * A finding's comment body, with its suggestion rendered committably.
+ *
+ * GitHub applies a suggestion block as a patch, and needs the replacement to
+ * end in a newline before the closing fence or the Apply button silently does
+ * the wrong thing to the following line.
+ *
+ * @param {object} finding a finding from the draft
+ * @returns {string} the markdown to post
+ */
+export function bodyOf(finding) {
+  if (!finding.suggestion) return finding.body;
+
+  const replacement = finding.suggestion.endsWith("\n")
+    ? finding.suggestion
+    : `${finding.suggestion}\n`;
+
+  return `${finding.body}\n\n\`\`\`suggestion\n${replacement}\`\`\``;
+}
+
+/**
+ * Put the reader's prefix ahead of something about to be sent.
+ *
+ * @param {string} prefix what the reader configured, empty when they have not
+ * @param {string} body the markdown it would lead
+ * @returns {string} the markdown to send
+ */
+export function withPrefix(prefix, body) {
+  const trimmed = (prefix || "").trim();
+
+  return trimmed && body ? `${trimmed} ${body}` : body;
+}
+
+/**
+ * Build the request body for posting a review.
+ *
+ * @param {object} draft the draft being posted
+ * @param {object} options what the reader decided
+ * @param {string} options.commitId the commit the review is pinned to
+ * @param {Set<string>} options.dropped ids of findings not to post
+ * @param {string} [options.body] the review body, if it was edited
+ * @param {string} [options.event] the verdict, if it was overridden
+ * @param {string} [options.prefix] the reader's prefix, ahead of the body and every comment.
+ *   It marks the agent's words, so anything the reader rewrote goes without it:
+ *   a finding carrying `editedAt`, and the body when `options.bodyEdited`.
+ * @param {boolean} [options.bodyEdited] whether the reader rewrote the body
+ * @returns {object} the body for POST /repos/{owner}/{repo}/pulls/{n}/reviews
+ * @throws {Error} if there is nothing to post at all, or the verdict is not an event
+ */
+export function reviewPayload(draft, options) {
+  const body = options.body ?? draft.comment;
+  const event = options.event ?? draft.verdict;
+
+  if (!EVENTS.includes(event)) {
+    throw new Error(`${event} is not a review event`);
+  }
+
+  const comments = (draft.findings || [])
+    .filter((finding) => !options.dropped.has(finding.id) && !finding.posted)
+    .map((finding) => ({
+      path: finding.path,
+      line: finding.line,
+      // Findings anchor to the file's new state, which is GitHub's RIGHT side.
+      side: "RIGHT",
+      body: withPrefix(finding.editedAt || finding.mine ? "" : options.prefix, bodyOf(finding)),
+    }));
+
+  // An empty body is fine when the findings carry the review; a review with
+  // neither says nothing, and nothing is not worth posting.
+  if ((!body || !body.trim()) && !comments.length) {
+    throw new Error("refusing to post an empty review");
+  }
+
+  const prefixedBody = withPrefix(options.bodyEdited ? "" : options.prefix, body);
+
+  // An empty comments array is rejected, so a review with nothing inline is
+  // sent as a plain review instead of one carrying no comments.
+  return comments.length
+    ? { body: prefixedBody, event, commit_id: options.commitId, comments }
+    : { body: prefixedBody, event, commit_id: options.commitId };
 }
 ```
 

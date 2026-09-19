@@ -31,9 +31,13 @@ const SKILLS = [
   },
 ];
 
-// The sweep's queue helper. It is four modules that import each other by
-// relative path, so they go into one directory together or none of them works.
-const COLLECTOR = ["queue.js", "select-new.js", "draft-path.js", "resolve-repo.js", "prune-drafts.js"];
+// The sweep's tooling. The modules import each other by relative path, so they
+// go into one directory together or none of them works. review.js is a link to
+// the app's own translation, so what the sweep posts is what the app posts.
+const COLLECTOR = [
+  "queue.js", "select-new.js", "draft-path.js", "resolve-repo.js", "prune-drafts.js",
+  "rules.js", "post.js", "review.js",
+];
 const COLLECTOR_TO = "~/.claude/skills/dev-review-sweep/collector";
 
 const read = (name) => fs.readFileSync(path.join(here, name), "utf8").trimEnd();
@@ -58,7 +62,7 @@ export function buildInstall() {
   out.push("# Install");
   out.push("");
   out.push(
-    "Two skills that draft code reviews and post nothing. Everything they need is in this file, so there is nothing else to fetch.",
+    "Two skills that draft code reviews, and post one only where your rules file says so. Everything they need is in this file, so there is nothing else to fetch.",
   );
   out.push("");
   out.push("**Reading this as an agent?** Write each block below to the path above it, exactly as it is. Then tell the reader which skills are installed and what to set as their drafts directory.");
@@ -87,7 +91,7 @@ export function buildInstall() {
   out.push("## The queue helper");
   out.push("");
   out.push(
-    `The sweep asks this which pull requests have no draft yet. The four modules import each other by relative path, so they belong in \`${COLLECTOR_TO}/\` together.`,
+    `The sweep asks this which pull requests have no draft yet, and posts through it where the reader's rules say so. The modules import each other by relative path, so they belong in \`${COLLECTOR_TO}/\` together.`,
   );
   out.push("");
 
