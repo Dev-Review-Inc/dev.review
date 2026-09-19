@@ -196,6 +196,8 @@ it, one directory per pull request:
 Switching source changes the queue and its drafts together, so two sources
 watching different orgs cannot collide.
 
+The reader can also keep a `rules.json` in the drafts directory, beside the pull request directories. It tells the review sweep what to do with a pull request: post the finished review, skip the pull request, or leave the draft for the reader. The sweep skill describes the shape of the file.
+
 One other thing lives in that storage, and it is the app's rather than the
 agent's:
 
