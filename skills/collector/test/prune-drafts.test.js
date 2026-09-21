@@ -8,6 +8,7 @@ import path from "node:path";
 import {
   finishedPulls,
   resolutions,
+  commentPrefix,
   parseEventLines,
   readEvents,
   pruneDrafts,
@@ -331,4 +332,42 @@ test("deletes a draft whose review.json carries no parsable timestamp", () => {
   writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
 
   assert.deepStrictEqual(pruneDrafts(draftsDir), ["org/app#1"]);
+});
+
+// ---- commentPrefix: the reader's standing prefix, latest event wins
+
+const setPrefix = (prefix, time) => ({
+  collection: "preferences",
+  objectId: "reading",
+  action: "setCommentPrefix",
+  data: { prefix },
+  time,
+});
+
+test("commentPrefix is empty when the log has no prefix event", () => {
+  assert.equal(commentPrefix([]), "");
+  assert.equal(commentPrefix([event("org/app#1", "post", 100)]), "");
+});
+
+test("commentPrefix takes the latest prefix by time, whatever the order", () => {
+  assert.equal(commentPrefix([setPrefix("new", 200), setPrefix("old", 100)]), "new");
+});
+
+test("commentPrefix reads an empty latest prefix as none", () => {
+  assert.equal(commentPrefix([setPrefix("old", 100), setPrefix("", 200)]), "");
+});
+
+test("commentPrefix ignores malformed events and non-string prefixes", () => {
+  const events = [
+    setPrefix("kept", 100),
+    null,
+    "junk",
+    { ...setPrefix("no time", 0), time: "300" },
+    { ...setPrefix("x", 400), data: { prefix: 5 } },
+    { ...setPrefix("x", 500), data: null },
+    { ...setPrefix("wrong object", 600), objectId: "other" },
+    { ...setPrefix("wrong collection", 700), collection: "pulls" },
+  ];
+
+  assert.equal(commentPrefix(events), "kept");
 });

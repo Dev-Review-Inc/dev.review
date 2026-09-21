@@ -27,7 +27,7 @@ import path from "node:path";
 import { reviewPayload } from "./review.js";
 
 import { draftPath, draftKey } from "./draft-path.js";
-import { readEvents } from "./prune-drafts.js";
+import { commentPrefix, readEvents } from "./prune-drafts.js";
 import { actionFor, readRules } from "./rules.js";
 
 // The sweep's own file in the sync log. The app reads every file in
@@ -197,7 +197,9 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
 
   if (action !== "post") return refuse(`the rules say ${action} for this pull request, not post`);
 
-  if (alreadyPosted(readEvents(draftsDir), key)) {
+  const events = readEvents(draftsDir);
+
+  if (alreadyPosted(events, key)) {
     return refuse("a review was already posted for this pull request");
   }
 
@@ -208,9 +210,11 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
     // dropped and that has not already been posted (`findingsToPost` in
     // web/src/queries/index.js); flagged-only is a reading mode and changes
     // nothing that is sent. An auto-post is the draft nobody has touched, so
-    // the reader's drops, edits and verdict in the sync log are not consulted:
-    // a pull request they have started deciding about is theirs to send.
-    payload = reviewPayload(draft, { commitId: head, dropped: new Set() });
+    // the reader's decisions in the sync log (drops, edits, verdict) are not
+    // consulted: a pull request they have started deciding about is theirs to
+    // send. Their standing prefix is consulted: it marks bot authorship, and
+    // an auto-post has no human to add it.
+    payload = reviewPayload(draft, { commitId: head, dropped: new Set(), prefix: commentPrefix(events) });
   } catch (error) {
     return refuse(`there is nothing to post: ${error.message}`);
   }

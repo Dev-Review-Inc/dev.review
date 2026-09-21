@@ -89,7 +89,7 @@ Never touch git config. Never force-push. Never ask.
   "draftedAt": "2026-07-29T15:36:52Z",
   "finishedAt": "2026-07-29T15:41:10Z",
   "verdict": "APPROVE | COMMENT | REQUEST_CHANGES",
-  "summary": "One line about the change itself. No QA tallies — the qa block is that evidence.",
+  "summary": "One line about the change itself. No QA tallies or mentions — the qa block is that evidence.",
   "sections": [
     { "key": "data-migrations", "label": "Data & migrations", "color": "ok", "body": "Checked the backfill for batching and a reversible down — both fine." },
     { "key": "correctness", "label": "Correctness", "color": "warn", "body": "One racy dedup, flagged inline." },
@@ -132,6 +132,7 @@ Never touch git config. Never force-push. Never ask.
 The parts that are easy to get wrong:
 
 - Be terse in comments and summary and follow PR etiquette. No need to explain what the PR does in the `summary` or repeat what comments state – just the review outcome.
+- **The `comment` and every finding `body` never reference QA.** They post to GitHub, where the author cannot see any recording; QA is your private evidence, and only the app shows the `qa` block. No word "QA", no "scenario", no "recording", no "I ran/drove/verified this in the browser". State each finding as a fact about the code and its behavior, as if QA did not exist. Evidence goes in `qa` only.
 - `verdict` is used verbatim as the GitHub review event. Nothing reads it back out of prose.
 - `kinds` carries a one-line `body` for each coined finding kind. The app shows them as THEMES filters; a kind with no entry still filters, it just has nothing to say about itself.
 - `findings` each need a unique `id`, a `path`, a `line`, and a `body`. Most important first. Their `kind` is a coined slug (`transition-debt`, `lock-risk`) — never a generic `bug`. Make potent groupings.
@@ -877,6 +878,30 @@ export function resolutions(events) {
 }
 
 /**
+ * The reader's standing comment prefix: the string of the latest
+ * `setCommentPrefix` preference event by time, across every device's log.
+ *
+ * An empty string means the reader wants none, and so does no event at all.
+ * Events without a numeric time or a string prefix are ignored.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @returns {string} the prefix, "" when there is none
+ */
+export function commentPrefix(events) {
+  let latest = null;
+
+  for (const event of events) {
+    if (!event || event.collection !== "preferences" || event.objectId !== "reading") continue;
+    if (event.action !== "setCommentPrefix" || typeof event.time !== "number") continue;
+    if (typeof event.data?.prefix !== "string") continue;
+
+    if (!latest || event.time > latest.time) latest = { time: event.time, prefix: event.data.prefix };
+  }
+
+  return latest ? latest.prefix : "";
+}
+
+/**
  * The pull requests whose review is done with: posted or dismissed, and not
  * since restored.
  *
@@ -1306,7 +1331,7 @@ import path from "node:path";
 import { reviewPayload } from "./review.js";
 
 import { draftPath, draftKey } from "./draft-path.js";
-import { readEvents } from "./prune-drafts.js";
+import { commentPrefix, readEvents } from "./prune-drafts.js";
 import { actionFor, readRules } from "./rules.js";
 
 // The sweep's own file in the sync log. The app reads every file in
@@ -1476,7 +1501,9 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
 
   if (action !== "post") return refuse(`the rules say ${action} for this pull request, not post`);
 
-  if (alreadyPosted(readEvents(draftsDir), key)) {
+  const events = readEvents(draftsDir);
+
+  if (alreadyPosted(events, key)) {
     return refuse("a review was already posted for this pull request");
   }
 
@@ -1487,9 +1514,11 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
     // dropped and that has not already been posted (`findingsToPost` in
     // web/src/queries/index.js); flagged-only is a reading mode and changes
     // nothing that is sent. An auto-post is the draft nobody has touched, so
-    // the reader's drops, edits and verdict in the sync log are not consulted:
-    // a pull request they have started deciding about is theirs to send.
-    payload = reviewPayload(draft, { commitId: head, dropped: new Set() });
+    // the reader's decisions in the sync log (drops, edits, verdict) are not
+    // consulted: a pull request they have started deciding about is theirs to
+    // send. Their standing prefix is consulted: it marks bot authorship, and
+    // an auto-post has no human to add it.
+    payload = reviewPayload(draft, { commitId: head, dropped: new Set(), prefix: commentPrefix(events) });
   } catch (error) {
     return refuse(`there is nothing to post: ${error.message}`);
   }

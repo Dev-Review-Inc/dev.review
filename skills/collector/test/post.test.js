@@ -329,3 +329,76 @@ test("lets a failing gh fail loudly", () => {
 
   assert.throws(() => post({ draftsDir, key: KEY, gh, now: () => NOW }), /network down/);
 });
+
+// ---- the reader's standing comment prefix marks an auto-post as the bot's
+
+const setPrefix = (prefix, time) => ({
+  collection: "preferences",
+  objectId: "reading",
+  action: "setCommentPrefix",
+  data: { prefix },
+  time,
+  version: "v1",
+});
+
+function reviewSent(gh) {
+  return JSON.parse(gh.posts()[0].stdin);
+}
+
+test("puts the reader's prefix on the body and every inline comment", () => {
+  const { draftsDir, eventsDir } = source();
+  const gh = stubGh();
+
+  writeEvents(eventsDir, "laptop.jsonl", [setPrefix("🤖 says:", 100)]);
+  post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  const payload = reviewSent(gh);
+
+  assert.equal(payload.body, "🤖 says: Looks right.");
+  assert.equal(payload.comments.length, 2);
+  for (const comment of payload.comments) assert.match(comment.body, /^🤖 says: \S/);
+});
+
+test("the latest prefix wins, across device files", () => {
+  const { draftsDir, eventsDir } = source();
+  const gh = stubGh();
+
+  writeEvents(eventsDir, "laptop.jsonl", [setPrefix("old:", 100), setPrefix("newest:", 300)]);
+  writeEvents(eventsDir, "phone.jsonl", [setPrefix("middle:", 200)]);
+  post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  assert.match(reviewSent(gh).body, /^newest: /);
+  assert.equal(reviewSent(gh).comments.every((comment) => comment.body.startsWith("newest: ")), true);
+});
+
+test("an empty latest prefix sends the payload unprefixed", () => {
+  const { draftsDir, eventsDir } = source();
+  const gh = stubGh();
+
+  writeEvents(eventsDir, "laptop.jsonl", [setPrefix("old:", 100), setPrefix("", 200)]);
+  post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  assert.equal(reviewSent(gh).body, "Looks right.");
+  assert.equal(reviewSent(gh).comments[0].body, "First.");
+});
+
+test("no log sends the payload unprefixed", () => {
+  const { draftsDir } = source();
+  const gh = stubGh();
+
+  post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  assert.equal(reviewSent(gh).body, "Looks right.");
+  assert.equal(reviewSent(gh).comments[0].body, "First.");
+});
+
+test("an empty review body stays empty under a prefix", () => {
+  const { draftsDir, eventsDir } = source({ review: draft({ comment: "" }) });
+  const gh = stubGh();
+
+  writeEvents(eventsDir, "laptop.jsonl", [setPrefix("🤖 says:", 100)]);
+  post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  assert.equal(reviewSent(gh).body, "");
+  assert.match(reviewSent(gh).comments[0].body, /^🤖 says: /);
+});
