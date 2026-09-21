@@ -116,6 +116,30 @@ export function resolutions(events) {
 }
 
 /**
+ * The reader's standing comment prefix: the string of the latest
+ * `setCommentPrefix` preference event by time, across every device's log.
+ *
+ * An empty string means the reader wants none, and so does no event at all.
+ * Events without a numeric time or a string prefix are ignored.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @returns {string} the prefix, "" when there is none
+ */
+export function commentPrefix(events) {
+  let latest = null;
+
+  for (const event of events) {
+    if (!event || event.collection !== "preferences" || event.objectId !== "reading") continue;
+    if (event.action !== "setCommentPrefix" || typeof event.time !== "number") continue;
+    if (typeof event.data?.prefix !== "string") continue;
+
+    if (!latest || event.time > latest.time) latest = { time: event.time, prefix: event.data.prefix };
+  }
+
+  return latest ? latest.prefix : "";
+}
+
+/**
  * The pull requests whose review is done with: posted or dismissed, and not
  * since restored.
  *

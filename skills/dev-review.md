@@ -72,7 +72,7 @@ Never touch git config. Never force-push. Never ask.
   "draftedAt": "2026-07-29T15:36:52Z",
   "finishedAt": "2026-07-29T15:41:10Z",
   "verdict": "APPROVE | COMMENT | REQUEST_CHANGES",
-  "summary": "One line about the change itself. No QA tallies — the qa block is that evidence.",
+  "summary": "One line about the change itself. No QA tallies or mentions — the qa block is that evidence.",
   "sections": [
     { "key": "data-migrations", "label": "Data & migrations", "color": "ok", "body": "Checked the backfill for batching and a reversible down — both fine." },
     { "key": "correctness", "label": "Correctness", "color": "warn", "body": "One racy dedup, flagged inline." },
@@ -115,6 +115,7 @@ Never touch git config. Never force-push. Never ask.
 The parts that are easy to get wrong:
 
 - Be terse in comments and summary and follow PR etiquette. No need to explain what the PR does in the `summary` or repeat what comments state – just the review outcome.
+- **The `comment` and every finding `body` never reference QA.** They post to GitHub, where the author cannot see any recording; QA is your private evidence, and only the app shows the `qa` block. No word "QA", no "scenario", no "recording", no "I ran/drove/verified this in the browser". State each finding as a fact about the code and its behavior, as if QA did not exist. Evidence goes in `qa` only.
 - `verdict` is used verbatim as the GitHub review event. Nothing reads it back out of prose.
 - `kinds` carries a one-line `body` for each coined finding kind. The app shows them as THEMES filters; a kind with no entry still filters, it just has nothing to say about itself.
 - `findings` each need a unique `id`, a `path`, a `line`, and a `body`. Most important first. Their `kind` is a coined slug (`transition-debt`, `lock-risk`) — never a generic `bug`. Make potent groupings.
