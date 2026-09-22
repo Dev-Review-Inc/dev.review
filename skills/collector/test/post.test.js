@@ -237,7 +237,7 @@ test("posts the untouched draft, pinned to the live head", () => {
   const result = post({ draftsDir, key: KEY, gh, now: () => NOW });
 
   assert.deepEqual(result, {
-    posted: { key: KEY, url: "https://github.com/org/app/pull/42#pullrequestreview-7", event: "APPROVE" },
+    posted: { key: KEY, url: "https://github.com/org/app/pull/42#pullrequestreview-7", event: "COMMENT" },
   });
 
   assert.deepEqual(gh.calls[0].args, ["api", "repos/org/app/pulls/42"]);
@@ -248,7 +248,7 @@ test("posts the untouched draft, pinned to the live head", () => {
   assert.deepEqual(sent.args, ["api", "--method", "POST", "repos/org/app/pulls/42/reviews", "--input", "-"]);
   assert.deepEqual(JSON.parse(sent.stdin), {
     body: "Looks right.",
-    event: "APPROVE",
+    event: "COMMENT",
     commit_id: HEAD,
     comments: [
       { path: "lib/a.rb", line: 3, side: "RIGHT", body: "First." },
@@ -278,7 +278,7 @@ test("records the post as the app does: a post, then a dismiss", () => {
       collection: "pulls",
       objectId: KEY,
       action: "post",
-      data: { url: "https://github.com/org/app/pull/42#pullrequestreview-7", event: "APPROVE" },
+      data: { url: "https://github.com/org/app/pull/42#pullrequestreview-7", event: "COMMENT" },
       time: NOW,
       version: "v1",
     },
@@ -401,4 +401,53 @@ test("an empty review body stays empty under a prefix", () => {
 
   assert.equal(reviewSent(gh).body, "");
   assert.match(reviewSent(gh).comments[0].body, /^🤖 says: /);
+});
+
+test("posts an APPROVE draft as a comment", () => {
+  const { draftsDir } = source();
+  const gh = stubGh();
+
+  const result = post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  assert.equal(result.posted.event, "COMMENT");
+  assert.equal(reviewSent(gh).event, "COMMENT");
+});
+
+test("posts a REQUEST_CHANGES draft as a comment, and keeps its words", () => {
+  const { draftsDir } = source({
+    review: draft({ verdict: "REQUEST_CHANGES", comment: "Requesting changes: the guard is missing." }),
+  });
+  const gh = stubGh();
+
+  const result = post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  assert.equal(result.posted.event, "COMMENT");
+  assert.equal(reviewSent(gh).event, "COMMENT");
+  assert.equal(reviewSent(gh).body, "Requesting changes: the guard is missing.");
+});
+
+test("posts a COMMENT draft as a comment", () => {
+  const { draftsDir } = source({ review: draft({ verdict: "COMMENT" }) });
+  const gh = stubGh();
+
+  assert.equal(post({ draftsDir, key: KEY, gh, now: () => NOW }).posted.event, "COMMENT");
+  assert.equal(reviewSent(gh).event, "COMMENT");
+});
+
+test("records COMMENT in the sync log, not the draft's verdict", () => {
+  const { draftsDir, eventsDir } = source({ review: draft({ verdict: "REQUEST_CHANGES" }) });
+  const gh = stubGh();
+
+  post({ draftsDir, key: KEY, gh, now: () => NOW });
+
+  const [line] = fs.readFileSync(path.join(eventsDir, SWEEP_LOG), "utf8").trimEnd().split("\n").map(JSON.parse);
+
+  assert.equal(line.data.event, "COMMENT");
+});
+
+test("still refuses a verdict that is not a review event", () => {
+  const { draftsDir } = source({ review: draft({ verdict: "LGTM" }) });
+  const gh = stubGh();
+
+  refusal(post({ draftsDir, key: KEY, gh, now: () => NOW }), /LGTM.*not a review event/, gh);
 });
