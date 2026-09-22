@@ -13,7 +13,8 @@
 // was told. The caller names a pull request and nothing else; the draft, the
 // rules, the live pull request and the sync log are all read again here, and
 // any one of them can refuse. What is sent is the untouched draft, built by
-// the same translation the app sends through, and the post is written into
+// the same translation the app sends through, except that it always goes as a
+// COMMENT whatever verdict the draft carries, and the post is written into
 // the sync log the way the app writes its own, so the app and the next sweep
 // both see a pull request that is done with.
 
@@ -39,6 +40,15 @@ export const SWEEP_LOG = "sweep.jsonl";
 
 // The review events GitHub accepts, which are the verdicts a draft may carry.
 const EVENTS = ["APPROVE", "COMMENT", "REQUEST_CHANGES"];
+
+// What an auto-posted review always goes out as. An approval is a person
+// vouching for a change, and REQUEST_CHANGES blocks a merge; neither belongs
+// to an unattended run under someone's account. The draft's verdict still
+// decides whether the rules post at all, and the body still says what the
+// review found. GitHub also refuses APPROVE and REQUEST_CHANGES on your own
+// pull request and allows COMMENT, so this is the only event that works for
+// every pull request the sweep may reach.
+const AUTO_EVENT = "COMMENT";
 
 // The sync log's event schema, as web/src/state/event-store-event.js writes it.
 const VERSION = "v1";
@@ -214,7 +224,12 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
     // consulted: a pull request they have started deciding about is theirs to
     // send. Their standing prefix is consulted: it marks bot authorship, and
     // an auto-post has no human to add it.
-    payload = reviewPayload(draft, { commitId: head, dropped: new Set(), prefix: commentPrefix(events) });
+    payload = reviewPayload(draft, {
+      commitId: head,
+      dropped: new Set(),
+      prefix: commentPrefix(events),
+      event: AUTO_EVENT,
+    });
   } catch (error) {
     return refuse(`there is nothing to post: ${error.message}`);
   }

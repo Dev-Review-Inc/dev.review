@@ -31,6 +31,8 @@ A rule has a `when` and a `then`. The conditions in `when` are `author`, `repo` 
 
 The `then` is one of three actions. `post` drafts the review and then posts it. `skip` leaves the pull request out of the sweep. `draft` drafts the review and leaves it for the reader. The first rule that matches wins. A pull request that no rule matches gets `draft`. No rules file means no rules.
 
+An auto-posted review always goes to GitHub as a comment, whatever verdict the draft carries. The `verdict` condition still decides whether a rule posts, and the review's words still say what it found. Approving a pull request, or requesting changes on it, stays a human act in the app.
+
 The queue applies the rules. Each fresh entry carries its `author` and its `action`, and `skipped` lists the keys a rule left out. The `action` is provisional, because no verdict exists before drafting. An `action` of `post` means a rule posts this pull request under at least one verdict.
 
 A rules file that is not understood in full is refused whole. The queue prints `rulesError` with the reason, every pull request gets `draft`, nothing is skipped, and nothing is posted.
