@@ -346,6 +346,28 @@ export class Commands {
   }
 
   /**
+   * Leave the proposed label change out of the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  dropLabels(source, pull) {
+    this.track(source, "pulls", pull.key, "dropLabels");
+  }
+
+  /**
+   * Put the proposed label change back into the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  restoreLabels(source, pull) {
+    this.track(source, "pulls", pull.key, "restoreLabels");
+  }
+
+  /**
    * Record that the triage went out.
    *
    * The same "post" record a review leaves, with no verdict because an issue

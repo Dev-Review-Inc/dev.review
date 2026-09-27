@@ -124,6 +124,8 @@ export default {
   // The proposed close, which the reader can leave out of the triage.
   "pulls.dropClose": moment("closeDroppedAt"),
   "pulls.restoreClose": moment("closeDroppedAt", null),
+  "pulls.dropLabels": moment("labelsDroppedAt"),
+  "pulls.restoreLabels": moment("labelsDroppedAt", null),
 
   "pulls.post": change((data, event) => ({
     postedAt: event.time,

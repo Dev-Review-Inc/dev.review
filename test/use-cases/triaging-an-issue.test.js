@@ -156,6 +156,24 @@ describe("Triaging an issue the agent drafted", () => {
     assert.equal(app.queries.closeDropped(app.source, app.open()), true);
   });
 
+  test("dropping the label change and restoring it round-trips, surviving a redraft", async () => {
+    assert.equal(app.queries.labelsDropped(app.source, pull), false);
+
+    app.commands.dropLabels(app.source, pull);
+    assert.equal(app.queries.labelsDropped(app.source, pull), true);
+
+    app.commands.restoreLabels(app.source, pull);
+    assert.equal(app.queries.labelsDropped(app.source, pull), false);
+
+    app.commands.dropLabels(app.source, pull);
+    await agentWrites(app.adapter, anIssueDraft({ labels: { add: ["bug"] } }));
+    await app.drafts.loadAll();
+    await app.state.settled();
+    await app.state.restore();
+
+    assert.equal(app.queries.labelsDropped(app.source, app.open()), true);
+  });
+
   test("a hunk decision made on one device arrives at the other", async () => {
     const adapter = new MemoryAdapter();
     const laptop = await anApp({ adapter, deviceId: "laptop" });

@@ -418,6 +418,17 @@ export class Queries {
     return Boolean(this._pullDecision(source, pull.key).closeDroppedAt);
   }
 
+  /**
+   * Whether the reader has left the proposed label change out of the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request
+   * @returns {boolean} whether the label change was dropped
+   */
+  labelsDropped(source, pull) {
+    return Boolean(this._pullDecision(source, pull.key).labelsDroppedAt);
+  }
+
   // ---- Findings
 
   /**
