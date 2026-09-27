@@ -46,7 +46,7 @@ function reasonFor(payload, status) {
  * @param {string} path the path, e.g. "/user"
  * @param {object} [options] fetch options; a body is sent as JSON
  * @returns {Promise<object>} the decoded response
- * @throws {Error} carrying the clearest reason GitHub gave when the call fails
+ * @throws {Error} carrying the clearest reason GitHub gave, and its status, when the call fails
  */
 async function call(token, path, options = {}) {
   const response = await fetch(`${API}${path}`, {
@@ -63,7 +63,7 @@ async function call(token, path, options = {}) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(reasonFor(payload, response.status));
+    throw Object.assign(new Error(reasonFor(payload, response.status)), { status: response.status });
   }
 
   return payload;
@@ -143,6 +143,40 @@ export function closeIssue(token, { owner, repo, number }, reason) {
     method: "PATCH",
     body: { state: "closed", state_reason: reason },
   });
+}
+
+/**
+ * Add labels to an issue, keeping the ones it has.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} issue which issue
+ * @param {string[]} labels the names to add
+ * @returns {Promise<object[]>} the labels the issue now carries
+ */
+export function addIssueLabels(token, { owner, repo, number }, labels) {
+  return call(token, `/repos/${owner}/${repo}/issues/${number}/labels`, {
+    method: "POST",
+    body: { labels },
+  });
+}
+
+/**
+ * Remove one label from an issue. A label already gone is not a failure.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} issue which issue
+ * @param {string} name the label to remove
+ * @returns {Promise<void>}
+ * @throws {Error} if GitHub refuses for any reason but the label being absent
+ */
+export async function removeIssueLabel(token, { owner, repo, number }, name) {
+  try {
+    await call(token, `/repos/${owner}/${repo}/issues/${number}/labels/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
 }
 
 /**

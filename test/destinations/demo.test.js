@@ -135,10 +135,12 @@ describe("a demo destination with sample data behind it", () => {
     const patched = await destination.patchDescription(target, "rewritten");
     const commented = await destination.commentOnIssue(target, "a comment");
     const closed = await destination.closeIssue(target, "not_planned");
+    const labelled = await destination.labelIssue(target, { add: ["bug"], remove: ["triage"] });
 
     assert.deepEqual(patched, { url: "https://github.com/org/app/issues/1" });
     assert.deepEqual(commented, { url: "https://github.com/org/app/issues/1" });
     assert.deepEqual(closed, { url: "https://github.com/org/app/issues/1" });
+    assert.deepEqual(labelled, { url: "https://github.com/org/app/issues/1" });
     assert.deepEqual(asked, [], "issue writes must never reach the network");
   });
 

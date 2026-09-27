@@ -189,6 +189,16 @@ export class DemoDestination {
   }
 
   /**
+   * Take a label change nowhere.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{url: string}>} where the reader can see the real thing
+   */
+  async labelIssue(target) {
+    return { url: target.url || "" };
+  }
+
+  /**
    * Take an issue comment nowhere.
    *
    * @param {object} target which issue
