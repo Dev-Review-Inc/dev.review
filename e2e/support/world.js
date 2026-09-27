@@ -130,10 +130,10 @@
       throw new TypeError("the queue is derived from drafts: nothing may call /search/issues");
     }
 
-    const issue = path.match(/^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)(\/comments)?$/);
+    const issue = path.match(/^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)(\/comments|\/labels)?(?:\/([^/]+))?$/);
 
     if (issue) {
-      const [, owner, repo, number, part] = issue;
+      const [, owner, repo, number, part, label] = issue;
       const key = `${owner}/${repo}#${number}`;
       const entry = (seed.issues || []).find((item) => String(item.number) === number);
 
@@ -168,6 +168,18 @@
         sent.push({ what: "patch-issue", key, body: patched });
 
         return json({ html_url: entry?.html_url || "" });
+      }
+
+      if (part === "/labels" && method === "POST") {
+        sent.push({ what: "add-labels", key, body: JSON.parse(body) });
+
+        return json([]);
+      }
+
+      if (part === "/labels" && method === "DELETE") {
+        sent.push({ what: "remove-label", key, name: decodeURIComponent(label) });
+
+        return json([]);
       }
 
       if (part === "/comments" && method === "POST") {

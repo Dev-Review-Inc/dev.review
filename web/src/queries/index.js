@@ -541,6 +541,36 @@ export class Queries {
   }
 
   /**
+   * The labels every issue posted from this source has taken off: "triage"
+   * until the reader names others.
+   *
+   * @param {object} source the source being read
+   * @returns {string[]} the names, [] when the reader strips nothing
+   */
+  strippedLabelsFor(source) {
+    return this._object(source, "preferences", READING).strippedLabels ?? ["triage"];
+  }
+
+  /**
+   * The label change posting an issue would make: the draft's own, with the
+   * stripped labels joining what it removes. A label the draft adds is never
+   * stripped. A pull request's review changes no labels.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request or issue
+   * @returns {{add: string[], remove: string[]}|null} the change, or null when there is none
+   */
+  labelsToPost(source, pull) {
+    if (!pull.isIssue) return null;
+
+    const add = pull.draft?.labels?.add || [];
+    const removing = [...(pull.draft?.labels?.remove || []), ...this.strippedLabelsFor(source)];
+    const remove = [...new Set(removing)].filter((name) => !add.includes(name));
+
+    return add.length || remove.length ? { add, remove } : null;
+  }
+
+  /**
    * @param {object} source the source being read
    * @param {object} pull the pull request
    * @returns {number} how many of the findings to send hold up merge on their own

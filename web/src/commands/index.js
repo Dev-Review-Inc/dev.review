@@ -544,6 +544,17 @@ export class Commands {
     this.track(source, "preferences", READING, "setCommentPrefix", { prefix });
   }
 
+  /**
+   * Name the labels every issue posted from this source has taken off.
+   *
+   * @param {object} source the source being read
+   * @param {string[]} labels the names, or [] to strip nothing
+   * @returns {void}
+   */
+  setStrippedLabels(source, labels) {
+    this.track(source, "preferences", READING, "setStrippedLabels", { labels });
+  }
+
   // ---- Reading the diff
 
   /**

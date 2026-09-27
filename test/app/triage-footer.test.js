@@ -8,7 +8,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { DISMISS, closeWords, labelWords, triageButton } from "../../web/src/app/footer.js";
+import { DISMISS, closeWords, labelList, labelWords, triageButton } from "../../web/src/app/footer.js";
 
 const drafted = { draft: { description: "New body.", comment: "Why." } };
 const undrafted = { draft: null };
@@ -68,5 +68,15 @@ describe("the one line about a proposed label change", () => {
 
   test("says nothing when the draft proposes no label change", () => {
     assert.equal(labelWords(null, false), "");
+  });
+});
+
+describe("the labels a reader types into settings", () => {
+  test("are read as a comma-separated list, trimmed, each once", () => {
+    assert.deepEqual(labelList(" triage, needs-info,,triage "), ["triage", "needs-info"]);
+  });
+
+  test("an empty field strips nothing", () => {
+    assert.deepEqual(labelList("  "), []);
   });
 });

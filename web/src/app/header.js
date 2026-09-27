@@ -557,6 +557,7 @@ function drawSettings(app) {
 
   drawNav(app, sources, destinations, selection);
   drawCommentPrefix(app);
+  drawStrippedLabels(app);
 
   const add = find("settings-add");
 
@@ -610,6 +611,23 @@ function drawCommentPrefix(app) {
 
   if (document.activeElement !== field) {
     field.value = app.source ? app.queries.commentPrefixFor(app.source) : "";
+  }
+}
+
+/**
+ * Keep the stripped-labels field in step with what is stored, the same way
+ * {@link drawCommentPrefix} keeps the prefix.
+ *
+ * @param {object} app the application
+ * @returns {void}
+ */
+function drawStrippedLabels(app) {
+  const field = find("stripped-labels");
+
+  field.disabled = !app.source;
+
+  if (document.activeElement !== field) {
+    field.value = app.source ? app.queries.strippedLabelsFor(app.source).join(", ") : "";
   }
 }
 

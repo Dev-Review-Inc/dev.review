@@ -141,7 +141,8 @@ function openTriageConfirm(app) {
   const pull = app.selected;
   const plan = descriptionPlan(app);
   const comment = reviewText(app);
-  const { close, labels } = pull.draft;
+  const { close } = pull.draft;
+  const labels = app.queries.labelsToPost(app.source, pull);
   const dropped = close ? app.queries.closeDropped(app.source, pull) : false;
   const labelsDropped = labels ? app.queries.labelsDropped(app.source, pull) : false;
 
@@ -242,7 +243,7 @@ function closeLine(app, pull, close, dropped) {
  *
  * @param {object} app the application
  * @param {object} pull the open issue
- * @param {{add: string[], remove: string[]}} labels the draft's proposal
+ * @param {{add: string[], remove: string[]}} labels the draft's proposal, with the reader's stripped labels
  * @param {boolean} dropped whether the reader left the change out
  * @returns {HTMLElement} the line
  */
@@ -431,7 +432,7 @@ async function postTriage(app, pull) {
     }
 
     // Labels are idempotent, so a retry after a later failure is safe.
-    const labels = pull.draft.labels;
+    const labels = app.queries.labelsToPost(app.source, pull);
 
     if (labels && !app.queries.labelsDropped(app.source, pull)) {
       labelled = await app.destination.labelIssue(pull, labels);

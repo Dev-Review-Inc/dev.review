@@ -75,6 +75,16 @@ export function labelChips({ add, remove }) {
 }
 
 /**
+ * The label names a reader typed as one comma-separated field.
+ *
+ * @param {string} text what the field holds
+ * @returns {string[]} the names, trimmed, each once; [] for an empty field
+ */
+export function labelList(text) {
+  return [...new Set(text.split(",").map((name) => name.trim()).filter(Boolean))];
+}
+
+/**
  * What the one send button says, and whether there is anything for it to do.
  *
  * Approving waits on a draft the agent finished, because approving implies
@@ -246,7 +256,7 @@ function drawStaged(app) {
   // staged line is where what-would-be-sent lives.
   if (pull.isIssue) {
     staged.textContent = [
-      labelWords(pull.draft.labels, app.queries.labelsDropped(app.source, pull)),
+      labelWords(app.queries.labelsToPost(app.source, pull), app.queries.labelsDropped(app.source, pull)),
       closeWords(pull.draft.close, app.queries.closeDropped(app.source, pull)),
     ].filter(Boolean).join(" · ");
     counts.textContent = "";

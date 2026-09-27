@@ -218,7 +218,7 @@ describe("triaging an issue through the sheet", () => {
     // which changes nothing, then sends the comment.
     assert.equal(
       doc.getElementById("confirm-note").textContent,
-      "the description was updated; the comment was not sent",
+      "the labels were changed; the description was updated; the comment was not sent",
     );
   });
 
@@ -241,7 +241,7 @@ describe("triaging an issue through the sheet", () => {
     await post(app);
 
     assert.deepEqual(closed, ["not_planned"]);
-    assert.deepEqual(sequence, ["patch", "comment", "close"]);
+    assert.deepEqual(sequence, ["labels", "patch", "comment", "close"]);
     assert.equal(app.queries.isPosted(app.source, app.selected), true);
     // The close's url is the ticket itself, so it never wins the record.
     assert.equal(app.selected.postedUrl, "https://x/comment");
@@ -266,7 +266,7 @@ describe("triaging an issue through the sheet", () => {
     await post(app);
 
     assert.deepEqual(closed, []);
-    assert.deepEqual(sequence, ["patch", "comment"]);
+    assert.deepEqual(sequence, ["labels", "patch", "comment"]);
     assert.equal(app.queries.isPosted(app.source, app.selected), true);
   });
 
@@ -301,7 +301,7 @@ describe("triaging an issue through the sheet", () => {
     // sheet says so rather than claiming nothing went.
     assert.equal(
       doc.getElementById("confirm-note").textContent,
-      "the description was updated; the comment was posted; the ticket was not closed",
+      "the labels were changed; the description was updated; the comment was posted; the ticket was not closed",
     );
   });
 
@@ -318,6 +318,7 @@ describe("triaging an issue through the sheet", () => {
     await post(app);
 
     assert.deepEqual(labelled, [{ add: ["bug"], remove: ["triage"] }]);
+
     assert.deepEqual(sequence, ["labels", "patch", "comment", "close"]);
     assert.equal(app.selected.postedUrl, "https://x/comment");
   });
@@ -331,7 +332,30 @@ describe("triaging an issue through the sheet", () => {
     assert.deepEqual(labelled, []);
   });
 
-  test("a dropped label change sends everything else and leaves the labels alone", async () => {
+  test("a draft proposing no labels still strips the reader's labels, and says so", async () => {
+    app.commands.setStrippedLabels(app.source, ["triage", "needs-info"]);
+
+    openConfirm(app);
+    assert.match(doc.getElementById("confirm-count").textContent, /labels −triage −needs-info/);
+
+    await post(app);
+
+    assert.deepEqual(labelled, [{ add: [], remove: ["triage", "needs-info"] }]);
+  });
+
+  test("with nothing to strip and no labels proposed, no label call goes", async () => {
+    app.commands.setStrippedLabels(app.source, []);
+
+    openConfirm(app);
+    assert.doesNotMatch(doc.getElementById("confirm-count").textContent, /labels/);
+
+    await post(app);
+
+    assert.deepEqual(labelled, []);
+    assert.deepEqual(sequence, ["patch", "comment"]);
+  });
+
+  test("a dropped label change sends everything else and strips nothing either", async () => {
     await build(anIssueDraft({ labels: { add: ["bug"] } }));
 
     app.commands.dropLabels(app.source, app.selected);
