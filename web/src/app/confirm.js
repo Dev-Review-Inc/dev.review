@@ -7,7 +7,7 @@ import { button } from "../ui/button.js";
 import { restyle } from "../ui/render.js";
 import { descriptionPlan } from "./description-pane.js";
 import { findingCard } from "./findings.js";
-import { VERDICT_TONE, closeWords } from "./footer.js";
+import { VERDICT_TONE, closeWords, labelChips, labelWords } from "./footer.js";
 import { reviewText } from "./summary.js";
 import { dismissedWords, driftNote, postLabel, postNote, postedWords, settledNote } from "./words.js";
 
@@ -141,14 +141,16 @@ function openTriageConfirm(app) {
   const pull = app.selected;
   const plan = descriptionPlan(app);
   const comment = reviewText(app);
-  const close = pull.draft.close;
+  const { close, labels } = pull.draft;
   const dropped = close ? app.queries.closeDropped(app.source, pull) : false;
+  const labelsDropped = labels ? app.queries.labelsDropped(app.source, pull) : false;
 
   find("confirm-count").textContent = [
     comment.trim() ? "posts a comment" : "posts no comment",
     planWords(plan),
-    ...(close ? [closeWords(close, dropped)] : []),
-  ].join(" · ");
+    labelWords(labels, labelsDropped),
+    closeWords(close, dropped),
+  ].filter(Boolean).join(" · ");
 
   const preview = find("confirm-preview");
 
@@ -158,6 +160,7 @@ function openTriageConfirm(app) {
   preview.innerHTML = renderBody(withPrefix(triagePrefix(app, pull), comment));
   preview.append(element("div", "description-plan mono", planWords(plan)));
 
+  if (labels) preview.append(labelsLine(app, pull, labels, labelsDropped));
   if (close) preview.append(closeLine(app, pull, close, dropped));
 
   find("confirm-note").textContent = noteWords(app);
@@ -180,31 +183,32 @@ function triagePrefix(app, pull) {
 }
 
 /**
- * The close as one line on the sheet, with the decision beside it.
+ * A proposal as one line on the sheet, with the decision beside it.
  *
  * The control lives here rather than in the footer because this app puts
  * decisions on the content they decide - findings carry their own Drop, hunks
- * their own Reject - and the sheet's plan line is the one place the close is
- * stated as content. The verbs are the findings' own: Drop, and Restore.
+ * their own Reject - and the sheet's plan line is the one place a close or a
+ * label change is stated as content. The verbs are the findings' own: Drop,
+ * and Restore.
  *
  * @param {object} app the application
- * @param {object} pull the open issue
- * @param {{reason: string, of: number|null}} close the draft's proposal
- * @param {boolean} dropped whether the reader left the close out
+ * @param {string} className what the line is, for styling
+ * @param {HTMLElement[]} content what the line says
+ * @param {boolean} dropped whether the reader left the proposal out
+ * @param {function(boolean): void} decide records the opposite of dropped
  * @returns {HTMLElement} the line
  */
-function closeLine(app, pull, close, dropped) {
-  const line = element("div", "description-plan mono close-plan", "");
+function proposalLine(app, className, content, dropped, decide) {
+  const line = element("div", `description-plan mono ${className}`, "");
 
-  line.append(element("span", "", closeWords(close, dropped)), element("span", "spacer", ""));
+  line.append(...content, element("span", "spacer", ""));
 
   const toggle = document.createElement("button");
 
   toggle.className = "hunk-toggle";
   toggle.textContent = dropped ? "Restore" : "Drop";
   toggle.addEventListener("click", async () => {
-    if (dropped) app.commands.restoreClose(app.source, pull);
-    else app.commands.dropClose(app.source, pull);
+    decide(dropped);
 
     // The sheet is drawn imperatively, so the redraw the reselect triggers
     // does not reach it: it is reopened over the decision just made.
@@ -215,6 +219,43 @@ function closeLine(app, pull, close, dropped) {
   line.append(toggle);
 
   return line;
+}
+
+/**
+ * The close as one line on the sheet.
+ *
+ * @param {object} app the application
+ * @param {object} pull the open issue
+ * @param {{reason: string, of: number|null}} close the draft's proposal
+ * @param {boolean} dropped whether the reader left the close out
+ * @returns {HTMLElement} the line
+ */
+function closeLine(app, pull, close, dropped) {
+  return proposalLine(app, "close-plan", [element("span", "", closeWords(close, dropped))], dropped, (was) =>
+    was ? app.commands.restoreClose(app.source, pull) : app.commands.dropClose(app.source, pull),
+  );
+}
+
+/**
+ * The label change as one line on the sheet: a chip per label, or what a
+ * dropped change leaves behind.
+ *
+ * @param {object} app the application
+ * @param {object} pull the open issue
+ * @param {{add: string[], remove: string[]}} labels the draft's proposal
+ * @param {boolean} dropped whether the reader left the change out
+ * @returns {HTMLElement} the line
+ */
+function labelsLine(app, pull, labels, dropped) {
+  const content = dropped
+    ? [element("span", "", labelWords(labels, true))]
+    : labelChips(labels).map((chip) =>
+        element("span", `verdict-badge label-chip ${chip.startsWith("+") ? "is-ok" : "is-neutral"}`, chip),
+      );
+
+  return proposalLine(app, "labels-plan", content, dropped, (was) =>
+    was ? app.commands.restoreLabels(app.source, pull) : app.commands.dropLabels(app.source, pull),
+  );
 }
 
 /**
@@ -350,7 +391,8 @@ export async function post(app) {
 }
 
 /**
- * Send the triage: the rewrite first, then the comment, then the record.
+ * Send the triage: the labels, the rewrite, the comment, the close, then the
+ * record.
  *
  * The rewrite replaces the whole body, so it alone gets a guard: the ticket is
  * fetched again at the last moment, and one that moved since the reader read
@@ -367,13 +409,14 @@ export async function post(app) {
  * @returns {Promise<void>} when it has landed, or failed out loud
  */
 async function postTriage(app, pull) {
+  let labelled = null;
   let patched = null;
   let commented = null;
   let commentStaged = false;
+  const plan = descriptionPlan(app);
 
   try {
-    const plan = descriptionPlan(app);
-
+    // Checked before anything is sent, so a moved ticket costs no write.
     if (plan.changed) {
       const fresh = await app.destination.issue(pull);
 
@@ -385,9 +428,16 @@ async function postTriage(app, pull) {
 
         return;
       }
-
-      patched = await app.destination.patchDescription(pull, plan.body);
     }
+
+    // Labels are idempotent, so a retry after a later failure is safe.
+    const labels = pull.draft.labels;
+
+    if (labels && !app.queries.labelsDropped(app.source, pull)) {
+      labelled = await app.destination.labelIssue(pull, labels);
+    }
+
+    if (plan.changed) patched = await app.destination.patchDescription(pull, plan.body);
 
     // The reader's prefix leads the triage comment the same way it leads the
     // review body and every line comment: applied at the send, never stored -
@@ -427,14 +477,19 @@ async function postTriage(app, pull) {
     settle(app);
 
     const landed = [
+      labelled && "the labels were changed",
       patched && "the description was updated",
       commented && "the comment was posted",
     ].filter(Boolean);
 
+    const missed = plan.changed && !patched
+      ? "the description was not updated"
+      : commentStaged && !commented
+        ? "the comment was not sent"
+        : "the ticket was not closed";
+
     find("confirm-note").textContent = landed.length
-      ? `${landed.join("; ")}; ${
-          commentStaged && !commented ? "the comment was not sent" : "the ticket was not closed"
-        }`
+      ? `${landed.join("; ")}; ${missed}`
       : "nothing has been sent";
   }
 }

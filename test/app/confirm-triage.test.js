@@ -81,8 +81,10 @@ describe("triaging an issue through the sheet", () => {
   let patched;
   let commented;
   let closed;
+  let labelled;
   let sequence;
   let refuseComment;
+  let refusePatch;
   let refuseClose;
 
   async function build(draft = anIssueDraft()) {
@@ -94,8 +96,10 @@ describe("triaging an issue through the sheet", () => {
     patched = [];
     commented = [];
     closed = [];
+    labelled = [];
     sequence = [];
     refuseComment = false;
+    refusePatch = false;
     refuseClose = false;
 
     app = await theApp({
@@ -109,6 +113,8 @@ describe("triaging an issue through the sheet", () => {
           url: "https://github.com/org/app/issues/42",
         }),
         patchDescription: async (target, body) => {
+          if (refusePatch) throw new Error("the destination would not patch it");
+
           patched.push(body);
           sequence.push("patch");
 
@@ -121,6 +127,12 @@ describe("triaging an issue through the sheet", () => {
           sequence.push("comment");
 
           return { url: "https://x/comment" };
+        },
+        labelIssue: async (target, labels) => {
+          labelled.push(labels);
+          sequence.push("labels");
+
+          return { url: "https://x/labelled" };
         },
         closeIssue: async (target, reason) => {
           if (refuseClose) throw new Error("the destination would not close it");
@@ -290,6 +302,60 @@ describe("triaging an issue through the sheet", () => {
     assert.equal(
       doc.getElementById("confirm-note").textContent,
       "the description was updated; the comment was posted; the ticket was not closed",
+    );
+  });
+
+  test("the sheet shows the label change as chips, and the send labels first", async () => {
+    await build(anIssueDraft({ labels: { add: ["bug"], remove: ["triage"] }, close: { reason: "completed" } }));
+
+    openConfirm(app);
+    assert.match(doc.getElementById("confirm-count").textContent, /labels \+bug −triage/);
+
+    const line = doc.getElementById("confirm-preview").children.find((node) => node.className.includes("labels-plan"));
+    const chips = line.children.filter((node) => node.className.includes("label-chip"));
+    assert.deepEqual(chips.map((chip) => chip.textContent), ["+bug", "−triage"]);
+
+    await post(app);
+
+    assert.deepEqual(labelled, [{ add: ["bug"], remove: ["triage"] }]);
+    assert.deepEqual(sequence, ["labels", "patch", "comment", "close"]);
+    assert.equal(app.selected.postedUrl, "https://x/comment");
+  });
+
+  test("a ticket that moved is re-read before any label changes", async () => {
+    await build(anIssueDraft({ labels: { add: ["bug"] } }));
+    liveBody = "Someone else's words.";
+
+    await post(app);
+
+    assert.deepEqual(labelled, []);
+  });
+
+  test("a dropped label change sends everything else and leaves the labels alone", async () => {
+    await build(anIssueDraft({ labels: { add: ["bug"] } }));
+
+    app.commands.dropLabels(app.source, app.selected);
+    await app.reselect();
+
+    openConfirm(app);
+    assert.match(doc.getElementById("confirm-count").textContent, /labels stay as they are/);
+
+    await post(app);
+
+    assert.deepEqual(labelled, []);
+    assert.deepEqual(sequence, ["patch", "comment"]);
+  });
+
+  test("a rewrite refused after the labels landed says the labels went", async () => {
+    await build(anIssueDraft({ labels: { add: ["bug"] } }));
+    refusePatch = true;
+
+    await post(app);
+
+    assert.equal(app.queries.isPosted(app.source, app.selected), false);
+    assert.equal(
+      doc.getElementById("confirm-note").textContent,
+      "the labels were changed; the description was not updated",
     );
   });
 });

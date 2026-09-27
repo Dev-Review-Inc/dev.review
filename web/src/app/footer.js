@@ -51,6 +51,30 @@ export function closeWords(close, dropped) {
 }
 
 /**
+ * The one line the footer and the sheet both say about a proposed label change.
+ *
+ * @param {{add: string[], remove: string[]}|null} labels the draft's proposal
+ * @param {boolean} dropped whether the reader left the change out
+ * @returns {string} the line, "" when the draft proposes no label change
+ */
+export function labelWords(labels, dropped) {
+  if (!labels) return "";
+  if (dropped) return "labels stay as they are";
+
+  return ["labels", ...labelChips(labels)].join(" ");
+}
+
+/**
+ * Each proposed label as it reads on a chip: "+name" added, "−name" removed.
+ *
+ * @param {{add: string[], remove: string[]}} labels the draft's proposal
+ * @returns {string[]} the chips, added first
+ */
+export function labelChips({ add, remove }) {
+  return [...add.map((name) => `+${name}`), ...remove.map((name) => `−${name}`)];
+}
+
+/**
  * What the one send button says, and whether there is anything for it to do.
  *
  * Approving waits on a draft the agent finished, because approving implies
@@ -218,13 +242,13 @@ function drawStaged(app) {
   }
 
   // An issue stages no line comments, so the counters would only ever say a
-  // confusing zero. What it can stage is a close, and the staged line is where
-  // what-would-be-sent lives.
+  // confusing zero. What it can stage is a label change and a close, and the
+  // staged line is where what-would-be-sent lives.
   if (pull.isIssue) {
-    staged.textContent = closeWords(
-      pull.draft.close,
-      app.queries.closeDropped(app.source, pull),
-    );
+    staged.textContent = [
+      labelWords(pull.draft.labels, app.queries.labelsDropped(app.source, pull)),
+      closeWords(pull.draft.close, app.queries.closeDropped(app.source, pull)),
+    ].filter(Boolean).join(" · ");
     counts.textContent = "";
 
     return;
