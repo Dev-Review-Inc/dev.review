@@ -78,8 +78,9 @@ so `org/app#42` is `org--app-42/review.json`. Media the draft refers to — QA r
 | `comment` | no | Markdown, posted verbatim: the review's body on a pull request, the one comment on an issue. Empty is legitimate on a review: the findings can be the whole review. |
 | `description` | no | Issues. The proposed replacement body of the ticket, whole, as markdown. The app diffs it against the live body and the reader keeps or rejects each hunk. |
 | `close` | no | Issues. `{ "reason": "duplicate", "of": 482 }` — a proposal to close the ticket. `reason` is `duplicate`, `not_planned` or `completed`; `of` names the surviving ticket and only `duplicate` takes one. The reader can drop the close and still post the rest. |
+| `labels` | no | `{ "add": ["bug", "C:billing"], "remove": ["triage"] }` — a proposal to change the ticket's labels. Both keys are optional lists of label names; names are trimmed and repeats dropped, and a name in both lists is refused. When an issue is posted, the reader's stripped labels (a setting, `triage` by default) join `remove`, except any name the draft adds. The reader can drop the label change as a whole, stripped labels included, and still post the rest. |
 
-A draft must propose at least one thing the reader could post: a `verdict`, a `description`, a `close`, or a non-empty `comment`. One that proposes none of them is refused as having nothing to send.
+A draft must propose at least one thing the reader could post: a `verdict`, a `description`, a `close`, a non-empty `labels` change, or a non-empty `comment`. One that proposes none of them is refused as having nothing to send.
 
 ## Sections
 
@@ -174,6 +175,11 @@ judge. Instead:
   change about today's text. The reader rejects hunks, edits the result by
   hand, and the final body is recomputed from what they kept. Posting patches
   the body — after fetching it once more and refusing if it moved again.
+- **`labels`** proposes labels to add and remove, applied before the rewrite
+  and the comment. Every posted issue also sheds the labels the reader names in
+  settings, `triage` until they name others, so a draft need not ask for it.
+  Those stripped labels alone do not make a draft a proposal. Removing a label
+  the ticket no longer carries is not a failure.
 - **`comment`** is the one comment the agent would leave, exact markdown.
 - **`close`** proposes closing the ticket, performed after the comment so a
   `Duplicate of #482` comment lands before the state changes.
@@ -221,8 +227,8 @@ older version of this app wrote them, is still read correctly.
 
 `schema` exists so that a change is loud. Adding an optional field needs no version bump. Removing a field, renaming one, or changing the meaning of an existing one is a bump, and the app refuses anything it does not recognise — which it says plainly rather than showing a blank pane.
 
-Issue support arrived without a bump, and deliberately: `description` and
-`close` are new optional fields, and `verdict` went from required to one
+Issue support arrived without a bump, and deliberately: `description`,
+`close` and `labels` are new optional fields, and `verdict` went from required to one
 proposal among several. Every draft the old rule accepted still parses to the
 same thing; a new issue draft handed to an old client is refused with a plain
 error rather than misread, which is the behaviour a bump exists to buy.

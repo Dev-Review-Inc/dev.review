@@ -16,6 +16,8 @@ import {
   patchIssueBody,
   postIssueComment,
   closeIssue,
+  addIssueLabels,
+  removeIssueLabel,
   compareCommits,
   issueComments as issueCommentsList,
 } from "./github.js";
@@ -214,6 +216,21 @@ export class GitHubDestination {
     const closed = await closeIssue(this.token, target, reason);
 
     return { url: closed.html_url || "" };
+  }
+
+  /**
+   * Add and remove the issue's labels, as the draft proposed.
+   *
+   * @param {object} target which issue
+   * @param {{add: string[], remove: string[]}} labels the change
+   * @returns {Promise<{url: string}>} where it lives
+   */
+  async labelIssue(target, { add, remove }) {
+    if (add.length) await addIssueLabels(this.token, target, add);
+
+    for (const name of remove) await removeIssueLabel(this.token, target, name);
+
+    return { url: target.url || "" };
   }
 
   /**

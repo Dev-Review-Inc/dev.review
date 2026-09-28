@@ -198,6 +198,37 @@ test("accepts a draft proposing only a close", () => {
   assert.deepStrictEqual(parsed.close, { reason: "not_planned", of: null });
 });
 
+test("carries a proposed label change, trimmed and without repeats", () => {
+  assert.deepStrictEqual(draft({ labels: { add: [" bug ", "C:billing", "bug"], remove: ["triage"] } }).labels, {
+    add: ["bug", "C:billing"],
+    remove: ["triage"],
+  });
+  assert.deepStrictEqual(draft({ labels: { remove: ["triage"] } }).labels, { add: [], remove: ["triage"] });
+});
+
+test("reads an absent or empty label change as no proposal at all", () => {
+  assert.strictEqual(parseDraft(DRAFT).labels, null);
+  assert.strictEqual(draft({ labels: null }).labels, null);
+  assert.strictEqual(draft({ labels: { add: [], remove: [] } }).labels, null);
+});
+
+test("refuses a label change it cannot read", () => {
+  assert.throws(() => draft({ labels: "bug" }), /labels/);
+  assert.throws(() => draft({ labels: { add: "bug" } }), /labels/);
+  assert.throws(() => draft({ labels: { add: [3] } }), /labels/);
+  assert.throws(() => draft({ labels: { remove: ["  "] } }), /labels/);
+});
+
+test("refuses a label both added and removed", () => {
+  assert.throws(() => draft({ labels: { add: ["bug"], remove: [" bug"] } }), /both/);
+});
+
+test("accepts a draft proposing only a label change", () => {
+  const parsed = draft({ verdict: undefined, comment: "", labels: { add: ["bug"] } });
+
+  assert.deepStrictEqual(parsed.labels, { add: ["bug"], remove: [] });
+});
+
 test("accepts each verdict a review can carry", () => {
   for (const verdict of ["APPROVE", "COMMENT", "REQUEST_CHANGES"]) {
     assert.strictEqual(draft({ verdict }).verdict, verdict);
