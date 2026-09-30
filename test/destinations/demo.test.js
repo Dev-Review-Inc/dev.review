@@ -175,3 +175,12 @@ describe("the destinations a build offers", () => {
     assert.ok(built instanceof DemoDestination);
   });
 });
+
+describe("the demo destination's avatars", () => {
+  test("names no avatar, because its sample logins are nobody's account", () => {
+    const destination = new DemoDestination({ seed: "/demo/queue.json" });
+
+    assert.equal(destination.avatarFor("priya"), "");
+    assert.equal(destination.avatarFor(""), "");
+  });
+});

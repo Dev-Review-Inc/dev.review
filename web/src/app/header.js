@@ -394,7 +394,50 @@ export async function restore(app, entry) {
   app.changed();
 }
 
-function queueRow(app, entry) {
+/**
+ * Who opened the work, as a picture when there is one.
+ *
+ * The picture is what tells one row from the next, so it is preferred, but it
+ * is never allowed to leave a hole: a deleted account and a reader with no
+ * network both end at the `error` event, and both get the initials the row drew
+ * before pictures existed. The alt text is empty on purpose, because the login
+ * is written beside it and a screen reader saying it twice is worse than a
+ * picture nobody describes.
+ *
+ * @param {object} app the running app
+ * @param {string} author the login the draft named
+ * @returns {object} an img, or the initials span
+ */
+function avatar(app, author) {
+  const url = app.destination?.avatarFor?.(author) || "";
+
+  if (!url) return element("span", "avatar", initials(author));
+
+  const picture = document.createElement("img");
+
+  picture.className = "avatar";
+  picture.src = url;
+  picture.alt = "";
+  picture.loading = "lazy";
+  picture.decoding = "async";
+  picture.addEventListener("error", () => {
+    picture.replaceWith(element("span", "avatar", initials(author)));
+  });
+
+  return picture;
+}
+
+/**
+ * One pull request, as a row on the queue.
+ *
+ * Exported for the tests, which drive the row over a fake document rather than
+ * the whole queue: what a row draws is decided here.
+ *
+ * @param {object} app the running app
+ * @param {object} entry one entry from the queue
+ * @returns {object} the row
+ */
+export function queueRow(app, entry) {
   const row = document.createElement("button");
 
   row.className = `row${entry.isReady ? " is-ready" : ""}`;
@@ -411,7 +454,7 @@ function queueRow(app, entry) {
   who.className = "who";
   // A draft need not say who opened the work, so the row degrades to the
   // date alone rather than drawing an empty name.
-  if (entry.author) who.append(element("span", "avatar", initials(entry.author)));
+  if (entry.author) who.append(avatar(app, entry.author));
   who.append(
     element(
       "span",

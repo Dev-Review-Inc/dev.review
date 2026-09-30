@@ -55,6 +55,11 @@ export async function openBrowser() {
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-background-networking",
+    // The page's own requests are faked at `fetch`, but an <img src> is not a
+    // fetch: a queue row now asks github.com for an author's picture. A commit
+    // hook must reach nothing, so the resolver answers everything but the
+    // suite's own server with NOTFOUND, and the row falls back to initials.
+    "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost",
     "--disable-component-update",
     "--disable-extensions",
     "--disable-gpu",

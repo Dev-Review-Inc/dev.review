@@ -245,4 +245,21 @@ export class GitHubDestination {
 
     return { url: posted.html_url || "" };
   }
+
+  /**
+   * The avatar image GitHub serves for an author's login.
+   *
+   * A draft carries only a login, so turning it into a picture is the
+   * destination's knowledge, not the view's. The login comes out of a draft
+   * file, so it is encoded: it must not be able to walk out of the path.
+   *
+   * @param {string} login the author's login
+   * @returns {string} the image url, or "" when there is no login to name, which is how a caller is told to fall back to initials
+   */
+  avatarFor(login) {
+    if (typeof login !== "string" || !login) return "";
+
+    return `https://github.com/${encodeURIComponent(login)}.png?size=48`;
+  }
+
 }

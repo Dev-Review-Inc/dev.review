@@ -208,6 +208,19 @@ export class DemoDestination {
     return { url: target.url || "" };
   }
 
+  /**
+   * Name no avatar for an author.
+   *
+   * The demo's sample logins are nobody's GitHub account, so any image named
+   * for one would 404.
+   *
+   * @param {string} _login the author's login, which this destination does not need
+   * @returns {string} always "", which is how a caller is told to fall back to initials
+   */
+  avatarFor(_login) {
+    return "";
+  }
+
   _loaded() {
     if (!this._loading) this._loading = this._load();
 
