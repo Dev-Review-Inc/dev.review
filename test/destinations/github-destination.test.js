@@ -139,6 +139,30 @@ describe("a github destination reading and writing issues", () => {
     assert.deepEqual(closed, { url: "https://github.com/org/app/issues/7" });
   });
 
+  test("adds and removes the proposed labels, one removal at a time", async () => {
+    const calls = stub([]);
+
+    const destination = new GitHubDestination({ token: "t" });
+    const labelled = await destination.labelIssue(
+      { ...anIssue(), url: "https://github.com/org/app/issues/7" },
+      { add: ["bug"], remove: ["triage", "stale"] },
+    );
+
+    assert.deepEqual(
+      calls.map((call) => `${call.options.method} ${call.url.replace(/^.*\/issues\/7/, "")}`),
+      ["POST /labels", "DELETE /labels/triage", "DELETE /labels/stale"],
+    );
+    assert.deepEqual(labelled, { url: "https://github.com/org/app/issues/7" });
+  });
+
+  test("asks nothing to add when the change only removes", async () => {
+    const calls = stub([]);
+
+    await new GitHubDestination({ token: "t" }).labelIssue(anIssue(), { add: [], remove: ["triage"] });
+
+    assert.deepEqual(calls.map((call) => call.options.method), ["DELETE"]);
+  });
+
   test("comments on the issue and hands back the comment's own link", async () => {
     const calls = stub({
       id: 1,

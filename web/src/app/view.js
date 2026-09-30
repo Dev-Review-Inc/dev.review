@@ -26,7 +26,7 @@ import {
 } from "./header.js";
 import { closeDescriptionEditor, drawDescription } from "./description-pane.js";
 import { drawDiff } from "./diff-pane.js";
-import { DISMISS, closeVerdictMenu, drawFooter, toggleVerdictMenu } from "./footer.js";
+import { DISMISS, closeVerdictMenu, drawFooter, labelList, toggleVerdictMenu } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { closeEditor, drawSummary } from "./summary.js";
@@ -221,6 +221,15 @@ find("comment-prefix").addEventListener("blur", () => {
   if (!app.source || field.value === app.queries.commentPrefixFor(app.source)) return;
 
   app.commands.setCommentPrefix(app.source, field.value);
+  app.changed();
+});
+
+find("stripped-labels").addEventListener("blur", () => {
+  const labels = labelList(find("stripped-labels").value);
+
+  if (!app.source || labels.join() === app.queries.strippedLabelsFor(app.source).join()) return;
+
+  app.commands.setStrippedLabels(app.source, labels);
   app.changed();
 });
 

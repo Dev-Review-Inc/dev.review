@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
-import { selectNew, withinWorkspace, dedupe } from "../select-new.js";
+import { selectNew, withinWorkspace, dedupe, splitByRules } from "../select-new.js";
+import { parseRules } from "../rules.js";
 
 const pr = (n, repo = "org/app") => ({
   number: n,
@@ -92,4 +93,45 @@ test("merges two searches without repeating a pull request found by both", () =>
   const merged = dedupe([pr(1), pr(2)], [pr(2), pr(3)]);
 
   assert.deepStrictEqual(merged.map((one) => one.number), [1, 2, 3]);
+});
+
+const parsed = (...rules) => parseRules(JSON.stringify({ rules }));
+const authored = (n, login, extra = {}) => ({ ...pr(n), author: { login }, labels: [], isDraft: false, ...extra });
+
+test("sets aside the pull requests a rule skips, before they can eat the limit", () => {
+  const rules = parsed({ when: { author: "bot" }, then: "skip" });
+  const { kept, skipped } = splitByRules([authored(1, "bot"), authored(2, "ann")], rules);
+
+  assert.deepStrictEqual(skipped.map((one) => one.number), [1]);
+  assert.deepStrictEqual(kept.map((one) => one.number), [2]);
+});
+
+test("carries the provisional action on every pull request it keeps", () => {
+  const rules = parsed({ when: { author: "ann" }, then: "post" });
+  const { kept } = splitByRules([authored(1, "ann"), authored(2, "bob")], rules);
+
+  assert.deepStrictEqual(kept.map((one) => one.action), ["post", "draft"]);
+});
+
+test("reads the repository, labels and draft state as facts", () => {
+  const rules = parsed({ when: { repo: "org/app", label: "Trivial", isDraft: false }, then: "post" });
+  const { kept } = splitByRules([
+    authored(1, "ann", { labels: [{ name: "trivial" }] }),
+    authored(2, "ann", { labels: [{ name: "trivial" }], isDraft: true }),
+  ], rules);
+
+  assert.deepStrictEqual(kept.map((one) => one.action), ["post", "draft"]);
+});
+
+test("reads a verdict rule as post when some verdict would post, because no verdict exists before drafting", () => {
+  const rules = parsed({ when: { author: "ann", verdict: "APPROVE" }, then: "post" });
+  const { kept } = splitByRules([authored(1, "ann"), authored(2, "bob")], rules);
+  assert.deepStrictEqual(kept.map((one) => one.action), ["post", "draft"]);
+});
+
+test("drafts everything and skips nothing when there are no rules", () => {
+  const { kept, skipped } = splitByRules([pr(1)], []);
+
+  assert.deepStrictEqual(kept.map((one) => one.action), ["draft"]);
+  assert.deepStrictEqual(skipped, []);
 });

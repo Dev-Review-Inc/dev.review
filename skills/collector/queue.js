@@ -11,10 +11,12 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { selectNew, key, withinWorkspace, dedupe } from "./select-new.js";
+import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
 import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
+import { searchArgs } from "./search-args.js";
+import { readRules } from "./rules.js";
 
 /**
  * The pull requests a draft already exists for.
@@ -43,21 +45,12 @@ function alreadyDrafted(drafts, prs) {
  * One `gh search prs` call.
  *
  * @param {string} qualifier e.g. "--review-requested=@me"
- * @returns {object[]} pull requests with number, title, repository, url
+ * @returns {object[]} pull requests with number, title, repository, url, and
+ *   the author, isDraft and labels the rules read
  */
 function search(qualifier) {
   return JSON.parse(
-    execFileSync(
-      "gh",
-      [
-        "search", "prs",
-        qualifier,
-        "--state=open",
-        "--limit", "40",
-        "--json", "number,title,repository,url,updatedAt",
-      ],
-      { encoding: "utf8" },
-    ),
+    execFileSync("gh", searchArgs(qualifier), { encoding: "utf8" }),
   );
 }
 
@@ -92,7 +85,22 @@ if (command === "next" && draftsDir) {
     })
     .filter(Boolean);
 
-  const scoped = withinWorkspace(openReviewRequests(), repos);
+  // A rules file that is not understood in full is refused whole: everything
+  // is drafted, nothing is skipped, and the error is printed.
+  let rules = [];
+  let rulesError;
+
+  try {
+    rules = readRules(draftsDir);
+  } catch (error) {
+    rulesError = error.message;
+  }
+
+  // Skipped pull requests leave before the limit applies, so they never eat it.
+  const { kept: scoped, skipped } = splitByRules(
+    withinWorkspace(openReviewRequests(), repos),
+    rules,
+  );
 
   // The sync log keeps the selector honest after a prune: a pull the reader
   // posted on or dismissed is not fresh just because its draft is gone.
@@ -112,9 +120,13 @@ if (command === "next" && draftsDir) {
           number: pr.number,
           title: pr.title,
           url: pr.url,
+          author: pr.author?.login,
+          action: pr.action,
         })),
         deferredCount: deferred.length,
         deferred: deferred.map(key),
+        skipped: skipped.map(key),
+        ...(rulesError ? { rulesError } : {}),
       },
       null,
       2,

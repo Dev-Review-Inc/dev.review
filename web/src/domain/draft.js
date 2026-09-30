@@ -2,10 +2,10 @@
 //
 // A draft is a JSON document written to the drafts directory. It is not parsed
 // out of prose: the sweep states what it would post — a review verdict, a
-// replacement ticket description, a comment, a closing of the ticket — so
-// rewording the template can never change what this client believes a draft
-// says. A draft must propose at least one of those; one with none of them has
-// nothing this client can post.
+// replacement ticket description, a comment, a label change, a closing of the
+// ticket — so rewording the template can never change what this client
+// believes a draft says. A draft must propose at least one of those; one with
+// none of them has nothing this client can post.
 //
 // The section bodies and the comment are markdown, rendered by render.js.
 
@@ -49,6 +49,47 @@ function closeOf(close) {
   }
 
   return { reason: source.reason, of: source.of };
+}
+
+/**
+ * Check one side of the proposed label change.
+ *
+ * @param {*} names the add or remove list of a draft's labels
+ * @param {string} side "add" or "remove", for the error message
+ * @returns {string[]} the names, trimmed, each once
+ * @throws {Error} if the list is not a list of non-empty strings
+ */
+function labelNamesOf(names, side) {
+  if (names === undefined || names === null) return [];
+
+  const valid = Array.isArray(names) && names.every((name) => typeof name === "string" && name.trim());
+
+  if (!valid) throw new Error(`draft labels ${side} must be a list of label names`);
+
+  return [...new Set(names.map((name) => name.trim()))];
+}
+
+/**
+ * Check the proposal to change the ticket's labels.
+ *
+ * @param {*} labels the labels field of a draft
+ * @returns {{add: string[], remove: string[]}|null} the change, or null when there is none
+ * @throws {Error} if either list is malformed, or a label is both added and removed
+ */
+function labelsOf(labels) {
+  if (labels === undefined || labels === null) return null;
+
+  if (typeof labels !== "object" || Array.isArray(labels)) {
+    throw new Error("draft labels must name what to add and remove");
+  }
+
+  const add = labelNamesOf(labels.add, "add");
+  const remove = labelNamesOf(labels.remove, "remove");
+  const both = add.find((name) => remove.includes(name));
+
+  if (both) throw new Error(`draft labels both add and remove ${both}`);
+
+  return add.length || remove.length ? { add, remove } : null;
 }
 
 // What a QA scenario can report. Anything else, including nothing, is a skip:
@@ -295,7 +336,7 @@ function qaOf(qa) {
  * Read a draft written by the review sweep.
  *
  * @param {object} payload the decoded JSON document
- * @returns {{title: string, url: string, reviewedAt: string, draftedAt: string, verdict: string, description: string, summary: string, sections: object[], comment: string}}
+ * @returns {{title: string, url: string, reviewedAt: string, draftedAt: string, verdict: string, description: string, close: object|null, labels: object|null, summary: string, sections: object[], comment: string}}
  * @throws {Error} if the draft is not a shape this client can act on, or proposes nothing
  */
 export function parseDraft(payload) {
@@ -316,8 +357,9 @@ export function parseDraft(payload) {
   const description = typeof draft.description === "string" ? draft.description : "";
   const comment = typeof draft.comment === "string" ? draft.comment : "";
   const close = closeOf(draft.close);
+  const labels = labelsOf(draft.labels);
 
-  if (!verdict && !description.trim() && !comment.trim() && !close) {
+  if (!verdict && !description.trim() && !comment.trim() && !close && !labels) {
     throw new Error("draft proposes nothing this client can post");
   }
 
@@ -342,6 +384,8 @@ export function parseDraft(payload) {
     description,
     // The proposal to close the ticket, or null when the draft makes none.
     close,
+    // The proposal to add and remove labels, or null when the draft makes none.
+    labels,
     summary: draft.summary || "",
     findings,
     qa: qaOf(draft.qa),

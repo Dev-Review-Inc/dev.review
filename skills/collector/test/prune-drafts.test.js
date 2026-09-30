@@ -8,6 +8,7 @@ import path from "node:path";
 import {
   finishedPulls,
   resolutions,
+  commentPrefix,
   parseEventLines,
   readEvents,
   pruneDrafts,
@@ -283,4 +284,90 @@ test("asks upstream once per drafted key, and only for drafted keys", () => {
   });
 
   assert.deepStrictEqual(asked, ["org/app#1"]);
+});
+
+// ---- redrafts: a pull dismissed, moved, and drafted again
+
+function writeStamped(draftsDir, folder, review) {
+  fs.mkdirSync(path.join(draftsDir, folder), { recursive: true });
+  fs.writeFileSync(path.join(draftsDir, folder, "review.json"), JSON.stringify(review));
+}
+
+test("spares a draft written after its pull's dismissal", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: new Date(500).toISOString() });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
+
+  const pruned = pruneDrafts(draftsDir);
+
+  assert.deepStrictEqual(pruned, []);
+  assert.strictEqual(fs.existsSync(path.join(draftsDir, "org--app-1")), true);
+});
+
+test("spares a draft whose finishedAt alone postdates the resolution", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: new Date(50).toISOString(), finishedAt: new Date(500).toISOString() });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "post", 100)]);
+
+  const pruned = pruneDrafts(draftsDir);
+
+  assert.deepStrictEqual(pruned, []);
+  assert.strictEqual(fs.existsSync(path.join(draftsDir, "org--app-1")), true);
+});
+
+test("deletes a draft written before its pull's dismissal", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: new Date(50).toISOString(), finishedAt: new Date(60).toISOString() });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
+
+  const pruned = pruneDrafts(draftsDir);
+
+  assert.deepStrictEqual(pruned, ["org/app#1"]);
+  assert.strictEqual(fs.existsSync(path.join(draftsDir, "org--app-1")), false);
+});
+
+test("deletes a draft whose review.json carries no parsable timestamp", () => {
+  const { draftsDir, eventsDir } = tempSource();
+  writeStamped(draftsDir, "org--app-1", { draftedAt: "not a date" });
+  writeLog(eventsDir, "device-a", [event("org/app#1", "dismiss", 100)]);
+
+  assert.deepStrictEqual(pruneDrafts(draftsDir), ["org/app#1"]);
+});
+
+// ---- commentPrefix: the reader's standing prefix, latest event wins
+
+const setPrefix = (prefix, time) => ({
+  collection: "preferences",
+  objectId: "reading",
+  action: "setCommentPrefix",
+  data: { prefix },
+  time,
+});
+
+test("commentPrefix is empty when the log has no prefix event", () => {
+  assert.equal(commentPrefix([]), "");
+  assert.equal(commentPrefix([event("org/app#1", "post", 100)]), "");
+});
+
+test("commentPrefix takes the latest prefix by time, whatever the order", () => {
+  assert.equal(commentPrefix([setPrefix("new", 200), setPrefix("old", 100)]), "new");
+});
+
+test("commentPrefix reads an empty latest prefix as none", () => {
+  assert.equal(commentPrefix([setPrefix("old", 100), setPrefix("", 200)]), "");
+});
+
+test("commentPrefix ignores malformed events and non-string prefixes", () => {
+  const events = [
+    setPrefix("kept", 100),
+    null,
+    "junk",
+    { ...setPrefix("no time", 0), time: "300" },
+    { ...setPrefix("x", 400), data: { prefix: 5 } },
+    { ...setPrefix("x", 500), data: null },
+    { ...setPrefix("wrong object", 600), objectId: "other" },
+    { ...setPrefix("wrong collection", 700), collection: "pulls" },
+  ];
+
+  assert.equal(commentPrefix(events), "kept");
 });

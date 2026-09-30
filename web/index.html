@@ -945,6 +945,7 @@
   .description-reset:hover { color: var(--accent); border-color: var(--accent); }
 
   .description-plan { margin-top: 12px; color: var(--dim2); font-size: var(--textSmall); }
+  .labels-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
   #editor, #description-editor {
     width: calc(100% - 40px);
@@ -1930,6 +1931,10 @@
     <div class="settings-group mono"><span>every comment</span></div>
     <div class="settings-prefix">
       <input class="mono" id="comment-prefix" type="text" placeholder="none" autocomplete="off" spellcheck="false" title="Put ahead of the review body and every comment this source sends">
+    </div>
+    <div class="settings-group mono"><span>every issue posted removes labels</span></div>
+    <div class="settings-prefix">
+      <input class="mono" id="stripped-labels" type="text" placeholder="none" autocomplete="off" spellcheck="false" title="Labels taken off every issue posted from this source, comma-separated">
     </div>
     <div class="spacer"></div>
     <button class="settings-add" id="settings-add" type="button">+ Add</button>

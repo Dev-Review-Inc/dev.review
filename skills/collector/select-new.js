@@ -1,3 +1,8 @@
+import { actionFor } from "./rules.js";
+
+// The verdicts a finished draft can carry.
+const VERDICTS = ["APPROVE", "COMMENT", "REQUEST_CHANGES"];
+
 /**
  * Identity of a pull request in the seen-state file.
  *
@@ -88,4 +93,43 @@ export function withinWorkspace(prs, repos) {
   const known = new Set(repos.map((repo) => repo.toLowerCase()));
 
   return prs.filter((pr) => known.has(pr.repository.nameWithOwner.toLowerCase()));
+}
+
+/**
+ * Split the pull requests by what the reader's rules say before any draft
+ * exists: the ones a rule skips, and the ones to carry on with.
+ *
+ * The action is provisional. No verdict exists yet, so "post" means some
+ * verdict would post; post.js checks again against the finished draft.
+ *
+ * @param {object[]} prs pull requests from `gh search prs --json`
+ * @param {object[]} rules the reader's rules, as `readRules` returns them
+ * @returns {{kept: object[], skipped: object[]}} `kept` are copies carrying
+ *   their `action`, "post" or "draft"
+ */
+export function splitByRules(prs, rules) {
+  const kept = [];
+  const skipped = [];
+
+  for (const pr of prs) {
+    const facts = {
+      author: pr.author?.login,
+      repo: pr.repository.nameWithOwner,
+      labels: (pr.labels || []).map((label) => label.name),
+      isDraft: pr.isDraft,
+    };
+
+    if (actionFor(rules, facts) === "skip") {
+      skipped.push(pr);
+      continue;
+    }
+
+    const mayPost = [undefined, ...VERDICTS].some(
+      (verdict) => actionFor(rules, { ...facts, verdict }) === "post",
+    );
+
+    kept.push({ ...pr, action: mayPost ? "post" : "draft" });
+  }
+
+  return { kept, skipped };
 }
