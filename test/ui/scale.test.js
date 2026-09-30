@@ -169,7 +169,10 @@ const FONT_SIZE_EXCEPTIONS = [
   { selector: /^\.head-slug$/, value: "9px" },
   { selector: /^\.settings-set$/, value: "9px" },
   { selector: /^\.teach-card \.kicker$/, value: "9.5px" },
-  { selector: /^\.avatar$/, value: "8px" },
+  // Qualified: a queue row draws an img avatar when the destination names a
+  // picture, and the bare .avatar rule carries only size, so the two characters
+  // are styled under span.avatar alone.
+  { selector: /^span\.avatar$/, value: "8px" },
   { selector: /^\.ready-dot$/, value: "8px" },
   { selector: /^\.viewed \.box$/, value: "9px" },
   { selector: /^\.cheer-mark$/, value: "34px" },

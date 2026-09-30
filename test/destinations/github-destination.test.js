@@ -233,3 +233,29 @@ describe("a github destination reading drift since a draft was written", () => {
     ]);
   });
 });
+
+describe("a github destination naming an author's avatar", () => {
+  test("names the avatar GitHub serves for a login", () => {
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.equal(destination.avatarFor("sofia"), "https://github.com/sofia.png?size=48");
+  });
+
+  test("encodes a login rather than letting it walk out of the path", () => {
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.equal(
+      destination.avatarFor("../../evil?x"),
+      "https://github.com/..%2F..%2Fevil%3Fx.png?size=48",
+    );
+  });
+
+  test("answers an empty string when there is no login to name", () => {
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.equal(destination.avatarFor(""), "");
+    assert.equal(destination.avatarFor(undefined), "");
+    assert.equal(destination.avatarFor(null), "");
+    assert.equal(destination.avatarFor(42), "");
+  });
+});

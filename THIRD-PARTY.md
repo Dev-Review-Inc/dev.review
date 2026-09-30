@@ -4,9 +4,11 @@ This project is Apache-2.0. The `.dmg` it ships is a signed binary with the Rust
 dependency tree in `src-tauri/Cargo.lock` compiled into it, and a few of those
 crates ask for something back.
 
-The browser side is handled separately, in
-[web/vendor/README.md](web/vendor/README.md): those packages are MIT and their
-notices sit beside the code they cover.
+The browser side is handled separately, and in two places, because the notices
+sit beside the files they cover rather than in this one. Vendored ES modules are
+in [web/vendor/README.md](web/vendor/README.md), and those packages are MIT. The
+two fonts are in [web/fonts/README.md](web/fonts/README.md), and both are under
+the SIL Open Font License 1.1.
 
 ## MPL-2.0
 

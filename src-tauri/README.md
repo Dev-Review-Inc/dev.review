@@ -227,9 +227,4 @@ Not verified:
   permission, so the webview was confirmed to exist and be composited rather
   than read pixel by pixel. The CSP as the webview finally applies it and the
   asset protocol streaming a real video are still unproven.
-- The remote font stylesheet `web/index.html` links from `fonts.googleapis.com`.
-  `style-src` is `'self' 'unsafe-inline'`, which does not cover it, so inside the
-  shell the type falls back to `system-ui` where the browser build gets IBM Plex
-  Sans. Nothing breaks, and widening `style-src` to reach a third party to fix
-  cosmetics is the worse trade.
 - Anything on Windows or mobile.

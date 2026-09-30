@@ -48,15 +48,18 @@ const Policy = "default-src 'self'; " +
 	// attacker script on the page to do the sending, so the exposure is bounded
 	// by our own code. Plain http is still refused.
 	"connect-src 'self' https:; " +
-	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-	// 'self' is here so a font shipped in the binary can load. Fonts cannot
-	// execute, and the interface is designed around IBM Plex Sans and
-	// JetBrains Mono.
-	"font-src 'self' https://fonts.gstatic.com; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	// IBM Plex Sans and JetBrains Mono are woff2 files in web/fonts/, embedded
+	// in this binary and named by @font-face rules in index.html. They are the
+	// only fonts the interface loads, so 'self' is the whole directive and no
+	// other origin is reachable.
+	"font-src 'self'; " +
 	// QA evidence comes back from the storage adapter as bytes and is shown
 	// through blob URLs rather than fetched over the network, so blob: has to
-	// be a permitted source for images and video.
-	"img-src 'self' data: blob:; " +
+	// be a permitted source for images and video. The two GitHub origins let
+	// the queue draw author avatars: the page asks github.com, which redirects
+	// to avatars.githubusercontent.com, so both must be permitted.
+	"img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; " +
 	"media-src 'self' blob:"
 
 // types maps an extension to the content type sent for it.

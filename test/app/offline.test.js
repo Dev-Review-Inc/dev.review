@@ -178,3 +178,43 @@ describe("what the worker will answer", () => {
     assert.equal(ours(new Request(`${ORIGIN}/reload.js`), ORIGIN), false);
   });
 });
+
+// node's Request reports an empty destination whatever it is asked for: the
+// browser fills that in from the element that made the request, and there is no
+// element here. The worker reads three fields off a request, so the cases that
+// turn on what a request is for are made from those three.
+function askedFor(url, { as = "", method = "GET" } = {}) {
+  return { url, method, destination: as };
+}
+
+describe("what the worker will answer for an avatar", () => {
+  test("answers the two origins a GitHub avatar comes from", () => {
+    assert.equal(ours(askedFor("https://github.com/octocat.png?size=48", { as: "image" }), ORIGIN), true);
+    assert.equal(ours(askedFor("https://avatars.githubusercontent.com/u/583231?v=4", { as: "image" }), ORIGIN), true);
+  });
+
+  test("answers those origins only for a picture", () => {
+    assert.equal(ours(askedFor("https://github.com/org/app/pull/42", { as: "document" }), ORIGIN), false);
+    assert.equal(ours(askedFor("https://github.com/octocat.png"), ORIGIN), false);
+  });
+
+  test("answers neither for anything but a plain read", () => {
+    assert.equal(ours(askedFor("https://github.com/octocat.png", { as: "image", method: "POST" }), ORIGIN), false);
+  });
+
+  test("leaves the rest of GitHub and the reader's storage alone, picture or not", () => {
+    assert.equal(ours(askedFor("https://api.github.com/user", { as: "image" }), ORIGIN), false);
+    assert.equal(ours(askedFor("https://reviews.s3.amazonaws.com/a.png", { as: "image" }), ORIGIN), false);
+    assert.equal(ours(askedFor("https://storage.example.com/reviews/a.png", { as: "image" }), ORIGIN), false);
+  });
+
+  // The origin is compared whole. A host that merely starts with or contains
+  // github.com is a different site, and the one place a worker must not be
+  // generous is deciding whose responses it is willing to hold.
+  test("refuses an origin that only looks like GitHub's", () => {
+    assert.equal(ours(askedFor("https://github.com.evil.test/octocat.png", { as: "image" }), ORIGIN), false);
+    assert.equal(ours(askedFor("https://evil.test/https://github.com/octocat.png", { as: "image" }), ORIGIN), false);
+    assert.equal(ours(askedFor("https://notgithub.com/octocat.png", { as: "image" }), ORIGIN), false);
+    assert.equal(ours(askedFor("http://github.com/octocat.png", { as: "image" }), ORIGIN), false);
+  });
+});
