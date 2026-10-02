@@ -4,3 +4,7 @@
 # from a checkout instead of failing in a way nobody can read.
 [toolchain]
 channel = "stable"
+# swift-rs runs llvm-objcopy from llvm-tools to export the Swift plugins'
+# @_cdecl symbols, which Xcode 27 builds as local. Without it, the iOS link
+# fails with "_register_plugin" and similar names undefined.
+components = ["llvm-tools"]
