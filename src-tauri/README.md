@@ -88,9 +88,24 @@ rsvg-convert -w 1024 -h 1024 app-icon.svg -o app-icon.png
 cargo tauri icon app-icon.png
 ```
 
-The generator also writes iOS, Android and Microsoft Store sets. Neither is a
-build target here, so `icons/` keeps only the files `bundle.icon` names and the
-rest are deleted after each run.
+The generator also writes iOS, Android and Microsoft Store sets. Delete them
+after each run. `icons/` keeps only the files that `bundle.icon` names. The
+iOS set comes from a different source.
+
+`app-icon-ios.svg` is the iOS cut. iOS applies its own corner mask, and the
+App Store refuses an icon with transparency. So the panel fills the square
+canvas, with no rounded corners. The artwork scales about the centre by
+1024/824, so the lines and the check keep their proportions to the panel.
+`ios/AppIcon.appiconset/` holds it as one opaque 1024 PNG. An iOS 17 target
+lets Xcode derive every other size from that one image. To regenerate it:
+
+```sh
+rsvg-convert -w 1024 -h 1024 -b '#0e0f12' app-icon-ios.svg \
+  | magick - -alpha off -strip PNG24:ios/AppIcon.appiconset/AppIcon-1024.png
+```
+
+`test/release/ios-icon.test.js` checks that the PNG is 1024 square with no
+alpha channel.
 
 The bundler derives `Reviewer.icns` from whatever `bundle.icon` lists. That list
 was one 512x512 PNG for a while, which produced an `.icns` holding a single
@@ -201,6 +216,25 @@ Apple's required-reason API list grows. The categories above were read out of
 this code, not off Apple's current page, so check both against "Describing use
 of required reason API" before a submission, and run Xcode's Generate Privacy
 Report on the archive, which reads the built binary instead of the source.
+
+## Preparing the iOS project
+
+`gen/apple/` is gitignored, and `cargo tauri ios init` rebuilds it. Init
+blanks both entitlements files and fills the asset catalog with Tauri's
+default icon. The first TestFlight build shipped that default icon. Run the
+script below instead of a bare init:
+
+```sh
+./ios-prepare.sh
+```
+
+It runs `cargo tauri ios init --ci`. It reads the entitlements paths from the
+generated project and copies `reviewer_iOS.entitlements` and
+`ReviewerWidget/ReviewerWidget.entitlements` to them. It replaces the
+generated `AppIcon.appiconset` with `ios/AppIcon.appiconset`. Then it checks
+that both entitlements files name the App Group, and that the project targets
+iOS 17.0 under team `L22C9S8VZ7`. Any mismatch stops it with a non-zero exit.
+It does not build or sign.
 
 ## The iOS version number
 

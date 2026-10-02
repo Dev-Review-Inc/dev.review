@@ -1,19 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Source of truth for the iOS entitlements - not read directly by Xcode.
+  Source of truth for the iOS app's entitlements. Xcode does not read this
+  file directly.
 
-  `cargo tauri ios init` always writes a blank entitlements file at
-  gen/apple/reviewer_iOS/reviewer_iOS.entitlements, even when the project.yml
-  template points elsewhere - it treats wherever the template says as its own
-  output, and overwrites it. gen/apple/ is gitignored and rebuilt from
-  scratch on every init, so nothing placed only there survives.
-
-  After every `cargo tauri ios init`, restore this file and the widget
-  extension's into place:
-
-    cp reviewer_iOS.entitlements gen/apple/reviewer_iOS/reviewer_iOS.entitlements
-    cp ReviewerWidget/ReviewerWidget.entitlements gen/apple/ReviewerWidgetExtension/ReviewerWidget.entitlements
+  `cargo tauri ios init` writes a blank entitlements file for each target in
+  gen/apple/. That directory is gitignored and init rebuilds it, so nothing
+  placed only there survives. Run ./ios-prepare.sh instead of a bare init.
+  It runs init, copies this file and the widget's to the paths that the
+  generated project names, and fails if either copy lacks the App Group.
 
   iCloud.review.dev.app and group.review.dev.app were registered against this
   project's own Apple Developer team through Xcode's own Signing &

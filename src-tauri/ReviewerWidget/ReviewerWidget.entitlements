@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Source of truth for the widget extension's entitlements, the same way
-  reviewer_iOS.entitlements is for the app target - see the comment there for
-  why this is captured here and restored after every cargo tauri ios init
-  rather than left for xcodegen to own outright.
+  Source of truth for the widget extension's entitlements. Xcode does not
+  read this file directly. ../ios-prepare.sh copies it into gen/apple/ after
+  each `cargo tauri ios init`, which blanks the generated copy.
 
   group.review.dev.app was registered against this project's own Apple
   Developer team through Xcode's own Signing & Capabilities UI, on both this
