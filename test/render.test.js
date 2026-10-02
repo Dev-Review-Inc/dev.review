@@ -56,14 +56,33 @@ test("renders a markdown link", () => {
 
   assert.match(
     html,
-    /<a href="https:\/\/github\.com\/org\/app\/pull\/44">44<\/a>/,
+    /<a href="https:\/\/github\.com\/org\/app\/pull\/44" target="_blank" rel="noopener noreferrer">44<\/a>/,
   );
 });
 
 test("keeps the allowlisted inline html the comment template uses", () => {
   const html = renderBody('<sub>verified against <a href="https://x/y">abc1234</a></sub>');
 
-  assert.match(html, /<sub>verified against <a href="https:\/\/x\/y">abc1234<\/a><\/sub>/);
+  assert.match(
+    html,
+    /<sub>verified against <a href="https:\/\/x\/y" target="_blank" rel="noopener noreferrer">abc1234<\/a><\/sub>/,
+  );
+});
+
+// A link in pull request text leads off this app. Followed in place, it
+// replaces the app: a browser tab loses it, and the native webview has no back
+// button to return. A new window is what the browser opens, and what
+// src-tauri/src/links.rs hands to the system browser instead.
+test("opens every rendered link in a new window, never in the app's own", () => {
+  const html = renderBody('[docs](https://x/a) and <a href="https://x/b">more</a>');
+  const anchors = html.match(/<a [^>]*>/g);
+
+  assert.strictEqual(anchors.length, 2);
+
+  for (const anchor of anchors) {
+    assert.match(anchor, / target="_blank"/);
+    assert.match(anchor, / rel="noopener noreferrer"/);
+  }
 });
 
 // Everything below is why this renderer exists rather than a markdown library.
