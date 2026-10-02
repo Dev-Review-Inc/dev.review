@@ -26,6 +26,43 @@ describe("the version a release ships", () => {
     );
   });
 
+  test("is the same number the iOS project ships", () => {
+    // ios-project.yml is a fourth and fifth copy: xcodegen reads it to write
+    // the Xcode project, and it names the version once per target because the
+    // widget extension carries its own Info.plist. A widget whose version
+    // disagrees with its host app fails embedding validation at upload, long
+    // after the tag that caused it.
+    const { conf, ios } = versions();
+
+    assert.ok(ios.length > 0, "no CFBundleShortVersionString found in src-tauri/ios-project.yml");
+
+    for (const found of ios) {
+      assert.equal(found, conf, `src-tauri/ios-project.yml says ${found} and tauri.conf.json says ${conf}`);
+    }
+  });
+
+  test("refuses a tag when the iOS project has drifted", () => {
+    assert.match(
+      disagreement("v0.9.0", { conf: "0.9.0", cargo: "0.9.0", ios: ["0.9.0", "0.6.2"] }),
+      /ios-project\.yml/,
+    );
+  });
+
+  test("the iOS build number is not a literal that repeats", () => {
+    // Apple refuses a second upload that reuses a CFBundleVersion for the same
+    // marketing version, so a hardcoded one works once and then stops. It has
+    // to come from a build setting something outside the file can raise.
+    const project = readFileSync("src-tauri/ios-project.yml", "utf8");
+
+    const keys = project.split("\n").filter((line) => /^\s*CFBundleVersion:/.test(line));
+
+    assert.ok(keys.length > 0, "no CFBundleVersion found in src-tauri/ios-project.yml");
+
+    for (const line of keys) {
+      assert.match(line, /\$\(/, `CFBundleVersion is hardcoded: ${line.trim()}`);
+    }
+  });
+
   test("accepts the tag that names it", () => {
     assert.equal(disagreement(`v${versions().conf}`), null);
   });

@@ -12,7 +12,7 @@ a proof of concept, say so rather than attaching it to a first email.
 This app holds credentials and reads files you point it at, so the things that
 matter most are:
 
-- **Anything that gets a token off the page.** Tokens live in local storage on
+- **Anything that gets a token off the page.** Tokens live in IndexedDB on
   the app's own origin, so any script running there can read one. The content
   security policy exists to make sure nothing but this origin's own code ever
   runs. A way past it is the most serious report we can receive.

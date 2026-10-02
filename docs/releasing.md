@@ -94,10 +94,26 @@ cd src-tauri
 cargo tauri build --config tauri.conf.appstore.json --features appstore
 ```
 
-This produces an unsigned (or ad-hoc-signed) `.app` under `target/*/release/bundle/macos/`, not a TestFlight build. What is still manual, because none of it can happen without an Apple Developer Program membership and a Distribution certificate that do not exist yet:
+This produces an unsigned (or ad-hoc-signed) `.app` under `target/*/release/bundle/macos/`, not a TestFlight build.
 
-- Opening the generated Xcode project (or the `.app`) and selecting a signing team and a Distribution certificate — this mints the certificate itself on the first Archive if one does not already exist.
-- Archiving and uploading through Xcode or `xcrun altool`/`notarytool` to App Store Connect.
-- Confirming, by hand, that a folder picked before quitting the app is still reachable after relaunching it. A security-scoped bookmark that resolves in a unit test is not the same claim as one that survives an actual quit-and-reopen, and nothing in this repository can drive that check — it needs a person, once, before this ships.
+### The Apple team
 
-There is no CI job for this build yet. Automating the sign-and-upload step is follow-up work for once the certificate exists.
+Reviewer ships under team `L22C9S8VZ7`. The enrollment is individual, so the App Store shows the account holder's legal name as the seller. The same team publishes 66 Scripts (`com.sixtysixscripts.reader`) from [dallasread/books66](https://github.com/dallasread/books66). The two apps share one membership and one set of certificates.
+
+The team holds two identities. `security find-identity -v -p codesigning` lists them:
+
+- *Developer ID Application* is the certificate type the `.dmg` above uses.
+- *Apple Distribution* signs a TestFlight or App Store build, for macOS and for iOS.
+
+The keychain can also show an *Apple Development* identity under a different team ID. That identity belongs to another team, so it cannot sign a Reviewer build.
+
+The certificates live in the login keychain of the machine that made them. They are not in this repository, and they are not in books66. books66 commits its generated Xcode project, so its `project.pbxproj` shows the team ID in use. This repository sets the team in `tauri.conf.json` as `bundle.iOS.developmentTeam`. A team ID is not a secret: every signed binary carries it.
+
+What is still manual:
+
+- Selecting the Apple Distribution certificate when you archive, in Xcode or with `xcodebuild`.
+- Creating the App Store Connect record and an App Store provisioning profile for each bundle identifier.
+- Uploading through Xcode or `xcrun altool`. The notarisation key above has Developer access, which cannot upload a build. Raise that key to App Manager, or make a second key for uploads.
+- Confirming, by hand, that a folder picked before quitting the app is still reachable after relaunching it. A security-scoped bookmark that resolves in a unit test is not the same claim as one that survives an actual quit-and-reopen. Nothing in this repository can drive that check. It needs a person, once, before this ships.
+
+There is no CI job for this build yet. The Distribution certificate exists, so automating the sign-and-upload step is the next piece of work.
