@@ -15,6 +15,7 @@ import { findingCard } from "./findings.js";
 import { includeToggle } from "./include.js";
 import { qaContent } from "./qa.js";
 import { editSource, openSetup } from "./header.js";
+import { demoAttachable, startDemo } from "./demo.js";
 import { draftProblemWords, postedWords } from "./words.js";
 
 /**
@@ -362,7 +363,7 @@ export function sourceHint(types = adapterTypes()) {
  */
 export function blankState(app) {
   if (!app.source) {
-    return withAction(
+    const empty = withAction(
       emptyState(
         "◇",
         "No draft source attached.",
@@ -371,6 +372,14 @@ export function blankState(app) {
       "Attach a source",
       () => openSetup(app),
     );
+
+    // The other way in, for a reader with no storage and no token - which
+    // includes whoever reviews this app for an app store. It is offered here
+    // and nowhere else: the sample data attaches only to a browser holding no
+    // source, so on the no-destination state the same control would refuse.
+    if (demoAttachable(app)) withSampleData(app, empty);
+
+    return empty;
   }
 
   // A problem borrows the whole pane only when there is nothing to read. A
@@ -439,6 +448,36 @@ export function blankState(app) {
   // however little is filled in yet. drawSummary's own progress banner says
   // what is still coming.
   return null;
+}
+
+/**
+ * The offer of the sample data, under the action that attaches real storage.
+ *
+ * Said plainly rather than hidden behind a flag only release notes know about,
+ * and worded so that nobody takes it for their own work: this app's whole claim
+ * is that nothing in a review is invented, and sample data that read as real
+ * would be the one place it broke that.
+ *
+ * @param {object} app the application
+ * @param {HTMLElement} empty the empty state to add it to
+ * @returns {void}
+ */
+function withSampleData(app, empty) {
+  empty.querySelector(".empty-inner").append(
+    element(
+      "div",
+      "empty-text",
+      "Or look around first. The sample data is a review of real work, attached as ordinary sources, and it posts nowhere.",
+    ),
+    render(
+      button({
+        label: "Try the sample data",
+        role: "quiet",
+        onClick: () =>
+          startDemo(app).catch((failure) => say(failure.message, "error")),
+      }),
+    ),
+  );
 }
 
 function withAction(empty, label, onClick) {

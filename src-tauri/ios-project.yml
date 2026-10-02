@@ -8,6 +8,24 @@ configs:
   debug: debug
   release: release
 settingGroups:
+  # THE SINGLE POINT OF CHANGE for the iOS build number. Both targets take it
+  # from here, and both Info.plists reference it as $(CURRENT_PROJECT_VERSION),
+  # which Xcode expands when it writes the bundle.
+  #
+  # Apple refuses an upload whose CFBundleVersion repeats one already seen for
+  # the same CFBundleShortVersionString, so the literal below is right for a
+  # local build and wrong for the second TestFlight upload of a release. CI
+  # raises it from the outside instead of editing this file:
+  #
+  #   xcodebuild ... CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER
+  #
+  # The run number is monotonic for the life of the workflow, never repeats,
+  # and needs nothing committed. Nothing in .github/workflows uploads to
+  # TestFlight yet; whatever step does has to pass it, or every upload after
+  # the first is rejected as a duplicate build.
+  version:
+    base:
+      CURRENT_PROJECT_VERSION: 1
   app:
     base:
       PRODUCT_NAME: Reviewer
@@ -37,6 +55,14 @@ targets:
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
+      # Apple requires PrivacyInfo.xcprivacy in the bundle to accept an App
+      # Store submission. Two levels up because every path in this file is
+      # resolved from gen/apple/, where tauri copies it - the same reason
+      # `fileGroups: [../../src]` at the top reaches src-tauri/src. gen/apple/
+      # is gitignored and regenerated, so the manifest is committed beside
+      # tauri.conf.json instead of in there.
+      - path: ../../PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: reviewer_iOS/Info.plist
       properties:
@@ -52,8 +78,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.6.2
-        CFBundleVersion: "0.6.2"
+        CFBundleShortVersionString: 0.9.0
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     entitlements:
       path: reviewer_iOS/reviewer_iOS.entitlements
     scheme:
@@ -69,7 +95,7 @@ targets:
         LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
-      groups: [app]
+      groups: [app, version]
     dependencies:
       - framework: libapp.a
         embed: false
@@ -103,12 +129,18 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: ../../ReviewerWidget/ReviewerWidget.swift
+      # Its own reference, not the host app's. An extension is its own bundle
+      # and a privacy manifest is not inherited from the app that carries it,
+      # so the extension that actually reads the App Group's UserDefaults has
+      # to declare that itself.
+      - path: ../../PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: ReviewerWidgetExtension/Info.plist
       properties:
         CFBundleDisplayName: Reviewer
-        CFBundleShortVersionString: 0.6.2
-        CFBundleVersion: "0.6.2"
+        CFBundleShortVersionString: 0.9.0
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
@@ -120,6 +152,7 @@ targets:
         DEVELOPMENT_TEAM: {{apple.development-team}}
         SWIFT_VERSION: "5.0"
         SKIP_INSTALL: false
+      groups: [version]
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework

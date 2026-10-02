@@ -19,6 +19,7 @@ import {
   TauriAdapter,
   chooseRoot,
   inTauri,
+  inTauriIOS,
   unavailability as tauriUnavailability,
 } from "./tauri.js";
 import {
@@ -46,19 +47,32 @@ const WORKS = () => ({ reason: "", hint: "" });
  *
  * The desktop app drives the git already on the machine, so it inherits the
  * credential helper and ssh agent the customer already set up and there is
- * nothing to say. A browser has no git and no way to talk to one: no major host
- * sends the CORS headers a tab needs, so the request is refused before it is
- * sent unless a proxy is named. Finding that out from a failed save would be
- * cruel when the form could have said it first.
+ * nothing to say. Everywhere else the work is done in JavaScript against the
+ * smart-HTTP protocol, and no major host sends the CORS headers a webview
+ * needs, so the request is refused before it is sent unless a proxy is named.
+ * Finding that out from a failed save would be cruel when the form could have
+ * said it first.
  *
- * @returns {{reason: string, hint: string}} usable either way, with what a browser also needs
+ * Which of those applies is decided by whether git.rs is in this build, not by
+ * whether this is Tauri at all. The iOS app is Tauri and compiles git.rs out,
+ * so it is on the JavaScript transport and needs the proxy exactly as a tab
+ * does - see git.js's `_pick`, which asks Rust the same question. Asking
+ * `inTauri` alone told the iOS reader nothing and left them to discover the
+ * proxy from a push that was refused.
+ *
+ * The sandboxed macOS App Store build compiles git.rs out too and is not
+ * covered here: nothing tells it apart from the Developer ID build
+ * synchronously, and the honest answer needs the async `git_native_available`
+ * this list has no way to await.
+ *
+ * @returns {{reason: string, hint: string}} usable either way, with what the JavaScript transport also needs
  */
 function gitCaveat() {
-  if (inTauri()) return { reason: "", hint: "" };
+  if (inTauri() && !inTauriIOS()) return { reason: "", hint: "" };
 
   return {
     reason: "",
-    hint: "In a browser this needs a cors proxy, because no git host answers a tab directly.",
+    hint: "Outside the desktop app this needs a cors proxy, because no git host answers a webview directly.",
   };
 }
 
@@ -100,6 +114,19 @@ const AVAILABILITY = {
  * here is offered, so there is only ever one "a folder on this computer" to
  * find.
  *
+ * On iOS neither of them can, and the slot is empty rather than holding a
+ * substitute. The picker half needs src-tauri/src/lib.rs's storage_pick_root,
+ * which that build's `run()` does not register, because iOS has no lasting
+ * "arbitrary folder" to hand back - so the option would open nothing and
+ * throw. iCloud Drive is already on this list in its own right, and it is the
+ * folder an iOS reader actually has, so standing it in here as well would
+ * either list it twice or make "the local folder pair" mean a thing that is
+ * not a folder on this device and not one of the pair. The cost is admitted:
+ * an iOS reader who attached "a folder on this computer" on their Mac finds no
+ * such option on their phone and no sentence about it. That is the same cost
+ * this pair already pays in a non-Chromium tab, and iCloud Drive sitting in
+ * the list is what they are meant to find instead.
+ *
  * A backend that must never be offered is dropped. The in-memory reader keeps
  * nothing and the demo reader holds sample data the app attaches itself, so
  * attaching either by hand would produce a source that looks like it works
@@ -114,7 +141,11 @@ const AVAILABILITY = {
  * @returns {{type: string, label: string, fields: object[], reason: string, hint: string}[]} what can be attached, and what cannot
  */
 export function adapterTypes() {
-  const localFolder = inTauri() ? TauriAdapter : FilesystemAdapter;
+  // iOS is the one place where neither half of the pair can act on a folder,
+  // so there is no "whichever one works here" to offer and the slot is empty.
+  // See the paragraph above the function for why an empty slot is right here
+  // and a greyed-out option is right everywhere else.
+  const localFolder = inTauriIOS() ? null : inTauri() ? TauriAdapter : FilesystemAdapter;
   const isLocalFolderPair = (Adapter) => Adapter === FilesystemAdapter || Adapter === TauriAdapter;
 
   return TYPES.filter((Adapter) => Adapter.selectable !== false)

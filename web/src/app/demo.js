@@ -36,6 +36,20 @@ export function demoWanted(search) {
 }
 
 /**
+ * Whether the sample data can be attached to this browser.
+ *
+ * The one guard installDemo keeps, named so the empty state can ask the same
+ * question before offering a control: a button that would refuse is a button
+ * that should not be on the screen.
+ *
+ * @param {object} app the application
+ * @returns {boolean} whether this browser holds nothing of the reader's own
+ */
+export function demoAttachable(app) {
+  return app.queries.allSources().length === 0;
+}
+
+/**
  * Attach the demo, unless this browser already has something attached.
  *
  * Idempotent on purpose. It runs on every load of a page carrying the demo
@@ -46,7 +60,7 @@ export function demoWanted(search) {
  * @returns {Promise<{source: object, destination: object}|null>} what it attached, or null if it left well alone
  */
 export async function installDemo(app) {
-  if (app.queries.allSources().length) return null;
+  if (!demoAttachable(app)) return null;
 
   const sources = [];
 
@@ -71,6 +85,32 @@ export async function installDemo(app) {
   // Which one opens is a decision made here, in the order the sources are
   // listed: the tour first, because it is the one that explains itself.
   return { source: sources[0], destination };
+}
+
+/**
+ * Attach the sample data and open it, from a reader's own click.
+ *
+ * Boot opens the source and destination after installing them. This runs long
+ * after boot, so it has to do that part itself, or the reader is left looking
+ * at sample data that is attached but not open. Opening the source redraws, and
+ * opening the destination reloads the queue, so the pane the click came from is
+ * replaced whole rather than half updated.
+ *
+ * @param {object} app the application
+ * @returns {Promise<{source: object, destination: object}|null>} what it attached, or null if it left well alone
+ */
+export async function startDemo(app) {
+  const attached = await installDemo(app);
+
+  if (!attached) return null;
+
+  // Opened in the order they were attached rather than whichever happens to be
+  // listed first, which is how a reset ended up on the review instead of the
+  // tour it is supposed to start on.
+  await app.switchSource(attached.source);
+  await app.switchDestination(attached.destination);
+
+  return attached;
 }
 
 /**
@@ -114,17 +154,5 @@ export async function resetDemo(app) {
     await app.removeDestination(destination);
   }
 
-  const attached = await installDemo(app);
-
-  if (!attached) return;
-
-  // Boot opens the source and destination after installing them. This runs long
-  // after boot, so it has to do that part itself, or the reader is left looking
-  // at sample data that is attached but not open.
-  //
-  // It opens exactly what was attached rather than whichever source happens to
-  // be listed first, which is how a reset ended up on the review instead of the
-  // tour it is supposed to start on.
-  await app.switchSource(attached.source);
-  await app.switchDestination(attached.destination);
+  await startDemo(app);
 }

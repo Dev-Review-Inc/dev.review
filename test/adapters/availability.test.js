@@ -178,3 +178,93 @@ describe("the storage backends a build offers", () => {
     );
   });
 });
+
+// The iOS build is inside Tauri, so every "are we in the desktop app" question
+// answers yes there, and two sources used to be offered on the strength of
+// that alone. What decides them is not the shell but which commands the shell
+// registered: src-tauri/src/lib.rs's iOS `run()` has no storage_pick_root, so
+// there is no picker to open, while git_native_available is registered on
+// every platform and answers false there, so git still works - over the same
+// transport a browser uses, and with the same thing to set up first.
+describe("the storage backends the iOS build offers", () => {
+  const undo = [];
+
+  afterEach(() => {
+    while (undo.length) undo.pop()();
+  });
+
+  function onIOS() {
+    undo.push(stub("__TAURI__", { core: { invoke: () => {} } }));
+    undo.push(stub("navigator", { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }));
+    undo.push(stub("showDirectoryPicker", undefined));
+    undo.push(stub("isSecureContext", true));
+  }
+
+  function onDesktop() {
+    undo.push(stub("__TAURI__", { core: { invoke: () => {} } }));
+    undo.push(stub("navigator", { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" }));
+    undo.push(stub("showDirectoryPicker", undefined));
+    undo.push(stub("isSecureContext", true));
+  }
+
+  function inABrowser() {
+    undo.push(stub("__TAURI__", undefined));
+    undo.push(stub("navigator", {}));
+    undo.push(stub("showDirectoryPicker", () => {}));
+    undo.push(stub("isSecureContext", true));
+  }
+
+  test("offers neither half of the local folder pair, because neither can act on one there", () => {
+    onIOS();
+
+    const offered = adapterTypes().map((type) => type.type);
+
+    assert.equal(offered.includes("tauri"), false, "there is no storage_pick_root to open");
+    assert.equal(offered.includes("filesystem"), false, "a WKWebView has no File System Access");
+  });
+
+  test("leaves iCloud Drive as the folder that does work there, offered in its own right", () => {
+    onIOS();
+
+    const icloud = adapterTypes().find((type) => type.type === "icloud");
+
+    assert.ok(icloud, "dropping the pair must not take the one that works with it");
+    assert.equal(icloud.reason, "");
+  });
+
+  test("keeps a git repository usable, and says what it needs first", () => {
+    onIOS();
+
+    const git = adapterTypes().find((type) => type.type === "git");
+
+    assert.ok(git);
+    assert.equal(git.reason, "", "the javascript transport works there, so this is not a dead end");
+    assert.match(git.hint, /cors proxy/i);
+  });
+
+  test("still offers the desktop app its own picker and its silent git", () => {
+    onDesktop();
+
+    const offered = adapterTypes().map((type) => type.type);
+    const git = adapterTypes().find((type) => type.type === "git");
+    const icloud = adapterTypes().find((type) => type.type === "icloud");
+
+    assert.ok(offered.includes("tauri"));
+    assert.equal(offered.includes("filesystem"), false);
+    assert.equal(git.reason, "");
+    assert.equal(git.hint, "", "the git on the machine needs nothing said about it");
+    assert.match(icloud.reason, /iOS app/i);
+  });
+
+  test("still offers a browser the File System Access picker and the git caveat", () => {
+    inABrowser();
+
+    const offered = adapterTypes().map((type) => type.type);
+    const git = adapterTypes().find((type) => type.type === "git");
+
+    assert.ok(offered.includes("filesystem"));
+    assert.equal(offered.includes("tauri"), false);
+    assert.equal(git.reason, "");
+    assert.match(git.hint, /cors proxy/i);
+  });
+});

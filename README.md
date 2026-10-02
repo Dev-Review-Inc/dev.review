@@ -76,7 +76,7 @@ libraries copied in byte for byte with their licences, loaded only by the git
 backend; the Rust desktop shell uses Cargo crates; and the lint hooks fetch
 pinned tools on demand. Nothing is installed to run the app or to serve it.
 
-The point is not minimalism. Your GitHub token sits in local storage on the same
+The point is not minimalism. Your GitHub token sits in IndexedDB on the same
 origin as this code, so every package that ships here is a package that can read
 it. [`CONTRIBUTING.md`](CONTRIBUTING.md) requires an argument in an issue before
 a dependency is added, and that rule covers GitHub Actions too.
@@ -203,7 +203,8 @@ reach. There is no narrower classic scope that can post a review.
 
 Set an expiry either way. [`SECURITY.md`](SECURITY.md) has the threat model,
 including the one case where the token is exposed to somebody else: a git CORS
-proxy you do not operate.
+proxy you do not operate. [`docs/privacy.md`](docs/privacy.md) says what data
+the app handles and where it goes.
 
 ## Getting it
 

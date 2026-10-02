@@ -37,7 +37,8 @@
       "icons/icon.ico"
     ],
     "iOS": {
-      "template": "ios-project.yml"
+      "template": "ios-project.yml",
+      "developmentTeam": "L22C9S8VZ7"
     }
   }
 }
