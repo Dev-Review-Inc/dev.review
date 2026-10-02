@@ -2,7 +2,7 @@ name: reviewer
 options:
   bundleIdPrefix: review.dev.app
   deploymentTarget:
-    iOS: 14.0
+    iOS: "17.0"
 fileGroups: [../../src]
 configs:
   debug: debug

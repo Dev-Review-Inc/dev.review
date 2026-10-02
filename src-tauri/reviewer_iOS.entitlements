@@ -13,7 +13,7 @@
   extension's into place:
 
     cp reviewer_iOS.entitlements gen/apple/reviewer_iOS/reviewer_iOS.entitlements
-    cp ReviewerWidget/ReviewerWidget.entitlements gen/apple/ReviewerWidget/ReviewerWidget.entitlements
+    cp ReviewerWidget/ReviewerWidget.entitlements gen/apple/ReviewerWidgetExtension/ReviewerWidget.entitlements
 
   iCloud.review.dev.app and group.review.dev.app were registered against this
   project's own Apple Developer team through Xcode's own Signing &

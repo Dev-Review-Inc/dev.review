@@ -63,6 +63,21 @@ describe("the version a release ships", () => {
     }
   });
 
+  test("gives the app and its widget one iOS deployment target that Xcode still builds", () => {
+    // The app said 14.0 and the widget 17.0, so iOS 14 to 16 got the app
+    // without its widget. Xcode 27 also refuses anything below 15.0, which
+    // is how the first device build found it.
+    const project = readFileSync("src-tauri/ios-project.yml", "utf8");
+
+    const targets = [...project.matchAll(/^\s*(?:iOS|deploymentTarget):\s*"?(\d+(?:\.\d+)*)"?\s*$/gm)].map(
+      (match) => match[1],
+    );
+
+    assert.equal(targets.length, 2, `expected the app's and the widget's deployment target, found ${targets.length}`);
+    assert.equal(targets[0], targets[1], `the app targets iOS ${targets[0]} and the widget iOS ${targets[1]}`);
+    assert.ok(Number.parseFloat(targets[0]) >= 15, `iOS ${targets[0]} is below the 15.0 that Xcode 27 builds`);
+  });
+
   test("accepts the tag that names it", () => {
     assert.equal(disagreement(`v${versions().conf}`), null);
   });
