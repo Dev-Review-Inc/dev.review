@@ -12,11 +12,9 @@ settingGroups:
   # The literal below never ships: `cargo tauri ios build` sets the setting
   # to the app version, so the first archive read 0.9.0.
   #
-  # Apple refuses an upload whose CFBundleVersion repeats one already seen for
-  # the same CFBundleShortVersionString. Every upload after the first of a
-  # release therefore needs `cargo tauri ios build --build-number <N>`, which
-  # appends N to the version. Check the format it writes on the first archive
-  # that uses it.
+  # Apple refuses an upload whose CFBundleVersion repeats one it has seen, so
+  # each version uploads once. Do not use `--build-number`: it appends a
+  # fourth number (0.9.0.1), and Apple allows one to three.
   version:
     base:
       CURRENT_PROJECT_VERSION: 1
@@ -76,7 +74,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.9.0
+        CFBundleShortVersionString: 0.9.1
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     entitlements:
       path: reviewer_iOS/reviewer_iOS.entitlements
@@ -138,7 +136,7 @@ targets:
       path: ReviewerWidgetExtension/Info.plist
       properties:
         CFBundleDisplayName: Reviewer
-        CFBundleShortVersionString: 0.9.0
+        CFBundleShortVersionString: 0.9.1
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension

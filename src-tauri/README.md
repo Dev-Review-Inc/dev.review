@@ -249,16 +249,11 @@ asserts the same thing at commit time.
 archive shipped `CFBundleVersion` 0.9.0. The literal in the `version` setting
 group never reaches the bundle.
 
-Apple rejects an upload whose build number repeats one already seen for the
-same marketing version. The first upload of a release works as built. Every
-later upload of that release needs a distinct number:
-
-```sh
-cargo tauri ios build --export-method app-store-connect --build-number <N>
-```
-
-`--build-number` appends N to the version. Check the format it writes on the
-first archive that uses it. No workflow uploads to TestFlight yet.
+Apple rejects an upload whose build number repeats one it has already seen,
+so each version uploads to TestFlight once. To upload again, release the next
+patch version. Do not use `--build-number`: tauri-cli appends it as a fourth
+number (0.9.0.1), and Apple allows one to three. No workflow uploads to
+TestFlight yet.
 
 ## Path containment
 
