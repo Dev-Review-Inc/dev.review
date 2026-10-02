@@ -58,3 +58,12 @@ objc2 = "0.6.2"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSFileManager", "NSURL", "NSString", "NSUserDefaults", "std"] }
 security-framework = "3.7.0"
 tauri-plugin-biometric = "2.4.1"
+
+# swift-rs 1.0.8 leaves its own runtime shim's @_cdecl symbols internal under
+# Xcode 27, so the iOS link fails on retain_object, release_object and
+# string_from_bytes (Brendonovich/swift-rs#81). vendor/swift-rs is 1.0.8 with
+# the three-line fix from Brendonovich/swift-rs#82 applied, keeping only what a
+# build reads plus both licences. Delete this entry and the directory once a
+# swift-rs release carries that fix.
+[patch.crates-io]
+swift-rs = { path = "vendor/swift-rs" }

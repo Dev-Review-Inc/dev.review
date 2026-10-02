@@ -8,21 +8,15 @@ configs:
   debug: debug
   release: release
 settingGroups:
-  # THE SINGLE POINT OF CHANGE for the iOS build number. Both targets take it
-  # from here, and both Info.plists reference it as $(CURRENT_PROJECT_VERSION),
-  # which Xcode expands when it writes the bundle.
+  # Both Info.plists read CFBundleVersion from $(CURRENT_PROJECT_VERSION).
+  # The literal below never ships: `cargo tauri ios build` sets the setting
+  # to the app version, so the first archive read 0.9.0.
   #
   # Apple refuses an upload whose CFBundleVersion repeats one already seen for
-  # the same CFBundleShortVersionString, so the literal below is right for a
-  # local build and wrong for the second TestFlight upload of a release. CI
-  # raises it from the outside instead of editing this file:
-  #
-  #   xcodebuild ... CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER
-  #
-  # The run number is monotonic for the life of the workflow, never repeats,
-  # and needs nothing committed. Nothing in .github/workflows uploads to
-  # TestFlight yet; whatever step does has to pass it, or every upload after
-  # the first is rejected as a duplicate build.
+  # the same CFBundleShortVersionString. Every upload after the first of a
+  # release therefore needs `cargo tauri ios build --build-number <N>`, which
+  # appends N to the version. Check the format it writes on the first archive
+  # that uses it.
   version:
     base:
       CURRENT_PROJECT_VERSION: 1

@@ -210,18 +210,21 @@ releases before anyone looked, so `.github/version.mjs` now reads them too and
 the release workflow refuses a tag that disagrees. `test/release/version.test.js`
 asserts the same thing at commit time.
 
-`CFBundleVersion` is `$(CURRENT_PROJECT_VERSION)` in both targets, and the
-`version` setting group near the top of the file is the one place that sets it.
+`CFBundleVersion` is `$(CURRENT_PROJECT_VERSION)` in both targets.
+`cargo tauri ios build` sets that setting to the app version, so the first
+archive shipped `CFBundleVersion` 0.9.0. The literal in the `version` setting
+group never reaches the bundle.
+
 Apple rejects an upload whose build number repeats one already seen for the
-same marketing version, so a literal works for the first TestFlight upload and
-fails on the second. CI raises it from outside the file:
+same marketing version. The first upload of a release works as built. Every
+later upload of that release needs a distinct number:
 
 ```sh
-xcodebuild ... CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER
+cargo tauri ios build --export-method app-store-connect --build-number <N>
 ```
 
-No workflow uploads to TestFlight yet. Whichever one does has to pass that, or
-only the first upload of each release lands.
+`--build-number` appends N to the version. Check the format it writes on the
+first archive that uses it. No workflow uploads to TestFlight yet.
 
 ## Path containment
 

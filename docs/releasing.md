@@ -105,7 +105,7 @@ The team holds two identities. `security find-identity -v -p codesigning` lists 
 - *Developer ID Application* is the certificate type the `.dmg` above uses.
 - *Apple Distribution* signs a TestFlight or App Store build, for macOS and for iOS.
 
-The keychain can also show an *Apple Development* identity under a different team ID. That identity belongs to another team, so it cannot sign a Reviewer build.
+The keychain also holds an *Apple Development* identity. Its name carries a personal identifier, not the team ID. Xcode signs the archive with it, and the App Store export then re-signs the app with Apple Distribution.
 
 The certificates live in the login keychain of the machine that made them. They are not in this repository, and they are not in books66. books66 commits its generated Xcode project, so its `project.pbxproj` shows the team ID in use. This repository sets the team in `tauri.conf.json` as `bundle.iOS.developmentTeam`. A team ID is not a secret: every signed binary carries it.
 
