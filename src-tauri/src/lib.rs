@@ -35,6 +35,10 @@ mod bookmark;
 #[cfg(target_os = "ios")]
 mod keychain;
 
+// keychain.rs's decision about when to ask, kept pure so the host tests it.
+#[cfg(any(target_os = "ios", test))]
+mod unlock;
+
 // A folder the reader picks is the desktop source; the iOS build's own fixed
 // ubiquity container is this one instead - see the comment at the top of
 // icloud.rs for why that means one new command rather than a whole parallel

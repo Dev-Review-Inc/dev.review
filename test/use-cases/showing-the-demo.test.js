@@ -73,8 +73,8 @@ describe("Arriving on a page that asked for the demo", () => {
     globalThis.fetch = was;
   });
 
-  async function aVisit(database = someDatabases()) {
-    const app = new App({ database, install: installDemo });
+  async function aVisit(database = someDatabases(), secrets = undefined) {
+    const app = new App({ database, secrets, install: installDemo });
 
     await app.boot();
 
@@ -98,6 +98,25 @@ describe("Arriving on a page that asked for the demo", () => {
     assert.equal(app.login, "visitor");
     assert.equal(app.queue().length, 1);
     assert.equal(app.problem, "");
+  });
+
+  // On iOS the secret store is the Keychain, and asking it for a secret can put
+  // a Face ID sheet in front of the reader. The sample data holds none, so it
+  // must not ask.
+  test("never asks the secret store for anything", async () => {
+    const secrets = new MemoryKeyValueStore();
+    const asked = [];
+    const getItem = secrets.getItem.bind(secrets);
+    secrets.getItem = (key) => {
+      asked.push(key);
+      return getItem(key);
+    };
+
+    const app = await aVisit(someDatabases(), secrets);
+    await app.probeSources();
+
+    assert.equal(app.queue().length, 1);
+    assert.deepEqual(asked, []);
   });
 
   test("reads the sample draft, so the queue says a review is waiting", async () => {

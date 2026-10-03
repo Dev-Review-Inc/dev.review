@@ -31,6 +31,23 @@ export function destinationTypes() {
 }
 
 /**
+ * Whether this type of destination takes a credential at all.
+ *
+ * A type with no secret field never has a secret stored, because the setup form
+ * keeps only secret fields in one. Asking the secret store anyway costs a
+ * Keychain call on iOS. A type this build does not know answers true, so the
+ * builder below still gets the chance to say why it cannot build one.
+ *
+ * @param {string} type the configured type
+ * @returns {boolean} whether a secret can exist for it
+ */
+export function takesSecret(type) {
+  const Destination = TYPES.find((candidate) => candidate.type === type);
+
+  return !Destination || Destination.fields.some((field) => field.secret);
+}
+
+/**
  * Build a destination from what was configured and the credential kept beside it.
  *
  * @param {object} destination the stored destination, without its credential

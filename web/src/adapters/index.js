@@ -223,6 +223,23 @@ export async function chooseFolder(type) {
 }
 
 /**
+ * Whether this type of storage takes a credential at all.
+ *
+ * A type with no secret field never has a secret stored, because the setup form
+ * keeps only secret fields in one. Asking the secret store anyway costs a
+ * Keychain call on iOS. A type this build does not know answers true, so the
+ * builder below still gets the chance to say why it cannot build one.
+ *
+ * @param {string} type the configured type
+ * @returns {boolean} whether a secret can exist for it
+ */
+export function takesSecret(type) {
+  const Adapter = TYPES.find((candidate) => candidate.type === type);
+
+  return !Adapter || Adapter.fields.some((field) => field.secret);
+}
+
+/**
  * Rebuild a reader from what was configured and the credential kept beside it.
  *
  * @param {object} config the stored adapter configuration

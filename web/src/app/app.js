@@ -16,9 +16,9 @@ import { Sync, deviceIdFor } from "../state/sync.js";
 import runners from "../state/runners.js";
 import { Commands } from "../commands/index.js";
 import { Queries, pullsFromDrafts } from "../queries/index.js";
-import { buildAdapter, MemoryAdapter } from "../adapters/index.js";
+import { buildAdapter, MemoryAdapter, takesSecret as adapterTakesSecret } from "../adapters/index.js";
 import { recallHandle, rememberHandle, forgetHandle } from "../adapters/filesystem.js";
-import { buildDestination } from "../destinations/index.js";
+import { buildDestination, takesSecret as destinationTakesSecret } from "../destinations/index.js";
 import { remember } from "./theirs.js";
 import { syncWidget } from "./widget.js";
 
@@ -1038,7 +1038,7 @@ export class App {
    * @throws {Error} if it cannot be built from what is stored
    */
   async _readerFor(source) {
-    const secret = await this.state.secret(source.id);
+    const secret = adapterTakesSecret(source.adapter.type) ? await this.state.secret(source.id) : {};
     const handle = await this._handleFor(source.id);
 
     return this._buildAdapterWith(source.adapter, secret, handle);
@@ -1078,7 +1078,9 @@ export class App {
     if (!destination) return;
 
     try {
-      this.destination = this._buildDestinationWith(destination, await this.state.secret(destination.id));
+      const secret = destinationTakesSecret(destination.type) ? await this.state.secret(destination.id) : {};
+
+      this.destination = this._buildDestinationWith(destination, secret);
       this.login = (await this.destination.identify()).login;
     } catch (error) {
       this.problems.destination = error.message;
