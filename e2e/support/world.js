@@ -229,12 +229,18 @@
     return json({ message: `nothing here: ${method} ${path}` }, 404);
   }
 
+  const real = globalThis.fetch;
+
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(typeof input === "string" ? input : input.url, location.href);
     const method = (options.method || "GET").toUpperCase();
 
     if (url.origin === seed.endpoint) return storage(url, method, options.body);
     if (url.origin === "https://api.github.com") return destination(url, method, options.body);
+
+    // The sample data's seeds are files the app ships beside itself, fetched
+    // from the suite's own server. That never leaves the machine, so they pass.
+    if (url.origin === location.origin && url.pathname.startsWith("/demo/")) return real(input, options);
 
     // Anything else would have been a real request out of the machine. A commit
     // hook must never make one, so this is a failure rather than a pass-through.

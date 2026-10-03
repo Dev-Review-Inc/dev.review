@@ -65,7 +65,10 @@ export function drawRail(app) {
  * @returns {void}
  */
 function drawPaneToggle(app) {
-  const collapsed = Boolean(app.paneCollapsed);
+  // The pane is about the open review. With none open it holds only its own
+  // headings, and on a phone that empty drawer and its backdrop would cover
+  // the empty state, which is the one place that says what to do next.
+  const collapsed = Boolean(app.paneCollapsed) || !app.selected;
   const pane = document.querySelector(".pane");
 
   if (pane) pane.classList.toggle("is-collapsed", collapsed);
@@ -82,6 +85,7 @@ function drawPaneToggle(app) {
 
   toggle.setAttribute("aria-label", label);
   toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.hidden = !app.selected;
 }
 
 function drawBlurb(app) {
