@@ -2403,7 +2403,7 @@ dependencies = [
 
 [[package]]
 name = "reviewer"
-version = "0.9.1"
+version = "1.0.0"
 dependencies = [
  "objc2",
  "objc2-foundation",
