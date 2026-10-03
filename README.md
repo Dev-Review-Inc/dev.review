@@ -286,7 +286,7 @@ what.
 
 ## Where this is
 
-Version 0.5.8. It is young. It is used daily by the people who wrote it, and
+Reviewer is young. It is used daily by the people who wrote it, and
 every release is gated on the test suite, but there is no community around it
 yet and nothing here should be read as a promise about what comes next. GitLab
 is not supported. There is no text search and there are no keyboard shortcuts.
