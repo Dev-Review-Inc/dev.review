@@ -316,10 +316,13 @@ export class App {
     // and reopening it would close the pull request the reader is reading.
     if (source && this.source && this.source.id === source.id) return;
 
+    // Let go of the old source's review before the new one opens, not after:
+    // opening redraws, and a redraw can open the new source's first review.
+    this.selected = null;
+
     await this.state.setPreference("source", source ? source.id : null);
     await this._openSource(source ? source.id : null);
 
-    this.selected = null;
     this.changed();
   }
 

@@ -335,6 +335,9 @@ find("signout").addEventListener("click", async () => {
   if (leaveWords(app).resets) {
     try {
       await resetDemo(app);
+      // How it started includes the first review opening for the reader.
+      opened = false;
+      await autoOpen();
       say("the demo is back to how it started", "ok");
     } catch (failure) {
       say(failure.message, "error");

@@ -8,7 +8,7 @@ import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { App } from "../../web/src/app/app.js";
-import { installDemo, demoWanted, resetDemo } from "../../web/src/app/demo.js";
+import { installDemo, demoWanted, resetDemo, startDemo } from "../../web/src/app/demo.js";
 import { MemoryKeyValueStore } from "../../web/src/state/key-value-store.js";
 import { aDraft, aPull } from "./helper.js";
 
@@ -197,6 +197,48 @@ describe("Arriving on a page that asked for the demo", () => {
     const again = await aVisit(databases);
 
     assert.deepEqual(again.queries.allSources().map((source) => source.name), ["Work"]);
+  });
+});
+
+// The reader's view opens the first ready review on a redraw, once, the way
+// view.js does. Nothing here waits on timing: whatever the view opened is
+// what the app must still be holding when the button's work is done.
+function aViewThatOpensTheFirstReview(app) {
+  const view = { opening: null };
+
+  app.onChange(() => {
+    if (view.opening || app.selected) return;
+
+    const ready = app.queue().find((entry) => entry.isReady);
+
+    if (ready) view.opening = app.select(ready);
+  });
+
+  return view;
+}
+
+describe("Pressing the sample data button on a first run", () => {
+  let was;
+
+  beforeEach(() => {
+    was = globalThis.fetch;
+    globalThis.fetch = siteServing(SEEDS);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = was;
+  });
+
+  test("leaves the tour's first review open, with its diff", async () => {
+    const app = new App({ database: someDatabases() });
+    await app.boot();
+    const view = aViewThatOpensTheFirstReview(app);
+
+    await startDemo(app);
+    await view.opening;
+
+    assert.equal(app.selected?.key, "org/app#42");
+    assert.equal(app.files[0]?.filename, "lib/error.rb");
   });
 });
 

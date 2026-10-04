@@ -92,9 +92,9 @@ export async function installDemo(app) {
  *
  * Boot opens the source and destination after installing them. This runs long
  * after boot, so it has to do that part itself, or the reader is left looking
- * at sample data that is attached but not open. Opening the source redraws, and
- * opening the destination reloads the queue, so the pane the click came from is
- * replaced whole rather than half updated.
+ * at sample data that is attached but not open. Opening the source reloads the
+ * queue and redraws, so the pane the click came from is replaced whole rather
+ * than half updated, and the redraw opens the tour's first review.
  *
  * @param {object} app the application
  * @returns {Promise<{source: object, destination: object}|null>} what it attached, or null if it left well alone
@@ -104,11 +104,12 @@ export async function startDemo(app) {
 
   if (!attached) return null;
 
-  // Opened in the order they were attached rather than whichever happens to be
-  // listed first, which is how a reset ended up on the review instead of the
-  // tour it is supposed to start on.
-  await app.switchSource(attached.source);
+  // The destination opens first, the way boot opens them, so the review the
+  // source's redraw opens can fetch its diff. The source is the one attached
+  // rather than whichever happens to be listed first, which is how a reset
+  // ended up on the review instead of the tour it is supposed to start on.
   await app.switchDestination(attached.destination);
+  await app.switchSource(attached.source);
 
   return attached;
 }
