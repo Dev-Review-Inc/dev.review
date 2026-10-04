@@ -357,7 +357,7 @@ find("signout").addEventListener("click", async () => {
 // A window coming back to the front is the cheapest moment to notice that the
 // queue moved while it was away.
 window.addEventListener("focus", () => {
-  app.loadQueue().catch((failure) => say(failure.message, "error"));
+  app.catchUp().catch((failure) => say(failure.message, "error"));
 });
 
 // Nothing redraws while the curtain is up: the interface is drawn once, whole,
