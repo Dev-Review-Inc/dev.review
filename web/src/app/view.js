@@ -58,10 +58,6 @@ app.editingSuggestion = null;
 // pane's sits behind the sheet, where nothing can be typed into it.
 app.editingConfirm = false;
 app.addingAt = null;
-// Mobile-only: whether the left pane's content is folded away under its own
-// bar. Meaningless at desktop width, where the pane is always open, but kept
-// here rather than guarded on viewport so a resize never has to reconcile it.
-app.paneCollapsed = false;
 app.setup = newSourceSetup();
 app.destinationSetup = newDestinationSetup();
 // Which item the settings panel's detail is showing: a source, a destination,

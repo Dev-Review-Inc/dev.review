@@ -63,13 +63,39 @@ describe("A first visit at phone width", () => {
     );
   });
 
-  test("once a review is open, the drawer opens over it and its backdrop closes it", async () => {
-    assert.equal(await page.eval('document.querySelector(".pane").classList.contains("is-collapsed")'), false);
+  test("the review opens with the drawer closed, its text on top", async () => {
+    assert.equal(await page.eval('document.querySelector(".pane").classList.contains("is-collapsed")'), true);
+    assert.equal(await page.eval('document.querySelector("#pane-backdrop").hidden'), true);
+    assert.equal(
+      await page.eval('document.querySelector("#comment").contains(document.elementFromPoint(220, 478))'),
+      true,
+    );
+  });
+
+  test("the menu button opens the drawer over it and its backdrop closes it", async () => {
+    await page.click("#pane-toggle");
+    await page.until('!document.querySelector(".pane").classList.contains("is-collapsed")', "the drawer to open");
 
     // Below the drawer, where only the backdrop is.
     await page.clickAt(220, 940);
     await page.until('document.querySelector(".pane").classList.contains("is-collapsed")', "the drawer to close");
 
+    assert.deepEqual(page.complaints, []);
+  });
+
+  test("picking another review from the queue leaves the drawer closed", async () => {
+    await page.click("#queue-button");
+    await page.clickWhere(
+      '[...document.querySelectorAll("#queue .row")].find((row) => row.textContent.includes("Round the order total"))',
+      "the second review's row",
+    );
+    await page.until(
+      'document.querySelector("#head-title").textContent.includes("Round the order total")',
+      "the second review to open",
+    );
+
+    assert.equal(await page.eval('document.querySelector(".pane").classList.contains("is-collapsed")'), true);
+    assert.equal(await page.eval('document.querySelector("#pane-backdrop").hidden'), true);
     assert.deepEqual(page.complaints, []);
   });
 });
