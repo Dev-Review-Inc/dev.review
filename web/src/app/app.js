@@ -672,6 +672,8 @@ export class App {
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
+    // Mobile only: a review opens on its text, not under the drawer.
+    this.paneCollapsed = true;
     this.dismissing = false;
     this.driftExpanded = false;
     this.changed();

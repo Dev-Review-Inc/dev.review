@@ -50,4 +50,12 @@ describe("showing a pane", () => {
 
     assert.equal(app.paneCollapsed, true);
   });
+
+  test("a review that opens starts with the drawer closed, so its text is what the reader sees first", async () => {
+    const app = await reading();
+
+    await app.select(app.queue()[0]);
+
+    assert.equal(app.paneCollapsed, true);
+  });
 });
