@@ -588,6 +588,22 @@ export class App {
   }
 
   /**
+   * Read the drafts again, redrawing only if one moved.
+   *
+   * A redraw replaces every element, including the one under the reader's
+   * finger. iOS focuses the window on the first touch and holds that touch's
+   * click until the focus is handled, so a redraw here would swallow it.
+   *
+   * @returns {Promise<void>} when the queue is current
+   */
+  async catchUp() {
+    if (!this.drafts || !(await this.drafts.loadAll()).length) return;
+
+    await this.reselect();
+    await syncWidget(this.queue().length);
+  }
+
+  /**
    * Ask again, on the timer, with nobody holding the answer.
    *
    * `loadQueue` throws, because every other caller awaits it and can say what

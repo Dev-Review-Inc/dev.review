@@ -49,6 +49,17 @@ describe("A first visit at phone width", () => {
     assert.equal(on, "the button");
   });
 
+  // iOS focuses the window on the first touch and only then sends its click.
+  test("the window taking focus leaves the button the finger is on in place", async () => {
+    await page.eval(`(() => {
+      window.pressed = ${SAMPLE};
+      window.dispatchEvent(new Event("focus"));
+    })()`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    assert.equal(await page.eval("window.pressed.isConnected"), true);
+  });
+
   test("pressing it opens the sample data", async () => {
     await page.clickButton("#comment", "Try the sample data");
     await page.until(
