@@ -56,18 +56,55 @@ describe("A first visit at phone width", () => {
         '/Take the tour/.test(document.querySelector("#source-button").textContent)',
       "the sample data to be attached and its reviews queued",
     );
+    await page.until(
+      'document.querySelector("#head-title").textContent.includes("Paginate the orders endpoint") && ' +
+        'document.body.innerText.includes("Start here.")',
+      "the tour's first review to open",
+    );
   });
 
   test("once a review is open, the drawer opens over it and its backdrop closes it", async () => {
-    await page.click("#queue-button");
-    await page.click("#queue .row.is-ready");
-    await page.until('document.querySelector("#head-title").textContent.trim()', "the review to open");
-
     assert.equal(await page.eval('document.querySelector(".pane").classList.contains("is-collapsed")'), false);
 
     // Below the drawer, where only the backdrop is.
     await page.clickAt(220, 940);
     await page.until('document.querySelector(".pane").classList.contains("is-collapsed")', "the drawer to close");
+
+    assert.deepEqual(page.complaints, []);
+  });
+});
+
+describe("Putting the sample data back", () => {
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, { objects: {} });
+  });
+
+  after(() => page.close());
+
+  test("lands on the tour's first review again, not on nothing", async () => {
+    await page.clickButton("#comment", "Try the sample data");
+    await page.until(
+      'document.querySelector("#head-title").textContent.includes("Paginate the orders endpoint")',
+      "the tour's first review to open",
+    );
+
+    await page.click("#queue-button");
+    await page.clickWhere(
+      '[...document.querySelectorAll("#queue .row")].find((row) => row.textContent.includes("Round the order total"))',
+      "the second review's row",
+    );
+    await page.until(
+      'document.querySelector("#head-title").textContent.includes("Round the order total")',
+      "the second review to open",
+    );
+
+    await page.click("#signout");
+    await page.until(
+      'document.querySelector("#head-title").textContent.includes("Paginate the orders endpoint")',
+      "the tour's first review to open again",
+    );
 
     assert.deepEqual(page.complaints, []);
   });
