@@ -38,6 +38,7 @@ describe("the install document", () => {
       "~/.claude/skills/dev-review-sweep/collector/rules.js",
       "~/.claude/skills/dev-review-sweep/collector/post.js",
       "~/.claude/skills/dev-review-sweep/collector/review.js",
+      "~/.claude/skills/dev-review-sweep/collector/draft-state.js",
     ]) {
       assert.ok(doc.includes(path), `${path} is not in the install document`);
     }

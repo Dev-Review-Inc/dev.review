@@ -32,7 +32,7 @@ Store all media related to this (videos, screenshots) in the same directory.
 
 Then leave the storage synced — see the section below.
 
-**If the file already exists, stop — with one exception.** An existing draft means another run owns this pull request or a human already has the review; a second reviewer would fight it over the same file. The exception is a dead claim: a file with no `finishedAt` that has not been modified in over 30 minutes is a run that died partway. Overwrite it with your own placeholder and take the review over.
+**If the file already exists, stop — with one exception.** An existing draft means another run owns this pull request or a human already has the review; a second reviewer would fight it over the same file. The exception is a dead claim: a file with no `finishedAt` whose folder nothing has touched in over 30 minutes — not review.json, not the frames or recording QA writes beside it — is a run that died partway, to sleep, a lost network or a lost power connection. Overwrite it with your own placeholder and take the review over. The sweep's queue applies the same rule and lists such keys under `stale`, so a pull request it hands you with a draft already there is one to take over, not one to stop on.
 
 ## Write as you go
 
