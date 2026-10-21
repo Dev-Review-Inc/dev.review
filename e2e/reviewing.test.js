@@ -715,6 +715,49 @@ describe("A draft whose url is not a web address", () => {
   });
 });
 
+describe("A claim whose run died", () => {
+  // The sweep claimed the pull request, wrote a progress note, and then the
+  // machine slept. Its draftedAt is now far older than the half hour after
+  // which the sweep gives a claim up, so the app must stop calling it work in
+  // progress: the reader scanning for something to do would otherwise wait on
+  // a review nothing is writing.
+  let page;
+
+  before(async () => {
+    page = await openApp(browser, site.origin, {
+      objects: written(
+        aDraft({
+          finishedAt: undefined,
+          draftedAt: "2026-07-29T15:32:00Z",
+          summary: "Reviewing…",
+          progress: { note: "QA: 2 of 3", percent: 60 },
+        }),
+      ),
+    });
+    await attachStorage(page);
+
+    await page.click("#queue-button");
+    await page.until('document.querySelector("#queue .row")', "the queue to list it");
+  });
+
+  after(() => page.close());
+
+  test("the queue row says it stalled, not where the agent had got to", async () => {
+    assert.equal(await page.text("#queue .row .state"), "stalled");
+  });
+
+  test("the pane says the agent went quiet and that the next sweep retries it", async () => {
+    await page.click("#queue .row");
+    await page.until('document.querySelector(".wip")', "the pull request to open");
+
+    const banner = await page.text(".wip");
+
+    assert.match(banner, /review stalled/);
+    assert.match(banner, /next sweep retries it/);
+    assert.doesNotMatch(banner, /QA: 2 of 3/);
+  });
+});
+
 describe("Dismissing your own pull request", () => {
   // The case this exists for. GitHub refuses an approval or a change request
   // from the author, so the only verdict on offer is a comment, and nothing
@@ -727,7 +770,8 @@ describe("Dismissing your own pull request", () => {
   before(async () => {
     page = await openApp(browser, site.origin, {
       login: "reader",
-      objects: written(aDraft({ author: "reader", finishedAt: undefined })),
+      // Stamped now, so it reads as being written rather than as stalled.
+      objects: written(aDraft({ author: "reader", finishedAt: undefined, draftedAt: new Date().toISOString() })),
     });
     await attachStorage(page);
 

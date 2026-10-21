@@ -12,17 +12,21 @@ import assert from "node:assert/strict";
 
 import { stateOf } from "../../web/src/app/header.js";
 
-// The three shapes pullState can hand over, built the way it builds them: the
-// draft decides, and isReady and isDrafting are read off it together, so no
-// entry can claim to be both and none can claim to be neither with a draft.
-const entry = (draft) => ({
+// The four shapes pullState can hand over, built the way it builds them: the
+// draft decides, and isReady, isDrafting and isStalled are read off it
+// together, so no entry can claim two of them and none can claim none with a
+// draft. An unfinished draft is drafting until its draftedAt is old enough to
+// mean the run died, and stalled from then on.
+const entry = (draft, { stalled = false } = {}) => ({
   draft,
   isReady: Boolean(draft && draft.finishedAt),
-  isDrafting: Boolean(draft && !draft.finishedAt),
+  isDrafting: Boolean(draft && !draft.finishedAt) && !stalled,
+  isStalled: Boolean(draft && !draft.finishedAt) && stalled,
   postedAt: null,
 });
 
 const drafting = (progress = {}) => entry({ progress, verdict: "" });
+const stalled = (progress = {}) => entry({ progress, verdict: "" }, { stalled: true });
 const finished = (verdict) => entry({ finishedAt: "2026-07-29T15:41:10Z", verdict, progress: {} });
 
 describe("a pull request with nothing drafted", () => {
@@ -43,6 +47,20 @@ describe("a review an agent is part way through", () => {
 
   test("prefers the agent's own note about where it has got to", () => {
     assert.equal(stateOf(drafting({ note: "QA: 2 of 3" })).word, "QA: 2 of 3");
+  });
+});
+
+describe("a review whose agent went quiet", () => {
+  test("says it stalled rather than that it is being reviewed", () => {
+    assert.equal(stateOf(stalled()).word, "stalled");
+  });
+
+  test("says so over the agent's last note, which no longer says where it is", () => {
+    assert.equal(stateOf(stalled({ note: "QA: 2 of 3" })).word, "stalled");
+  });
+
+  test("wears a tone of its own, because this one does want the reader's eye", () => {
+    assert.equal(stateOf(stalled()).tone, "stalled");
   });
 });
 

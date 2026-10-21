@@ -5,6 +5,7 @@ import { anApp, agentWrites, aDraft, aPull } from "./helper.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
 import { reviewPayload } from "../../web/src/domain/review.js";
 import { UNPARSED } from "../../web/src/state/drafts.js";
+import { STALE_AFTER_MS } from "../../web/src/queries/index.js";
 
 describe("Reading a review the agent drafted", () => {
   let app;
@@ -32,6 +33,50 @@ describe("Reading a review the agent drafted", () => {
     assert.equal(entry.isReady, false);
     assert.equal(entry.isDrafting, true);
     assert.equal(entry.draft.progress.note, "QA: 2 of 3");
+  });
+
+  // The sweep gives a claim up once nothing in its folder has moved for this
+  // long, and drafts it again on its next pass. The app has only draftedAt to
+  // go on, which the agent refreshes on every write, so it reads the same
+  // silence off that: a claim this old is a run that died, not work under way.
+  test("a draft the agent stopped writing half an hour ago reads as stalled, not drafting", async () => {
+    const now = Date.now();
+    const draftedAt = new Date(now - STALE_AFTER_MS).toISOString();
+
+    await agentWrites(app.adapter, aDraft({ finishedAt: undefined, draftedAt, progress: { note: "QA: 2 of 3" } }));
+    await app.drafts.loadAll();
+
+    const [entry] = app.queries.queue(app.source, [aPull()], now);
+
+    assert.equal(entry.isStalled, true);
+    assert.equal(entry.isDrafting, false);
+    assert.equal(entry.isReady, false);
+  });
+
+  test("a draft written a minute short of that is still drafting", async () => {
+    const now = Date.now();
+    const draftedAt = new Date(now - STALE_AFTER_MS + 60_000).toISOString();
+
+    await agentWrites(app.adapter, aDraft({ finishedAt: undefined, draftedAt, progress: {} }));
+    await app.drafts.loadAll();
+
+    const [entry] = app.queries.queue(app.source, [aPull()], now);
+
+    assert.equal(entry.isDrafting, true);
+    assert.equal(entry.isStalled, false);
+  });
+
+  test("a draft stamped in the future has not stalled, however wrong the agent's clock", async () => {
+    const now = Date.now();
+    const draftedAt = new Date(now + 2 * 60 * 60 * 1000).toISOString();
+
+    await agentWrites(app.adapter, aDraft({ finishedAt: undefined, draftedAt, progress: {} }));
+    await app.drafts.loadAll();
+
+    const [entry] = app.queries.queue(app.source, [aPull()], now);
+
+    assert.equal(entry.isDrafting, true);
+    assert.equal(entry.isStalled, false);
   });
 
   test("a pull request with nothing drafted still appears, waiting", () => {

@@ -16,7 +16,7 @@ import { includeToggle } from "./include.js";
 import { qaContent } from "./qa.js";
 import { editSource, openSetup } from "./header.js";
 import { demoAttachable, startDemo } from "./demo.js";
-import { draftProblemWords, postedWords } from "./words.js";
+import { draftProblemWords, postedWords, progressWords } from "./words.js";
 
 /**
  * The review body as it would be posted, including an edit still in the editor.
@@ -184,7 +184,7 @@ export function drawSummary(app) {
 
   // Unfinished but readable: say so above the prose, with the agent's own note
   // on where it has got to.
-  if (unfinished && !filtered) notes.append(progressBanner(draft));
+  if (unfinished && !filtered) notes.append(progressBanner(pull));
 
   // A filtered view reads like the summary it replaces: the lens's or theme's
   // own written analysis as plain prose in the summary's place, then its cards.
@@ -486,20 +486,18 @@ function withAction(empty, label, onClick) {
   return empty;
 }
 
-function progressBanner(draft) {
+function progressBanner(pull) {
+  const { draft } = pull;
   const banner = document.createElement("div");
 
-  banner.className = "wip mono";
-  banner.append(
-    element("span", "", "⏳"),
-    element(
-      "span",
-      "",
-      draft.progress.note || "review in progress - this summary is still being written",
-    ),
-  );
+  banner.className = `wip mono${pull.isStalled ? " is-stalled" : ""}`;
+  banner.append(element("span", "", pull.isStalled ? "⚠" : "⏳"), element("span", "", progressWords(pull)));
 
-  if (draft.progress.percent !== null) banner.append(progressBar(draft.progress.percent));
+  // A bar measures work under way. A stalled claim's last percent is where the
+  // run died, and drawing it would say the review is still moving.
+  if (!pull.isStalled && draft.progress.percent !== null) {
+    banner.append(progressBar(draft.progress.percent));
+  }
 
   return banner;
 }
