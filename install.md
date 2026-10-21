@@ -42,8 +42,11 @@ Store all media related to this (videos, screenshots) in the same directory.
 { "schema": 3, "owner": "…", "repo": "…", "number": 0, "verdict": "COMMENT",
   "title": "…", "url": "https://github.com/…/pull/0", "author": "…",
   "summary": "Reviewing…", "progress": { "note": "Claimed — review starting", "percent": 0 },
+  "agent": { "session": "${CLAUDE_SESSION_ID}", "cwd": "…" },
   "comment": "A review of this pull request is being written." }
 ```
+
+`agent` is how the reader talks to you later: `session` is your Claude Code session ID, exactly as shown, and `cwd` is the absolute folder you run in, from `pwd`. The reader resumes this session in that folder, so keep both on every write.
 
 `title`, `url` and `author` are load-bearing from the first write: the queue is the drafts directory, so the app knows nothing about a pull request except what the draft says, and a draft with no `url` renders nowhere.
 
@@ -85,6 +88,7 @@ Never touch git config. Never force-push. Never ask.
   "title": "Re-root the Records errors",
   "url": "https://github.com/org/app/pull/42",
   "author": "priya",
+  "agent": { "session": "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", "cwd": "/Users/priya/apps/app" },
   "reviewedAt": "e612b1b",
   "draftedAt": "2026-07-29T15:36:52Z",
   "finishedAt": "2026-07-29T15:41:10Z",
@@ -633,14 +637,24 @@ export function searchRoots(env, fallback) {
  * The folder of checkouts a directory belongs to.
  *
  * Working inside a checkout, the repositories worth searching are its
- * neighbors — the folder holding it. Anywhere else, the directory itself is
- * the place to look.
+ * neighbors — the folder holding it. A worktree's neighbors are its main
+ * checkout's, wherever the worktree itself lives. Anywhere else, the directory
+ * itself is the place to look.
  *
  * @param {string} dir the directory to start from
  * @returns {string} the folder to search for checkouts
  */
 export function neighborhood(dir) {
-  return fs.existsSync(path.join(dir, ".git")) ? path.dirname(dir) : dir;
+  const dotGit = path.join(dir, ".git");
+
+  if (!fs.existsSync(dotGit)) return dir;
+
+  const gitdir = fs.statSync(dotGit).isFile()
+    ? fs.readFileSync(dotGit, "utf8").match(/^gitdir:\s*(.+?)\s*$/m)?.[1]
+    : null;
+  const main = gitdir?.match(/^(.*)[\\/]\.git[\\/]worktrees[\\/][^\\/]+$/)?.[1];
+
+  return path.dirname(main ? path.resolve(dir, main) : dir);
 }
 
 const SEARCH_ROOTS = searchRoots(process.env, neighborhood(process.cwd()));
