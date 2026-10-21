@@ -127,6 +127,9 @@ export default {
   "pulls.dropLabels": moment("labelsDroppedAt"),
   "pulls.restoreLabels": moment("labelsDroppedAt", null),
 
+  // The chat's fork of the agent's session, and the session it forked.
+  "pulls.forkAgent": change((data) => ({ agentFork: { from: data.from, session: data.session } })),
+
   "pulls.post": change((data, event) => ({
     postedAt: event.time,
     postedUrl: data.url || "",

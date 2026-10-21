@@ -96,3 +96,54 @@ describe("Looking over the whole queue on the board", () => {
     assert.equal(await page.eval('document.querySelector("main").hidden'), false);
   });
 });
+
+describe("Talking to a draft's agent from the board, in a browser", () => {
+  let page;
+
+  const card = (number) => `#board .board-card[data-key="org/app#${number}"]`;
+  const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/priya/apps/app" };
+
+  before(async () => {
+    page = await openApp(browser, site.origin, {
+      objects: {
+        ...written(aDraft({ agent })),
+        ...written(aDraft({ number: 43, url: "https://github.com/org/app/pull/43", title: "Retry the webhook deliveries" })),
+      },
+    });
+    await attachStorage(page);
+
+    await page.click("#board-button");
+    await page.until(`document.querySelector(${JSON.stringify(card(42))})`, "the board to draw the review");
+  });
+
+  after(() => page.close());
+
+  test("selecting a card opens the chat beside the columns, and marks the card", async () => {
+    await page.click(`${card(42)} .board-repo`);
+    await page.until('document.querySelector("#board-chat")', "the chat drawer to open");
+
+    assert.equal(await page.eval(`document.querySelector(${JSON.stringify(card(42))}).classList.contains("is-chatting")`), true);
+    assert.equal(await page.eval('document.querySelector("main").hidden'), true);
+  });
+
+  test("a browser cannot run the agent, so it offers the command that resumes it", async () => {
+    assert.match(await page.text("#board-chat"), /needs the desktop app/);
+    assert.equal(await page.eval('Boolean(document.querySelector("#board-chat .copy-url"))'), true);
+    assert.equal(await page.eval('Boolean(document.querySelector("#board-chat textarea"))'), false);
+  });
+
+  test("a draft that names no agent says there is none to talk to", async () => {
+    await page.click(`${card(43)} .board-repo`);
+    await page.until(`document.querySelector(${JSON.stringify(card(43))}).classList.contains("is-chatting")`, "the other card to be chosen");
+
+    assert.match(await page.text("#board-chat"), /no agent to talk to/i);
+    assert.equal(await page.eval('Boolean(document.querySelector("#board-chat .copy-url"))'), false);
+  });
+
+  test("closing the drawer gives the columns the room back", async () => {
+    await page.click("#board-chat .board-chat-close");
+    await page.until('!document.querySelector("#board-chat")', "the drawer to close");
+
+    assert.equal(await page.eval('document.querySelectorAll("#board .is-chatting").length'), 0);
+  });
+});

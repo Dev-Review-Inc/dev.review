@@ -1603,10 +1603,39 @@
      each column scrolls its own cards. */
   .chip[aria-pressed="true"] { border-color: var(--accent); }
 
-  #board {
+  #board { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  #board.is-chatting { grid-template-columns: minmax(0, 1fr) 360px; }
+
+  .board-columns {
     display: flex; align-items: flex-start; gap: var(--space4);
     padding: var(--space4); min-height: 0;
     overflow-x: auto; scroll-snap-type: x proximity;
+  }
+
+  /* The chat with a card's agent, beside the columns. */
+  .board-card { cursor: pointer; }
+  .board-card.is-chatting { border-color: var(--accent); }
+
+  .board-chat {
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space3);
+    min-height: 0; padding: var(--space4);
+    border-left: 1px solid var(--border); background: var(--panel);
+  }
+
+  .board-chat-head { display: flex; align-items: center; gap: var(--space2); }
+  .board-chat-note { color: var(--dim); font-size: var(--textSmall); display: flex; align-items: center; gap: var(--space2); }
+  .board-chat-log { display: grid; gap: var(--space2); align-content: start; overflow-y: auto; }
+  .board-chat-line { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--textSmall); }
+  .board-chat-line.is-reader { justify-self: end; padding: var(--space2) var(--space3); border-radius: var(--radius); background: var(--hl); }
+  .board-chat-line.is-agent { color: var(--text); }
+  .board-chat-line.is-tool { color: var(--dim2); }
+  .board-chat-line.is-error { color: var(--red); }
+  .board-chat-form { display: flex; align-items: flex-end; gap: var(--space2); }
+
+  .board-chat-input {
+    flex: 1; resize: vertical; padding: var(--space2) var(--space3);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--panel2); color: var(--text); font: inherit; font-size: var(--textSmall);
   }
 
   .board-column {
@@ -1657,6 +1686,10 @@
 
     /* One column a screen, swiped sideways. */
     .board-column { flex-basis: calc(100vw - 48px); }
+
+    /* The chat opens as a sheet below the columns. */
+    #board.is-chatting { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 55%); }
+    .board-chat { border-left: none; border-top: 1px solid var(--border); }
 
     header, footer {
       height: auto;
@@ -1800,7 +1833,8 @@
     .settings-fields input.mono,
     #editor,
     #description-editor,
-    .finding-editor {
+    .finding-editor,
+    .board-chat-input {
       font-size: 16px;
     }
   }

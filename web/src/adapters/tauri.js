@@ -98,6 +98,38 @@ export async function chooseRoot() {
   }
 }
 
+/**
+ * What runs the agent chat in this build, or null where nothing can.
+ *
+ * Each run streams over a Tauri channel: one message per line the agent
+ * prints, then one for the exit. See src-tauri/src/agent.rs.
+ *
+ * @returns {Promise<{start: Function}|null>} the runner
+ */
+export async function agentRunner() {
+  const api = core();
+
+  if (typeof api?.Channel !== "function") return null;
+  if (!(await api.invoke("agent_chat_available").catch(() => false))) return null;
+
+  return {
+    start(request, onLine) {
+      const run = globalThis.crypto.randomUUID();
+      const events = new api.Channel();
+      let exit;
+      const done = new Promise((resolve) => (exit = resolve));
+
+      events.onmessage = (event) => (event.kind === "exit" ? exit({ code: event.code }) : onLine(event.text));
+
+      return {
+        started: api.invoke("agent_chat_start", { run, request, events }),
+        done,
+        cancel: () => api.invoke("agent_chat_cancel", { run }).catch(() => {}),
+      };
+    },
+  };
+}
+
 export class TauriAdapter extends Adapter {
   static type = "tauri";
   // Matches FilesystemAdapter's own label deliberately: adapterTypes() only
@@ -183,7 +215,7 @@ export class TauriAdapter extends Adapter {
     if (!listed.some((entry) => entry.path === within)) return null;
 
     const api = core();
-    const absolute = `${this._root.replace(/[/\\]$/, "")}/${within}`;
+    const absolute = this.absolute(within);
 
     // A QA video is tens of megabytes. The asset protocol lets the webview
     // stream it off disk with range requests, so scrubbing works and the bytes
@@ -204,6 +236,16 @@ export class TauriAdapter extends Adapter {
     const url = URL.createObjectURL(new Blob([bytes]));
 
     return { url, release: () => URL.revokeObjectURL(url) };
+  }
+
+  /**
+   * Where a file in the folder is on this computer.
+   *
+   * @param {string} path relative to the folder
+   * @returns {string} the absolute path
+   */
+  absolute(path) {
+    return `${this._root.replace(/[/\\]$/, "")}/${contain(path)}`;
   }
 
   config() {

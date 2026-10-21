@@ -346,6 +346,18 @@ export class Commands {
   }
 
   /**
+   * Remember the session a chat with the draft's agent forked into.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request, with the draft whose agent was forked
+   * @param {string} session the fork's session ID
+   * @returns {void}
+   */
+  recordAgentFork(source, pull, session) {
+    this.track(source, "pulls", pull.key, "forkAgent", { from: pull.draft?.agent?.session || "", session });
+  }
+
+  /**
    * Leave the proposed label change out of the triage.
    *
    * @param {object} source the source being read

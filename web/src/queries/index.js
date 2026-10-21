@@ -433,6 +433,20 @@ export class Queries {
   }
 
   /**
+   * The session a chat with the draft's agent forked into, while that agent
+   * still wrote the draft.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull the pull request, with its draft
+   * @returns {string|null} the fork's session ID, or null before the first message
+   */
+  agentFork(source, pull) {
+    const fork = this._pullDecision(source, pull.key).agentFork;
+
+    return fork && fork.from === pull.draft?.agent?.session ? fork.session : null;
+  }
+
+  /**
    * Whether the reader has left the proposed label change out of the triage.
    *
    * @param {object} source the source being read

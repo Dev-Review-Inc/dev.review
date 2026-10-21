@@ -269,7 +269,7 @@ function pullName(pull, address) {
  * @param {string} title what the button says it copies
  * @returns {HTMLElement} the button
  */
-function copyButton(text, title) {
+export function copyButton(text, title) {
   const copy = render(button({ role: "icon", icon: COPY_ICON, title }));
 
   copy.classList.add("copy-url");

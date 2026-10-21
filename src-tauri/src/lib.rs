@@ -17,6 +17,9 @@
 // module's entire premise. See git.rs's own top comment.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
 mod git;
+// The agent chat spawns `claude`, so it is compiled out where git.rs is.
+#[cfg(not(any(target_os = "ios", feature = "appstore")))]
+mod agent;
 mod links;
 mod storage;
 
@@ -64,7 +67,17 @@ mod widget;
 #[cfg(not(target_os = "ios"))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // A run outlives nothing: closing the window stops every one in flight.
+    #[cfg(not(feature = "appstore"))]
+    let builder = builder.manage(agent::Runs::default()).on_window_event(|window, event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            agent::stop_all(&tauri::Manager::state::<agent::Runs>(window));
+        }
+    });
+
+    builder
         // The folder picker is opened from Rust, so the frontend needs no
         // dialog permission of its own.
         .plugin(tauri_plugin_dialog::init())
@@ -96,7 +109,12 @@ pub fn run() {
             git::git_push,
             #[cfg(not(feature = "appstore"))]
             git::git_ready,
+            #[cfg(not(feature = "appstore"))]
+            agent::agent_chat_start,
+            #[cfg(not(feature = "appstore"))]
+            agent::agent_chat_cancel,
             git_native_available,
+            agent_chat_available,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");
@@ -115,6 +133,13 @@ pub fn run() {
 /// build would not have been either.
 #[tauri::command]
 fn git_native_available() -> bool {
+    cfg!(not(any(target_os = "ios", feature = "appstore")))
+}
+
+/// Whether this build can talk to the agent that wrote a draft. Asked, like
+/// git_native_available, rather than inferred from a failed invoke.
+#[tauri::command]
+fn agent_chat_available() -> bool {
     cfg!(not(any(target_os = "ios", feature = "appstore")))
 }
 
@@ -144,6 +169,7 @@ pub fn run() {
             icloud::icloud_root,
             widget::widget_update,
             git_native_available,
+            agent_chat_available,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");
