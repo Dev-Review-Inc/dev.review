@@ -1598,6 +1598,55 @@
     overscroll-behavior: contain;
   }
 
+  /* Board ---------------------------------------------------------------
+     Columns side by side, scrolling sideways when they outrun the screen;
+     each column scrolls its own cards. */
+  .chip[aria-pressed="true"] { border-color: var(--accent); }
+
+  #board {
+    display: flex; align-items: flex-start; gap: var(--space4);
+    padding: var(--space4); min-height: 0;
+    overflow-x: auto; scroll-snap-type: x proximity;
+  }
+
+  .board-column {
+    flex: 0 0 280px; max-height: 100%; overflow-y: auto;
+    display: grid; gap: var(--space3); align-content: start;
+    padding: var(--space3); border: 1px solid var(--border); border-radius: var(--radiusPanel);
+    background: var(--panel); scroll-snap-align: start;
+  }
+
+  .board-column-head {
+    display: flex; justify-content: space-between;
+    font-size: var(--textMicro); letter-spacing: .08em; text-transform: uppercase; color: var(--dim2);
+  }
+
+  .board-count { color: var(--faint); }
+
+  .board-card {
+    display: grid; gap: var(--space2);
+    padding: var(--space3); border: 1px solid var(--border2); border-radius: var(--radius);
+    background: var(--panel2);
+  }
+
+  .board-card-top, .board-card-meta { display: flex; align-items: center; gap: var(--space2); }
+  .board-repo, .board-author { font-size: var(--textSmall); color: var(--dim2); }
+  .board-title { text-align: left; font-weight: 600; padding: 0; }
+  .board-title:hover { color: var(--accent); }
+  .board-expand { font-size: var(--textSmall); color: var(--dim); padding: 0; }
+  .board-expand:disabled { color: var(--faint); cursor: default; }
+
+  .board-kind { display: grid; gap: var(--space1); }
+  .board-kind-name { font-size: var(--textMicro); color: var(--dim2); }
+
+  .board-finding {
+    display: grid; gap: 2px;
+    padding: var(--space2) var(--space3); border-left: 2px solid var(--border); border-radius: var(--radiusTight);
+    background: var(--panel3); font-size: var(--textSmall);
+  }
+
+  .board-finding-at { color: var(--dim2); overflow-wrap: anywhere; }
+
   /* A narrow viewport ----------------------------------------------------
      The app on a phone, and inside a marketing page being read on one. One
      column, with the queue above the review and capped so the review is
@@ -1605,6 +1654,9 @@
      what wrapped. Nothing outside this block changes. */
   @media (max-width: 760px) {
     #shell { grid-template-rows: auto 1fr auto; }
+
+    /* One column a screen, swiped sideways. */
+    .board-column { flex-basis: calc(100vw - 48px); }
 
     header, footer {
       height: auto;
@@ -1801,6 +1853,13 @@
       </div>
     </div>
 
+    <!-- Swaps the reader for the board and back. -->
+    <div class="popover-host">
+      <button class="chip" id="board-button" aria-pressed="false" title="Every pull request at once">
+        <span class="chip-value">board</span>
+      </button>
+    </div>
+
     <!-- Chips alone are wider than a phone screen has room to also fit the
          open pull request beside, so it needs the line to itself.
          flex-basis:100% forces that break, but only on this empty,
@@ -1869,6 +1928,9 @@
       </div>
     </section>
   </main>
+
+  <!-- Shown in main's place: every pull request at once, in columns by state. -->
+  <div id="board" hidden></div>
 
   <footer>
     <div class="payload mono">
