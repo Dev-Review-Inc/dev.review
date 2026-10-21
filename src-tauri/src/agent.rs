@@ -113,7 +113,9 @@ pub fn check(request: &Request) -> Result<(), Refusal> {
         .chars()
         .any(|c| c.is_whitespace() || c.is_control() || "*?[]{}()!,\\".contains(c));
 
-    if !folder.is_absolute() || !plain || !folder.join("review.json").is_file() {
+    let climbs = folder.components().any(|part| matches!(part, std::path::Component::ParentDir));
+
+    if !folder.is_absolute() || !plain || climbs || !folder.join("review.json").is_file() {
         return Err(refuse("folder", "the draft is not in a folder on this computer the agent can edit"));
     }
 
@@ -343,6 +345,15 @@ mod tests {
         std::fs::write(wide.join("review.json"), "{}").unwrap();
 
         assert_eq!(check(&request(dir.path(), &wide, true)).unwrap_err().code, "folder");
+    }
+
+    #[test]
+    fn refuses_a_draft_folder_that_climbs_out_of_itself() {
+        let (dir, folder) = draft();
+
+        std::fs::write(dir.path().join("review.json"), "{}").unwrap();
+
+        assert_eq!(check(&request(dir.path(), &folder.join("../.."), true)).unwrap_err().code, "folder");
     }
 
     #[test]
