@@ -13,6 +13,7 @@ import { demoWanted, installDemo, resetDemo } from "./demo.js";
 import { inTauriIOS } from "../adapters/tauri.js";
 import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
+import { drawBoard } from "./board.js";
 import { leaveWords } from "./words.js";
 import { closeConfirm, dismiss, openConfirm, post } from "./confirm.js";
 import {
@@ -63,6 +64,9 @@ app.destinationSetup = newDestinationSetup();
 // Which item the settings panel's detail is showing: a source, a destination,
 // an add in progress, or nothing.
 app.settingsSelection = { kind: "", id: null };
+// The board in the reader's place, and which of its cards are opened out.
+app.board = false;
+app.boardOpen = new Set();
 
 // Whether the first finished review has been opened for the reader. Opening
 // cold, that review is the obvious next action, so it is opened rather than
@@ -109,6 +113,7 @@ function render() {
   drawDescription(app);
   drawQa(app);
   drawFooter(app);
+  drawBoard(app);
 
   restorePlace(places);
   autoOpen();
@@ -203,6 +208,11 @@ find("source-button").addEventListener("click", () => toggleSetup(app));
 find("setup-backdrop").addEventListener("click", closeSetup);
 find("queue-button").addEventListener("click", () => toggleQueue(app));
 find("queue-backdrop").addEventListener("click", closeQueue);
+
+find("board-button").addEventListener("click", () => {
+  app.board = !app.board;
+  app.changed();
+});
 
 find("files-flagged").addEventListener("click", () => {
   if (!app.source) return;
