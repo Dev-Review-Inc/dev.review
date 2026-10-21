@@ -49,7 +49,7 @@ Store all media related to this (videos, screenshots) in the same directory.
 
 Then leave the storage synced — see the section below.
 
-**If the file already exists, stop — with one exception.** An existing draft means another run owns this pull request or a human already has the review; a second reviewer would fight it over the same file. The exception is a dead claim: a file with no `finishedAt` that has not been modified in over 30 minutes is a run that died partway. Overwrite it with your own placeholder and take the review over.
+**If the file already exists, stop — with one exception.** An existing draft means another run owns this pull request or a human already has the review; a second reviewer would fight it over the same file. The exception is a dead claim: a file with no `finishedAt` whose folder nothing has touched in over 30 minutes — not review.json, not the frames or recording QA writes beside it — is a run that died partway, to sleep, a lost network or a lost power connection. Overwrite it with your own placeholder and take the review over. The sweep's queue applies the same rule and lists such keys under `stale`, so a pull request it hands you with a draft already there is one to take over, not one to stop on.
 
 ## Write as you go
 
@@ -165,6 +165,8 @@ node ~/.claude/skills/dev-review-sweep/collector/queue.js next <drafts-dir> [lim
 
 It skips what already has a draft, and also what the sync log says the reader already posted or dismissed — so pruning a handled draft never gets it redrafted. A dismissed pull request comes back only once it has moved since the dismissal; a posted one only when the reader clears it in the app.
 
+A draft is not a draft until it is finished. A claim whose run died — the machine slept, the network dropped, the power went — sits on disk with no `finishedAt` and nothing in its folder changing. Once nothing there has moved for 30 minutes the queue treats the pull request as undrafted again: it comes back in `fresh`, and its key is also listed under `stale`, so you can say in your summary that you took a dead claim over rather than found new work. /dev-review overwrites the dead claim on its own; hand it the pull request as usual.
+
 For each fresh PR, pipe your review flow into **/dev-review**.
 
 Hand the reviewing skill the `unattended` QA mode: nobody is waiting to be asked, so it runs its checkpoints without confirming — not without running them. A sweep that comes back with "QA skipped, unattended" has not done the job.
@@ -220,7 +222,7 @@ These delete matching draft folders (and their QA media) from disk only. Leave t
 
 ## Finish with
 
-One short paragraph: what you drafted, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, which of those were dead claims taken over, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
 ````
 
 ## The queue helper
@@ -240,37 +242,45 @@ The sweep asks this which pull requests have no draft yet, and posts through it 
 // only tracks which pull requests it has already handled.
 
 import { execFileSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 
 import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
 import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
+import { draftState } from "./draft-state.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
 import { searchArgs } from "./search-args.js";
 import { readRules } from "./rules.js";
 
 /**
- * The pull requests a draft already exists for.
+ * The pull requests a draft already exists for, and the ones whose draft is
+ * a claim its run never finished.
  *
  * The drafts directory is the record. A draft is named for its pull request, so
- * asking whether one has been reviewed is asking whether its file is there.
+ * asking whether one has been reviewed is asking whether its file is there —
+ * and whether the run that wrote it is still alive. A stale claim is a run that
+ * died partway (see draft-state.js); its pull request is offered again, so the
+ * reviewing skill can take the claim over instead of leaving it stranded.
  *
  * @param {string} drafts the drafts directory
  * @param {object[]} prs open review requests
- * @returns {Set<string>} keys of the pull requests already drafted
+ * @returns {{drafted: Set<string>, stale: string[]}} keys with a finished or
+ *   live draft, and keys whose claim is dead
  */
-function alreadyDrafted(drafts, prs) {
+function draftedAndStale(drafts, prs) {
   const drafted = new Set();
+  const stale = [];
 
   for (const pr of prs) {
     const [owner, repo] = pr.repository.nameWithOwner.split("/");
     const relative = draftPath(owner, repo, pr.number).replace("drafts/", "");
+    const state = draftState(path.join(drafts, path.dirname(relative)));
 
-    if (fs.existsSync(path.join(drafts, relative))) drafted.add(key(pr));
+    if (state === "finished" || state === "live") drafted.add(key(pr));
+    if (state === "stale") stale.push(key(pr));
   }
 
-  return drafted;
+  return { drafted, stale };
 }
 
 /**
@@ -336,9 +346,10 @@ if (command === "next" && draftsDir) {
 
   // The sync log keeps the selector honest after a prune: a pull the reader
   // posted on or dismissed is not fresh just because its draft is gone.
+  const { drafted, stale } = draftedAndStale(draftsDir, scoped);
   const { fresh, deferred } = selectNew(
     scoped,
-    alreadyDrafted(draftsDir, scoped),
+    drafted,
     Number(limit) || 4,
     resolutions(readEvents(draftsDir)),
   );
@@ -358,6 +369,7 @@ if (command === "next" && draftsDir) {
         deferredCount: deferred.length,
         deferred: deferred.map(key),
         skipped: skipped.map(key),
+        stale,
         ...(rulesError ? { rulesError } : {}),
       },
       null,
@@ -1691,6 +1703,69 @@ export function reviewPayload(draft, options) {
   return comments.length
     ? { body: prefixedBody, event, commit_id: options.commitId, comments }
     : { body: prefixedBody, event, commit_id: options.commitId };
+}
+```
+
+### `~/.claude/skills/dev-review-sweep/collector/draft-state.js`
+
+```javascript
+import fs from "node:fs";
+import path from "node:path";
+
+// How long a claim may go untouched before its run is taken for dead. The
+// reviewing skill applies the same figure when it decides to overwrite one.
+export const STALE_AFTER_MS = 30 * 60 * 1000;
+
+/**
+ * The newest modification time under a folder, recursing into subfolders.
+ *
+ * @param {string} dir a directory
+ * @returns {number} milliseconds since the epoch, 0 for an empty folder
+ */
+function newestMtime(dir) {
+  let newest = 0;
+
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    const mtime = entry.isDirectory() ? newestMtime(file) : fs.statSync(file).mtimeMs;
+
+    if (mtime > newest) newest = mtime;
+  }
+
+  return newest;
+}
+
+/**
+ * What a draft folder holds, as far as the sweep is concerned.
+ *
+ * A run can die at any point — the machine sleeps, the network drops, the
+ * power goes — and the claim it wrote stays on disk looking like work in
+ * progress. Only a `finishedAt` means done. Anything else is live while
+ * something in the folder is still being written (QA writes frames and a
+ * recording beside review.json for as long as it runs), and stale once nothing
+ * has moved for `STALE_AFTER_MS`. A review.json that will not parse is a write
+ * the power cut short, and is judged by the same clock.
+ *
+ * @param {string} dir the draft's directory
+ * @param {number} [now] milliseconds since the epoch
+ * @returns {"none" | "finished" | "live" | "stale"}
+ */
+export function draftState(dir, now = Date.now()) {
+  let text;
+
+  try {
+    text = fs.readFileSync(path.join(dir, "review.json"), "utf8");
+  } catch {
+    return "none";
+  }
+
+  try {
+    if (JSON.parse(text).finishedAt) return "finished";
+  } catch {
+    // Cut off mid-write: unfinished, and the clock decides below.
+  }
+
+  return now - newestMtime(dir) < STALE_AFTER_MS ? "live" : "stale";
 }
 ```
 
