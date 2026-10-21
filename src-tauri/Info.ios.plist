@@ -7,6 +7,24 @@
 -->
 <plist version="1.0">
 <dict>
+  <!--
+    Answers App Store Connect's export compliance questionnaire in the build
+    itself. Without it every upload sits in "Waiting for Export Compliance"
+    until someone answers the same two questions by hand, once per build.
+    `false` means no NON-EXEMPT encryption, not no encryption.
+
+    Everything cryptographic here is exempt. TLS is the platform's, not this
+    app's. Secrets sit in the iOS Keychain, which is also the platform's. The
+    one algorithm this app implements itself is AWS Signature Version 4 in
+    web/src/adapters/sigv4.js: SHA-256 digests and HMAC-SHA256 over the
+    canonical request, all of it through WebCrypto, used only to prove who is
+    making an S3 request. It signs and authenticates; it encrypts nothing and
+    decrypts nothing, which is the authentication exemption in Category 5
+    Part 2 rather than a judgement call about strength.
+  -->
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+
   <key>NSFaceIDUsageDescription</key>
   <string>Face ID unlocks your GitHub token, kept in the Keychain rather than in the app's own storage.</string>
 </dict>

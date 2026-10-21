@@ -75,10 +75,11 @@ describe("Triaging an issue the agent drafted", () => {
   test("the issue is on the queue and opens with a description, not a diff", async () => {
     assert.equal(await page.text("#queue-waiting"), "2 to review");
 
-    // No diff to hang anything on: no files listed, no comments staged, and no
-    // verdict on offer - dismissing is the one choice left visible.
+    // No diff to hang anything on: no files listed, no comments staged - only
+    // the reader's standing strip of "triage" - and no verdict on offer:
+    // dismissing is the one choice left visible.
     assert.equal(await page.count("#files .file"), 0);
-    assert.equal(await page.text("#staged"), "");
+    assert.equal(await page.text("#staged"), "labels −triage");
     assert.deepEqual(
       await page.eval(
         '[...document.querySelectorAll("#verdict-popover button")].filter((b) => !b.hidden).map((b) => b.dataset.event)',
@@ -123,7 +124,10 @@ describe("Triaging an issue the agent drafted", () => {
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
 
     assert.equal(await page.text("#confirm-target"), "org/app#7");
-    assert.equal(await page.text("#confirm-count"), "posts a comment · description: 1 of 2 changes kept");
+    assert.equal(
+      await page.text("#confirm-count"),
+      "posts a comment · description: 1 of 2 changes kept · labels −triage",
+    );
     assert.equal(await page.eval('document.querySelector("#confirm-verdict").hidden'), true);
 
     await page.click("#confirm-post");
@@ -131,13 +135,14 @@ describe("Triaging an issue the agent drafted", () => {
 
     const sent = await page.eval("globalThis.__world.sent");
 
-    assert.equal(sent.length, 2);
-    assert.equal(sent[0].what, "patch-issue");
-    assert.equal(sent[0].key, "org/app#7");
-    assert.equal(sent[0].body.body, KEPT_BODY, "the rejected hunk's change must be absent");
-    assert.equal(sent[1].what, "issue-comment");
+    assert.equal(sent.length, 3);
+    assert.deepEqual(sent[0], { what: "remove-label", key: "org/app#7", name: "triage" });
+    assert.equal(sent[1].what, "patch-issue");
+    assert.equal(sent[1].key, "org/app#7");
+    assert.equal(sent[1].body.body, KEPT_BODY, "the rejected hunk's change must be absent");
+    assert.equal(sent[2].what, "issue-comment");
     assert.equal(
-      sent[1].body.body,
+      sent[2].body.body,
       "Retitled to the symptom and added the expected result. Your steps are untouched.",
     );
   });
@@ -180,11 +185,11 @@ describe("Triaging an issue the agent drafted", () => {
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
     await page.click("#confirm-post");
 
-    // The guard closes the sheet, says why, and nothing new leaves: the two
+    // The guard closes the sheet, says why, and nothing new leaves: the three
     // sends on record are still the first issue's.
     await page.until('document.querySelector("#confirm").hidden', "the sheet to refuse");
     assert.match(await page.text("#status"), /the ticket changed since you read it/);
-    assert.equal(await page.eval("globalThis.__world.sent.length"), 2, "no PATCH may be sent");
+    assert.equal(await page.eval("globalThis.__world.sent.length"), 3, "nothing may be sent");
 
     // And the pane rediffs against the ticket as it now stands.
     await page.until(
@@ -236,30 +241,31 @@ describe("Closing an issue the agent proposed", () => {
   after(() => page.close());
 
   test("the footer and the sheet both say the close, in the same words", async () => {
-    assert.equal(await page.text("#staged"), "closes as duplicate of #482");
+    assert.equal(await page.text("#staged"), "labels −triage · closes as duplicate of #482");
 
     await page.click("#post");
     await page.until('!document.querySelector("#confirm").hidden', "the confirmation sheet");
 
     assert.equal(
       await page.text("#confirm-count"),
-      "posts a comment · description unchanged · closes as duplicate of #482",
+      "posts a comment · description unchanged · labels −triage · closes as duplicate of #482",
     );
     assert.match(await page.text("#confirm-preview .close-plan"), /closes as duplicate of #482/);
   });
 
-  test("posting sends the comment, then the close, and nothing else", async () => {
+  test("posting strips triage, sends the comment, then the close, and nothing else", async () => {
     await page.click("#confirm-post");
     await page.until('!document.querySelector("#celebrate").hidden', "the triage to land");
 
     const sent = await page.eval("globalThis.__world.sent");
 
-    assert.equal(sent.length, 2);
-    assert.equal(sent[0].what, "issue-comment");
-    assert.equal(sent[0].key, "org/app#7");
-    assert.equal(sent[1].what, "close-issue");
+    assert.equal(sent.length, 3);
+    assert.deepEqual(sent[0], { what: "remove-label", key: "org/app#7", name: "triage" });
+    assert.equal(sent[1].what, "issue-comment");
     assert.equal(sent[1].key, "org/app#7");
-    assert.deepEqual(sent[1].body, { state: "closed", state_reason: "duplicate" });
+    assert.equal(sent[2].what, "close-issue");
+    assert.equal(sent[2].key, "org/app#7");
+    assert.deepEqual(sent[2].body, { state: "closed", state_reason: "duplicate" });
   });
 
   test("dropping the close posts only the comment, and the ticket stays open", async () => {
@@ -284,16 +290,30 @@ describe("Closing an issue the agent proposed", () => {
       'document.querySelector("#confirm-count").textContent.includes("the ticket stays open")',
       "the sheet to say the ticket stays open",
     );
-    assert.equal(await page.text("#staged"), "the ticket stays open");
+    assert.equal(await page.text("#staged"), "labels −triage · the ticket stays open");
 
     await page.click("#confirm-post");
     await page.until('!document.querySelector("#celebrate").hidden', "the triage to land");
 
     const sent = await page.eval("globalThis.__world.sent");
 
-    assert.equal(sent.length, 3, "only the comment may follow the first issue's two sends");
-    assert.equal(sent[2].what, "issue-comment");
-    assert.equal(sent[2].key, "org/app#9");
+    assert.equal(sent.length, 5, "only the strip and the comment may follow the first issue's three sends");
+    assert.equal(sent[3].what, "remove-label");
+    assert.equal(sent[4].what, "issue-comment");
+    assert.equal(sent[4].key, "org/app#9");
+  });
+
+  test("the labels stripped on posting are the reader's to name in settings", async () => {
+    await page.eval(`(() => {
+      const field = document.querySelector("#stripped-labels");
+      field.value = "needs-info, triage";
+      field.dispatchEvent(new Event("blur"));
+    })()`);
+
+    await page.until(
+      'document.querySelector("#staged").textContent.startsWith("labels −needs-info −triage")',
+      "the footer to strip what settings name",
+    );
   });
 
   test("nothing went wrong along the way", () => {

@@ -229,6 +229,7 @@ export function written(draft) {
  * @param {object} [world.pull] the pull request's fate beyond its head sha - state, merged, merged_at, closed_at
  * @param {string} [world.login] who the token belongs to
  * @param {string} [world.postedUrl] what a send's response points back at
+ * @param {{width: number, height: number}} [world.viewport] a screen size to load at, for a phone
  * @returns {Promise<object>} the page, loaded and idle
  */
 export async function openApp(browser, origin, world = {}) {
@@ -251,6 +252,8 @@ export async function openApp(browser, origin, world = {}) {
     `globalThis.__seed = ${JSON.stringify(seed)};\n` +
       (await readFile(join(here, "world.js"), "utf8")),
   );
+
+  if (world.viewport) await page.resize(world.viewport.width, world.viewport.height);
 
   await page.go();
   await drawn(page);

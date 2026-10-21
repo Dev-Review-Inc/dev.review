@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The privacy manifest. Apple will not accept an App Store submission without
+  one in the bundle, and it has to declare a reason for every "required reason
+  API" the binary calls.
+
+  Referenced as a resource by BOTH targets in ios-project.yml - the app and the
+  widget extension. A manifest is not inherited from the host app, and the
+  extension is the half that reads the App Group defaults.
+
+  CHECK BEFORE SUBMITTING: Apple's "Describing use of required reason API"
+  list grows, and a category added after this file was written is a rejection
+  that names an API rather than this file. Re-read that page and confirm:
+    - the two NSPrivacyAccessedAPICategory* names below are still spelled
+      that way, and the reason codes CA92.1 and C617.1 still exist;
+    - nothing new covers the Keychain, WidgetKit, WKWebView or
+      URLSession/CFNetwork, which is where the rest of this app's system calls
+      go;
+    - whether tauri, wry, objc2 or security-framework now ship manifests of
+      their own. A dependency's manifest is merged with this one at build
+      time, so a category they declare does not need repeating here - but a
+      category they call and nobody declares is still this app's rejection.
+  Xcode's "Generate Privacy Report" on the archive is the check that reads the
+  built binary rather than the source.
+-->
+<plist version="1.0">
+<dict>
+  <!--
+    False, and verified rather than assumed: grepping web/src and src-tauri/src
+    for analytics, telemetry, beacon, and every vendor name that would imply
+    one - sentry, segment, mixpanel, posthog, amplitude, datadog, bugsnag,
+    crashlytics, gtag - finds nothing. The only hosts this app contacts are
+    ones the reader configured: their GitHub, their S3 endpoint, and
+    github.com avatars for the queue. None of that is tracking, and none of it
+    is joined to data from another company.
+  -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+
+  <!--
+    Empty, deliberately. Apple counts data as "collected" when it is
+    transmitted off the device in a way that lets the developer or a third
+    party access it. Nothing here is:
+
+    - The GitHub token and the S3 access key go to the iOS Keychain
+      (src-tauri/src/keychain.rs, one service "dev.review", behind Face ID)
+      and nowhere else. On platforms without one they go to IndexedDB instead
+      (web/src/state/multi-event-store.js, `secret:<id>`), which is also local.
+    - The token is sent to the reader's own GitHub when it authenticates a
+      request to it, which is what a credential is for and not collection by
+      this developer.
+    - Drafts, reviews and queue contents live in the reader's own storage: the
+      app's iCloud ubiquity container, their S3 bucket, or their GitHub
+      repository. This app runs no server and has no account.
+
+    Adding anything here - including a crash reporter or a "diagnostics"
+    toggle - means a matching NSPrivacyCollectedDataType entry, and this
+    comment stops being true.
+  -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <!--
+      Earned by src-tauri/src/widget.rs: NSUserDefaults is opened with
+      `initWithSuiteName("group.review.dev.app")` to write the queue count the
+      widget shows, and ReviewerWidget.swift reads it back. CA92.1 is the
+      app-group reason exactly - both bundles are members of that group, and
+      the defaults carry nothing that is not already on screen in the app.
+    -->
+    <key>NSPrivacyAccessedAPICategoryUserDefaults</key>
+    <array>
+      <string>CA92.1</string>
+    </array>
+
+    <!--
+      Earned by src-tauri/src/storage.rs: `walk` calls
+      `fs::symlink_metadata` and `meta.modified()` on every file it lists, and
+      `resolve` stats each path component while refusing anything that leaves
+      the root. Rust's std::fs is stat(2), which is on Apple's list under this
+      category.
+
+      C617.1 is "files inside the app container, app group container, or
+      CloudKit container". On iOS that is the only root these commands ever
+      get: storage_pick_root is compiled out (see lib.rs), so the one root is
+      the app's own iCloud ubiquity container from icloud.rs. Confident about
+      the call and the container; the reason code is the part to confirm
+      against Apple's current page.
+    -->
+    <key>NSPrivacyAccessedAPICategoryFileTimestamp</key>
+    <array>
+      <string>C617.1</string>
+    </array>
+  </array>
+</dict>
+</plist>

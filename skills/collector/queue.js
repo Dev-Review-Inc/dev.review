@@ -8,37 +8,45 @@
 // only tracks which pull requests it has already handled.
 
 import { execFileSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 
 import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
 import { readEvents, resolutions } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
+import { draftState } from "./draft-state.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
 import { searchArgs } from "./search-args.js";
 import { readRules } from "./rules.js";
 
 /**
- * The pull requests a draft already exists for.
+ * The pull requests a draft already exists for, and the ones whose draft is
+ * a claim its run never finished.
  *
  * The drafts directory is the record. A draft is named for its pull request, so
- * asking whether one has been reviewed is asking whether its file is there.
+ * asking whether one has been reviewed is asking whether its file is there —
+ * and whether the run that wrote it is still alive. A stale claim is a run that
+ * died partway (see draft-state.js); its pull request is offered again, so the
+ * reviewing skill can take the claim over instead of leaving it stranded.
  *
  * @param {string} drafts the drafts directory
  * @param {object[]} prs open review requests
- * @returns {Set<string>} keys of the pull requests already drafted
+ * @returns {{drafted: Set<string>, stale: string[]}} keys with a finished or
+ *   live draft, and keys whose claim is dead
  */
-function alreadyDrafted(drafts, prs) {
+function draftedAndStale(drafts, prs) {
   const drafted = new Set();
+  const stale = [];
 
   for (const pr of prs) {
     const [owner, repo] = pr.repository.nameWithOwner.split("/");
     const relative = draftPath(owner, repo, pr.number).replace("drafts/", "");
+    const state = draftState(path.join(drafts, path.dirname(relative)));
 
-    if (fs.existsSync(path.join(drafts, relative))) drafted.add(key(pr));
+    if (state === "finished" || state === "live") drafted.add(key(pr));
+    if (state === "stale") stale.push(key(pr));
   }
 
-  return drafted;
+  return { drafted, stale };
 }
 
 /**
@@ -104,9 +112,10 @@ if (command === "next" && draftsDir) {
 
   // The sync log keeps the selector honest after a prune: a pull the reader
   // posted on or dismissed is not fresh just because its draft is gone.
+  const { drafted, stale } = draftedAndStale(draftsDir, scoped);
   const { fresh, deferred } = selectNew(
     scoped,
-    alreadyDrafted(draftsDir, scoped),
+    drafted,
     Number(limit) || 4,
     resolutions(readEvents(draftsDir)),
   );
@@ -126,6 +135,7 @@ if (command === "next" && draftsDir) {
         deferredCount: deferred.length,
         deferred: deferred.map(key),
         skipped: skipped.map(key),
+        stale,
         ...(rulesError ? { rulesError } : {}),
       },
       null,

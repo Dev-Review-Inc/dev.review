@@ -184,9 +184,13 @@ func TestPolicyContents(t *testing.T) {
 		"form-action 'none'",
 		"frame-ancestors 'self'",
 		"connect-src 'self' https:",
-		"img-src 'self' data: blob:",
+		"img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com",
 		"media-src 'self' blob:",
-		"font-src 'self' https://fonts.gstatic.com",
+		// The trailing ";" is load-bearing on both of these: without it
+		// "font-src 'self'" also matches a policy that went on to allow another
+		// origin, which is the regression these two lines exist to catch.
+		"style-src 'self' 'unsafe-inline';",
+		"font-src 'self';",
 	} {
 		if !strings.Contains(Policy, directive) {
 			t.Errorf("policy is missing %q", directive)

@@ -21,14 +21,34 @@ const SHELL = "shell-1";
 // a reader opened.
 const DOCUMENT = "/";
 
+// The one kind of cross-origin response this worker holds: a GitHub avatar.
+// github.com/<login>.png redirects to avatars.githubusercontent.com, so both
+// origins are named here, and both are compared whole.
+const AVATARS = ["https://github.com", "https://avatars.githubusercontent.com"];
+
+// Avatars, under their own name rather than in SHELL. SHELL is versioned, and
+// bumping it drops what it holds whole; a change to the shape of the stored
+// shell has nothing to do with a picture, and should not make the rail fetch
+// every face again. activate keeps both and deletes the rest.
+const FACES = "avatars-1";
+const KEPT = [SHELL, FACES];
+
 /**
  * Whether this is a request the worker may answer.
  *
- * Same origin and a plain read, and nothing else. Cross-origin is the reader's
- * storage and GitHub: a cached copy of either would be a stale review at best,
- * and at worst this worker replaying a request that carried their token. The
- * development reload stream is same-origin but never ends, so holding a copy of
- * it would hold the response open for as long as the server ran.
+ * Same origin and a plain read, with one exception. Cross-origin is the
+ * reader's storage and GitHub: a cached copy of either would be a stale review
+ * at best, and at worst this worker replaying a request that carried their
+ * token. The exception is an avatar from the two origins in AVATARS, and it is
+ * an exception because none of that reasoning reaches it: the URL is public,
+ * the request carries no credential of the reader's - an avatar is fetched
+ * without an Authorization header - and what comes back is a picture of a
+ * person rather than any part of a review. The origin is compared whole, never
+ * by prefix, because `github.com.evil.test` and `evil.test/https://github.com`
+ * both read like GitHub and are neither of these two sites.
+ *
+ * The development reload stream is same-origin but never ends, so holding a
+ * copy of it would hold the response open for as long as the server ran.
  *
  * @param {Request} request the request the page made
  * @param {string} origin where this worker is installed
@@ -39,9 +59,11 @@ export function ours(request, origin) {
 
   const url = new URL(request.url);
 
-  if (url.origin !== origin) return false;
+  if (url.origin === origin) return url.pathname !== "/reload" && url.pathname !== "/reload.js";
 
-  return url.pathname !== "/reload" && url.pathname !== "/reload.js";
+  // The destination, not the path: what a request is for is the browser's
+  // answer, and a name ending in .png is only a guess at it.
+  return AVATARS.includes(url.origin) && request.destination === "image";
 }
 
 self.addEventListener("install", (event) => {
@@ -62,13 +84,14 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  // Anything under another name is a shell from a version of this worker that
-  // no longer exists. claim() so the tab that installed this worker is under it
-  // straight away, rather than being offline-capable only from its next load.
+  // Anything under another name is a shell, or a store of faces, from a version
+  // of this worker that no longer exists. claim() so the tab that installed this
+  // worker is under it straight away, rather than being offline-capable only
+  // from its next load.
   event.waitUntil(
     caches
       .keys()
-      .then((names) => Promise.all(names.filter((name) => name !== SHELL).map((name) => caches.delete(name))))
+      .then((names) => Promise.all(names.filter((name) => !KEPT.includes(name)).map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
@@ -76,8 +99,40 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (!ours(event.request, self.location.origin)) return;
 
-  event.respondWith(fresh(event.request));
+  const mine = new URL(event.request.url).origin === self.location.origin;
+
+  event.respondWith(mine ? fresh(event.request) : face(event.request));
 });
+
+/**
+ * Answer from the cache, and go to the network only the first time.
+ *
+ * The opposite of `fresh`, on purpose. A face that is a few days behind the one
+ * on github.com is not a fault anyone can see, while a rail that asks the
+ * network for every row on every redraw costs a request per row, every time.
+ * Nothing here is ever re-fetched once held: a reader who changes their picture
+ * is served the old one until the store is dropped under a new name.
+ *
+ * @param {Request} request an avatar request `ours` accepted
+ * @returns {Promise<Response>} the held picture, or a fresh one
+ */
+async function face(request) {
+  const faces = await caches.open(FACES);
+  const held = await faces.match(request);
+
+  if (held) return held;
+
+  const response = await fetch(request);
+
+  // An avatar is opaque - it is cross-origin and not asked for with CORS - so
+  // the status reads 0 rather than 200. Holding it is still right: the page
+  // only ever draws it. The write is not awaited, for the reason `fresh` gives.
+  if (response.status === 200 || response.type === "opaque") {
+    faces.put(request, response.clone());
+  }
+
+  return response;
+}
 
 /**
  * Answer from the network, and keep a copy in case there is no network.

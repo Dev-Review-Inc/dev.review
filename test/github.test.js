@@ -9,6 +9,8 @@ import {
   patchIssueBody,
   postIssueComment,
   closeIssue,
+  addIssueLabels,
+  removeIssueLabel,
   compareCommits,
   issueComments,
 } from "../web/src/destinations/github.js";
@@ -152,6 +154,40 @@ test("closes an issue with the reason the draft gave", async () => {
     state: "closed",
     state_reason: "not_planned",
   });
+});
+
+test("adds labels to an issue", async () => {
+  const calls = stub([{ name: "bug" }]);
+
+  await addIssueLabels("t", { owner: "org", repo: "app", number: 7 }, ["bug", "C:billing"]);
+
+  assert.match(calls[0].url, /\/repos\/org\/app\/issues\/7\/labels$/);
+  assert.strictEqual(calls[0].options.method, "POST");
+  assert.deepStrictEqual(JSON.parse(calls[0].options.body), { labels: ["bug", "C:billing"] });
+});
+
+test("removes one label, naming it safely in the path", async () => {
+  const calls = stub([]);
+
+  await removeIssueLabel("t", { owner: "org", repo: "app", number: 7 }, "needs triage/2");
+
+  assert.match(calls[0].url, /\/repos\/org\/app\/issues\/7\/labels\/needs%20triage%2F2$/);
+  assert.strictEqual(calls[0].options.method, "DELETE");
+});
+
+test("reads removing a label the issue no longer carries as done", async () => {
+  stub({ message: "Label does not exist" }, { ok: false, status: 404 });
+
+  await removeIssueLabel("t", { owner: "org", repo: "app", number: 7 }, "triage");
+});
+
+test("still refuses a label removal GitHub rejects for another reason", async () => {
+  stub({ message: "Must have admin rights" }, { ok: false, status: 403 });
+
+  await assert.rejects(
+    removeIssueLabel("t", { owner: "org", repo: "app", number: 7 }, "triage"),
+    /admin rights/,
+  );
 });
 
 test("posts a prepared review payload untouched", async () => {

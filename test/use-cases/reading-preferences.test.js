@@ -198,3 +198,74 @@ describe("A prefix on every comment and summary", () => {
     assert.equal(app.queries.bodyToPost(app.source, finding), "My own sharper point.");
   });
 });
+
+describe("Labels stripped from every issue posted", () => {
+  // A triage draft carrying the given labels, or none.
+  async function anIssue(app, labels) {
+    await agentWrites(
+      app.adapter,
+      aDraft({
+        url: "https://github.com/org/app/issues/42",
+        verdict: "",
+        findings: [],
+        sections: [],
+        comment: "Triaged.",
+        ...(labels ? { labels } : {}),
+      }),
+    );
+    await app.drafts.loadAll();
+
+    return { ...app.open(), isIssue: true };
+  }
+
+  test("strip triage until the reader says otherwise", async () => {
+    const app = await anApp();
+
+    assert.deepEqual(app.queries.strippedLabelsFor(app.source), ["triage"]);
+  });
+
+  test("stay set when the reader comes back, and can be emptied", async () => {
+    const app = await anApp();
+
+    app.commands.setStrippedLabels(app.source, ["triage", "needs-info"]);
+    await app.state.restore();
+    assert.deepEqual(app.queries.strippedLabelsFor(app.source), ["triage", "needs-info"]);
+
+    app.commands.setStrippedLabels(app.source, []);
+    assert.deepEqual(app.queries.strippedLabelsFor(app.source), []);
+  });
+
+  test("join what the draft removes, never removing what it adds", async () => {
+    const app = await anApp();
+    app.commands.setStrippedLabels(app.source, ["triage", "bug", "stale"]);
+    const issue = await anIssue(app, { add: ["bug"], remove: ["stale"] });
+
+    assert.deepEqual(app.queries.labelsToPost(app.source, issue), {
+      add: ["bug"],
+      remove: ["stale", "triage"],
+    });
+  });
+
+  test("apply to an issue whose draft proposes no labels", async () => {
+    const app = await anApp();
+    const issue = await anIssue(app);
+
+    assert.deepEqual(app.queries.labelsToPost(app.source, issue), { add: [], remove: ["triage"] });
+  });
+
+  test("leave nothing to post when empty and the draft proposes none", async () => {
+    const app = await anApp();
+    app.commands.setStrippedLabels(app.source, []);
+    const issue = await anIssue(app);
+
+    assert.equal(app.queries.labelsToPost(app.source, issue), null);
+  });
+
+  test("never touch a pull request", async () => {
+    const app = await anApp();
+    await agentWrites(app.adapter, aDraft({ labels: { add: ["bug"] } }));
+    await app.drafts.loadAll();
+
+    assert.equal(app.queries.labelsToPost(app.source, { ...app.open(), isIssue: false }), null);
+  });
+});

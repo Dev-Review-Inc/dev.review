@@ -139,6 +139,30 @@ describe("a github destination reading and writing issues", () => {
     assert.deepEqual(closed, { url: "https://github.com/org/app/issues/7" });
   });
 
+  test("adds and removes the proposed labels, one removal at a time", async () => {
+    const calls = stub([]);
+
+    const destination = new GitHubDestination({ token: "t" });
+    const labelled = await destination.labelIssue(
+      { ...anIssue(), url: "https://github.com/org/app/issues/7" },
+      { add: ["bug"], remove: ["triage", "stale"] },
+    );
+
+    assert.deepEqual(
+      calls.map((call) => `${call.options.method} ${call.url.replace(/^.*\/issues\/7/, "")}`),
+      ["POST /labels", "DELETE /labels/triage", "DELETE /labels/stale"],
+    );
+    assert.deepEqual(labelled, { url: "https://github.com/org/app/issues/7" });
+  });
+
+  test("asks nothing to add when the change only removes", async () => {
+    const calls = stub([]);
+
+    await new GitHubDestination({ token: "t" }).labelIssue(anIssue(), { add: [], remove: ["triage"] });
+
+    assert.deepEqual(calls.map((call) => call.options.method), ["DELETE"]);
+  });
+
   test("comments on the issue and hands back the comment's own link", async () => {
     const calls = stub({
       id: 1,
@@ -231,5 +255,31 @@ describe("a github destination reading drift since a draft was written", () => {
       { author: "sofia", body: "still broken for me", createdAt: "2026-08-30T09:00:00Z" },
       { author: "tomas", body: "confirmed", createdAt: "2026-08-30T10:00:00Z" },
     ]);
+  });
+});
+
+describe("a github destination naming an author's avatar", () => {
+  test("names the avatar GitHub serves for a login", () => {
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.equal(destination.avatarFor("sofia"), "https://github.com/sofia.png?size=48");
+  });
+
+  test("encodes a login rather than letting it walk out of the path", () => {
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.equal(
+      destination.avatarFor("../../evil?x"),
+      "https://github.com/..%2F..%2Fevil%3Fx.png?size=48",
+    );
+  });
+
+  test("answers an empty string when there is no login to name", () => {
+    const destination = new GitHubDestination({ token: "t" });
+
+    assert.equal(destination.avatarFor(""), "");
+    assert.equal(destination.avatarFor(undefined), "");
+    assert.equal(destination.avatarFor(null), "");
+    assert.equal(destination.avatarFor(42), "");
   });
 });

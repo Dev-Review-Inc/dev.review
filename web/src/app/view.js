@@ -26,7 +26,7 @@ import {
 } from "./header.js";
 import { closeDescriptionEditor, drawDescription } from "./description-pane.js";
 import { drawDiff } from "./diff-pane.js";
-import { DISMISS, closeVerdictMenu, drawFooter, toggleVerdictMenu } from "./footer.js";
+import { DISMISS, closeVerdictMenu, drawFooter, labelList, toggleVerdictMenu } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { closeEditor, drawSummary } from "./summary.js";
@@ -58,10 +58,6 @@ app.editingSuggestion = null;
 // pane's sits behind the sheet, where nothing can be typed into it.
 app.editingConfirm = false;
 app.addingAt = null;
-// Mobile-only: whether the left pane's content is folded away under its own
-// bar. Meaningless at desktop width, where the pane is always open, but kept
-// here rather than guarded on viewport so a resize never has to reconcile it.
-app.paneCollapsed = false;
 app.setup = newSourceSetup();
 app.destinationSetup = newDestinationSetup();
 // Which item the settings panel's detail is showing: a source, a destination,
@@ -224,6 +220,15 @@ find("comment-prefix").addEventListener("blur", () => {
   app.changed();
 });
 
+find("stripped-labels").addEventListener("blur", () => {
+  const labels = labelList(find("stripped-labels").value);
+
+  if (!app.source || labels.join() === app.queries.strippedLabelsFor(app.source).join()) return;
+
+  app.commands.setStrippedLabels(app.source, labels);
+  app.changed();
+});
+
 find("pane-toggle").addEventListener("click", () => {
   togglePaneCollapsed(app);
   app.changed();
@@ -326,6 +331,9 @@ find("signout").addEventListener("click", async () => {
   if (leaveWords(app).resets) {
     try {
       await resetDemo(app);
+      // How it started includes the first review opening for the reader.
+      opened = false;
+      await autoOpen();
       say("the demo is back to how it started", "ok");
     } catch (failure) {
       say(failure.message, "error");
@@ -349,7 +357,7 @@ find("signout").addEventListener("click", async () => {
 // A window coming back to the front is the cheapest moment to notice that the
 // queue moved while it was away.
 window.addEventListener("focus", () => {
-  app.loadQueue().catch((failure) => say(failure.message, "error"));
+  app.catchUp().catch((failure) => say(failure.message, "error"));
 });
 
 // Nothing redraws while the curtain is up: the interface is drawn once, whole,

@@ -55,6 +55,11 @@ export async function openBrowser() {
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-background-networking",
+    // The page's own requests are faked at `fetch`, but an <img src> is not a
+    // fetch: a queue row now asks github.com for an author's picture. A commit
+    // hook must reach nothing, so the resolver answers everything but the
+    // suite's own server with NOTFOUND, and the row falls back to initials.
+    "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost",
     "--disable-component-update",
     "--disable-extensions",
     "--disable-gpu",
@@ -245,6 +250,17 @@ async function openPage(socket, targetId, browserContextId, url) {
     },
 
     /**
+     * Lay the page out at this size, as a phone would, from the next load on.
+     *
+     * @param {number} width css pixels
+     * @param {number} height css pixels
+     * @returns {Promise<void>} when Chrome has it
+     */
+    async resize(width, height) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: true });
+    },
+
+    /**
      * @param {string} to where to go, defaulting to where the page started
      * @returns {Promise<void>} when the load event has fired
      */
@@ -375,14 +391,20 @@ async function openPage(socket, targetId, browserContextId, url) {
       if (!spot) throw new Error(`nothing clickable at ${what}`);
       if (spot.covered) throw new Error(`${what} is covered by ${spot.covered}`);
 
+      await page.clickAt(spot.x, spot.y);
+    },
+
+    /**
+     * Click a point on the screen, whatever is there: a backdrop is clicked
+     * where nothing sits on top of it, which is rarely its centre.
+     *
+     * @param {number} x css pixels from the left
+     * @param {number} y css pixels from the top
+     * @returns {Promise<void>} when the click has been delivered
+     */
+    async clickAt(x, y) {
       for (const type of ["mousePressed", "mouseReleased"]) {
-        await send("Input.dispatchMouseEvent", {
-          type,
-          x: spot.x,
-          y: spot.y,
-          button: "left",
-          clickCount: 1,
-        });
+        await send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
       }
     },
 

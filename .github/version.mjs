@@ -1,9 +1,11 @@
 // What version this repository is at, and whether a tag agrees with it.
 //
-// Two files carry the number by hand: tauri.conf.json is what the installer and
-// the app report, Cargo.toml is what the crate publishes as. Neither is derived
-// from the other and neither is derived from the tag, so all three drift
-// independently and the build says nothing about it.
+// Three files carry the number by hand: tauri.conf.json is what the installer
+// and the app report, Cargo.toml is what the crate publishes as, and
+// ios-project.yml is what xcodegen writes into the Xcode project - twice,
+// because the widget extension carries its own Info.plist. None is derived from
+// another and none is derived from the tag, so they all drift independently and
+// the build says nothing about it.
 //
 // Run it with a tag to have it say so and exit non-zero:
 //
@@ -25,15 +27,33 @@ export function versions() {
     .find((section) => section.startsWith("package]"))
     ?.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 
-  return { conf: JSON.parse(read("tauri.conf.json")).version, cargo };
+  // Every target's marketing version, in file order. Read as lines rather than
+  // as YAML because the file carries `{{apple.development-team}}` placeholders
+  // that tauri substitutes and a YAML parser rejects. Quoted or bare, since
+  // both are valid there.
+  const ios = [...read("ios-project.yml").matchAll(/^\s*CFBundleShortVersionString:\s*"?([^"\s]+)"?\s*$/gm)].map(
+    (match) => match[1],
+  );
+
+  return { conf: JSON.parse(read("tauri.conf.json")).version, cargo, ios };
 }
 
 // The message a human needs, or null when the tag is safe to build.
-export function disagreement(tag) {
-  const { conf, cargo } = versions();
+export function disagreement(tag, found = versions()) {
+  const { conf, cargo, ios } = found;
 
   if (conf !== cargo) {
     return `tauri.conf.json says ${conf} and Cargo.toml says ${cargo}`;
+  }
+
+  if (ios.length === 0) {
+    return "src-tauri/ios-project.yml names no CFBundleShortVersionString";
+  }
+
+  const strayed = ios.find((version) => version !== conf);
+
+  if (strayed) {
+    return `src-tauri/ios-project.yml says ${strayed} and tauri.conf.json says ${conf}`;
   }
 
   return tag === `v${conf}` ? null : `tag ${tag} does not name version ${conf}`;

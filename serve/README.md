@@ -60,9 +60,9 @@ single-page fallback, 404s, and 304s alike. No route is exempt.
 
     default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none';
     form-action 'none'; frame-ancestors 'self'; connect-src 'self' https:;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:;
-    media-src 'self' blob:
+    style-src 'self' 'unsafe-inline'; font-src 'self';
+    img-src 'self' data: blob: https://github.com
+    https://avatars.githubusercontent.com; media-src 'self' blob:
 
 `script-src 'self'` is the one that matters. The GitHub token lives in local
 storage on this origin, so any script running here can read it, and script may
@@ -88,11 +88,26 @@ that is worth saying plainly - but with `script-src 'self'` there is no attacker
 script on the page to do the sending, so the exposure is bounded by our own
 code. Plain http is still refused.
 
-`img-src 'self' data: blob:` and `media-src 'self' blob:` are there because QA
-evidence comes back from the adapter as bytes and is shown through blob URLs
-rather than fetched over the network.
+`img-src` and `media-src` permit `blob:` because QA evidence comes back from the
+adapter as bytes. The interface shows those bytes through blob URLs, and does
+not fetch them over the network.
 
-`font-src` includes `'self'` so a font shipped in the binary can load.
+`img-src` also permits `https://github.com` and
+`https://avatars.githubusercontent.com` so the queue can draw author avatars.
+The page requests the avatar from `github.com`, and `github.com` redirects to
+`avatars.githubusercontent.com`. A redirect needs both origins in the
+directive.
+
+`font-src 'self'` is the whole directive. IBM Plex Sans and JetBrains Mono are
+`woff2` files in `web/fonts/`, so they are embedded in this binary and served
+from this origin. The interface loads no font from anywhere else.
+
+The two copies of this policy that the other builds send must agree with this
+one. `src-tauri/tauri.conf.json` gives the desktop webview its own, and
+`web/index.html` carries a third in a meta tag. A browser intersects two
+policies rather than replacing one with the other, so a directive narrowed here
+and forgotten there refuses a resource in one build only.
+`serve/policy_sync_test.go` compares the three per directive and fails on drift.
 
 ## Behaviour worth knowing
 

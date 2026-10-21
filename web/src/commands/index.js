@@ -346,6 +346,28 @@ export class Commands {
   }
 
   /**
+   * Leave the proposed label change out of the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  dropLabels(source, pull) {
+    this.track(source, "pulls", pull.key, "dropLabels");
+  }
+
+  /**
+   * Put the proposed label change back into the triage.
+   *
+   * @param {object} source the source being read
+   * @param {object} pull which pull request
+   * @returns {void}
+   */
+  restoreLabels(source, pull) {
+    this.track(source, "pulls", pull.key, "restoreLabels");
+  }
+
+  /**
    * Record that the triage went out.
    *
    * The same "post" record a review leaves, with no verdict because an issue
@@ -520,6 +542,17 @@ export class Commands {
    */
   setCommentPrefix(source, prefix) {
     this.track(source, "preferences", READING, "setCommentPrefix", { prefix });
+  }
+
+  /**
+   * Name the labels every issue posted from this source has taken off.
+   *
+   * @param {object} source the source being read
+   * @param {string[]} labels the names, or [] to strip nothing
+   * @returns {void}
+   */
+  setStrippedLabels(source, labels) {
+    this.track(source, "preferences", READING, "setStrippedLabels", { labels });
   }
 
   // ---- Reading the diff

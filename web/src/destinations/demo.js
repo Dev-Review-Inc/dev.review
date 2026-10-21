@@ -189,6 +189,16 @@ export class DemoDestination {
   }
 
   /**
+   * Take a label change nowhere.
+   *
+   * @param {object} target which issue
+   * @returns {Promise<{url: string}>} where the reader can see the real thing
+   */
+  async labelIssue(target) {
+    return { url: target.url || "" };
+  }
+
+  /**
    * Take an issue comment nowhere.
    *
    * @param {object} target which issue
@@ -196,6 +206,19 @@ export class DemoDestination {
    */
   async commentOnIssue(target) {
     return { url: target.url || "" };
+  }
+
+  /**
+   * Name no avatar for an author.
+   *
+   * The demo's sample logins are nobody's GitHub account, so any image named
+   * for one would 404.
+   *
+   * @param {string} _login the author's login, which this destination does not need
+   * @returns {string} always "", which is how a caller is told to fall back to initials
+   */
+  avatarFor(_login) {
+    return "";
   }
 
   _loaded() {

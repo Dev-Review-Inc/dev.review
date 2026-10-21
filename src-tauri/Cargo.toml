@@ -1,14 +1,13 @@
 [package]
 name = "reviewer"
-version = "0.7.9"
+version = "1.0.2"
 description = "Desktop shell for the reviewer app"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Dev Review Inc."]
 repository = "https://github.com/Dev-Review-Inc/dev.review"
-# Tauri itself asks for 1.77.2, but its current dependency tree does not
-# resolve below this.
-rust-version = "1.88"
+# Tauri 2.12 and its plugins ask for this.
+rust-version = "1.90"
 
 [lib]
 # Tauri v2 builds mobile targets from the library, so the binary is a shim.
@@ -16,13 +15,13 @@ name = "reviewer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
 # protocol-asset lets a video play from the chosen folder without its bytes
 # crossing the IPC boundary.
-tauri = { version = "2", features = ["protocol-asset"] }
-tauri-plugin-dialog = "2"
+tauri = { version = "2.12.1", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2.8.1"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
@@ -38,19 +37,17 @@ strip = true
 # git.rs (see the comment at its top) is compiled out under this feature the
 # same way it already is for iOS; bookmark.rs, which App Sandbox needs
 # instead, is compiled in. Off by default: a plain `cargo build` or the
-# Developer ID `.dmg` target never sees either, and never links objc2 in on
-# their behalf either, since both macOS deps below are optional and only
-# `appstore` turns them on.
+# Developer ID `.dmg` target never sees either.
 [features]
-appstore = ["dep:objc2", "dep:objc2-foundation"]
+appstore = []
 
-# NSURL's security-scoped bookmark methods are what bookmark.rs is built on -
-# see the comment at its top for why App Sandbox needs them at all. Optional
-# and macOS-only so the Developer ID `.dmg` target, which never enables
-# `appstore`, links none of it in.
+# NSURL's security-scoped bookmark methods are what bookmark.rs is built on,
+# and NSWorkspace is how links.rs opens a link in the system browser. wry
+# already links both crates into every macOS build; these lines only let
+# this crate call them.
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = { version = "0.6.2", optional = true }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSURL", "NSString", "NSData", "NSError", "NSArray", "std"], optional = true }
+objc2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSURL", "NSString", "NSData", "NSError", "NSArray", "std"] }
 
 # Gating the Keychain's actual Face ID prompt is only meaningful where a
 # Keychain exists to gate - iOS. Desktop keeps using the same IndexedDB
@@ -60,4 +57,13 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["N
 objc2 = "0.6.2"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSFileManager", "NSURL", "NSString", "NSUserDefaults", "std"] }
 security-framework = "3.7.0"
-tauri-plugin-biometric = "2.3.2"
+tauri-plugin-biometric = "2.4.1"
+
+# swift-rs 1.0.8 leaves its own runtime shim's @_cdecl symbols internal under
+# Xcode 27, so the iOS link fails on retain_object, release_object and
+# string_from_bytes (Brendonovich/swift-rs#81). vendor/swift-rs is 1.0.8 with
+# the three-line fix from Brendonovich/swift-rs#82 applied, keeping only what a
+# build reads plus both licences. Delete this entry and the directory once a
+# swift-rs release carries that fix.
+[patch.crates-io]
+swift-rs = { path = "vendor/swift-rs" }

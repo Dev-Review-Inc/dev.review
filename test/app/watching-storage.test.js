@@ -88,3 +88,41 @@ describe("A draft arriving while nothing is open", () => {
     assert.equal(app.queue()[0].isReady, true);
   });
 });
+
+// On iOS the first touch after launch focuses the window, and the touch's click
+// only follows once that focus is handled. A redraw then replaces the element
+// under the finger, and the click never comes.
+describe("The reader coming back to the app", () => {
+  test("redraws nothing on a first run, which has nothing to pick up", async () => {
+    const app = await theApp({ pulls: [], attach: false });
+    let redraws = 0;
+
+    app.onChange(() => (redraws += 1));
+    await app.catchUp();
+
+    assert.equal(redraws, 0);
+  });
+
+  test("redraws nothing when no draft moved while it was away", async () => {
+    const app = await theApp({ adapter: new MemoryAdapter() });
+    let redraws = 0;
+
+    app.onChange(() => (redraws += 1));
+    await app.catchUp();
+
+    assert.equal(redraws, 0);
+  });
+
+  test("picks up a draft written while it was away", async () => {
+    const adapter = new MemoryAdapter();
+    const app = await theApp({ adapter, pulls: [] });
+    let redraws = 0;
+
+    app.onChange(() => (redraws += 1));
+    await agentWrites(adapter, aDraft());
+    await app.catchUp();
+
+    assert.ok(redraws > 0, "a new draft has to be drawn");
+    assert.equal(app.queue()[0].isReady, true);
+  });
+});

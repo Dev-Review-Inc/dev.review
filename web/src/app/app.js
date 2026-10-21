@@ -16,9 +16,9 @@ import { Sync, deviceIdFor } from "../state/sync.js";
 import runners from "../state/runners.js";
 import { Commands } from "../commands/index.js";
 import { Queries, pullsFromDrafts } from "../queries/index.js";
-import { buildAdapter, MemoryAdapter } from "../adapters/index.js";
+import { buildAdapter, MemoryAdapter, takesSecret as adapterTakesSecret } from "../adapters/index.js";
 import { recallHandle, rememberHandle, forgetHandle } from "../adapters/filesystem.js";
-import { buildDestination } from "../destinations/index.js";
+import { buildDestination, takesSecret as destinationTakesSecret } from "../destinations/index.js";
 import { remember } from "./theirs.js";
 import { syncWidget } from "./widget.js";
 
@@ -316,10 +316,13 @@ export class App {
     // and reopening it would close the pull request the reader is reading.
     if (source && this.source && this.source.id === source.id) return;
 
+    // Let go of the old source's review before the new one opens, not after:
+    // opening redraws, and a redraw can open the new source's first review.
+    this.selected = null;
+
     await this.state.setPreference("source", source ? source.id : null);
     await this._openSource(source ? source.id : null);
 
-    this.selected = null;
     this.changed();
   }
 
@@ -585,6 +588,22 @@ export class App {
   }
 
   /**
+   * Read the drafts again, redrawing only if one moved.
+   *
+   * A redraw replaces every element, including the one under the reader's
+   * finger. iOS focuses the window on the first touch and holds that touch's
+   * click until the focus is handled, so a redraw here would swallow it.
+   *
+   * @returns {Promise<void>} when the queue is current
+   */
+  async catchUp() {
+    if (!this.drafts || !(await this.drafts.loadAll()).length) return;
+
+    await this.reselect();
+    await syncWidget(this.queue().length);
+  }
+
+  /**
    * Ask again, on the timer, with nobody holding the answer.
    *
    * `loadQueue` throws, because every other caller awaits it and can say what
@@ -669,6 +688,8 @@ export class App {
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
+    // Mobile only: a review opens on its text, not under the drawer.
+    this.paneCollapsed = true;
     this.dismissing = false;
     this.driftExpanded = false;
     this.changed();
@@ -1038,7 +1059,7 @@ export class App {
    * @throws {Error} if it cannot be built from what is stored
    */
   async _readerFor(source) {
-    const secret = await this.state.secret(source.id);
+    const secret = adapterTakesSecret(source.adapter.type) ? await this.state.secret(source.id) : {};
     const handle = await this._handleFor(source.id);
 
     return this._buildAdapterWith(source.adapter, secret, handle);
@@ -1078,7 +1099,9 @@ export class App {
     if (!destination) return;
 
     try {
-      this.destination = this._buildDestinationWith(destination, await this.state.secret(destination.id));
+      const secret = destinationTakesSecret(destination.type) ? await this.state.secret(destination.id) : {};
+
+      this.destination = this._buildDestinationWith(destination, secret);
       this.login = (await this.destination.identify()).login;
     } catch (error) {
       this.problems.destination = error.message;

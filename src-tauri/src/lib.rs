@@ -17,6 +17,7 @@
 // module's entire premise. See git.rs's own top comment.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
 mod git;
+mod links;
 mod storage;
 
 // The security-scoped bookmark that lets App Sandbox remember a folder the
@@ -33,6 +34,10 @@ mod bookmark;
 // why the crates this leans on are iOS-only dependencies.
 #[cfg(target_os = "ios")]
 mod keychain;
+
+// keychain.rs's decision about when to ask, kept pure so the host tests it.
+#[cfg(any(target_os = "ios", test))]
+mod unlock;
 
 // A folder the reader picks is the desktop source; the iOS build's own fixed
 // ubiquity container is this one instead - see the comment at the top of
@@ -63,6 +68,7 @@ pub fn run() {
         // The folder picker is opened from Rust, so the frontend needs no
         // dialog permission of its own.
         .plugin(tauri_plugin_dialog::init())
+        .plugin(links::init())
         .invoke_handler(tauri::generate_handler![
             storage::storage_pick_root,
             storage::storage_list,
@@ -126,6 +132,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_biometric::init())
+        .plugin(links::init())
         .invoke_handler(tauri::generate_handler![
             storage::storage_list,
             storage::storage_read,

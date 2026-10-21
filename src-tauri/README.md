@@ -88,9 +88,24 @@ rsvg-convert -w 1024 -h 1024 app-icon.svg -o app-icon.png
 cargo tauri icon app-icon.png
 ```
 
-The generator also writes iOS, Android and Microsoft Store sets. Neither is a
-build target here, so `icons/` keeps only the files `bundle.icon` names and the
-rest are deleted after each run.
+The generator also writes iOS, Android and Microsoft Store sets. Delete them
+after each run. `icons/` keeps only the files that `bundle.icon` names. The
+iOS set comes from a different source.
+
+`app-icon-ios.svg` is the iOS cut. iOS applies its own corner mask, and the
+App Store refuses an icon with transparency. So the panel fills the square
+canvas, with no rounded corners. The artwork scales about the centre by
+1024/824, so the lines and the check keep their proportions to the panel.
+`ios/AppIcon.appiconset/` holds it as one opaque 1024 PNG. An iOS 17 target
+lets Xcode derive every other size from that one image. To regenerate it:
+
+```sh
+rsvg-convert -w 1024 -h 1024 -b '#0e0f12' app-icon-ios.svg \
+  | magick - -alpha off -strip PNG24:ios/AppIcon.appiconset/AppIcon-1024.png
+```
+
+`test/release/ios-icon.test.js` checks that the PNG is 1024 square with no
+alpha channel.
 
 The bundler derives `Reviewer.icns` from whatever `bundle.icon` lists. That list
 was one 512x512 PNG for a while, which produced an `.icns` holding a single
@@ -176,6 +191,70 @@ specific to the shell and would be meaningless on the web:
   widened at runtime to the one folder the user picked, which is the only point
   at which that folder is known.
 
+## What an App Store upload needs
+
+Three things are answered in the repository rather than by hand in App Store
+Connect, because each one is answered once per build otherwise.
+
+`Info.ios.plist` sets `ITSAppUsesNonExemptEncryption` to false. Without the
+key, every upload waits for someone to answer the export compliance
+questionnaire. False is correct here: TLS and the Keychain are the platform's,
+and the only cryptography this app writes is the SigV4 signing in
+`web/src/adapters/sigv4.js`, which authenticates a request and encrypts
+nothing.
+
+`PrivacyInfo.xcprivacy` is the privacy manifest. Apple refuses a submission
+without one in the bundle. It declares no tracking, no collected data, and two
+required-reason API categories: `UserDefaults` (CA92.1), because `src/widget.rs`
+writes the queue count into the App Group's defaults, and `FileTimestamp`
+(C617.1), because `src/storage.rs` reads each file's modification time while
+listing the iCloud container. `ios-project.yml` names the file as a resource on
+BOTH targets. A manifest is not inherited from the host app, and the widget
+extension is what reads those defaults.
+
+Apple's required-reason API list grows. The categories above were read out of
+this code, not off Apple's current page, so check both against "Describing use
+of required reason API" before a submission, and run Xcode's Generate Privacy
+Report on the archive, which reads the built binary instead of the source.
+
+## Preparing the iOS project
+
+`gen/apple/` is gitignored, and `cargo tauri ios init` rebuilds it. Init
+blanks both entitlements files and fills the asset catalog with Tauri's
+default icon. The first TestFlight build shipped that default icon. Run the
+script below instead of a bare init:
+
+```sh
+./ios-prepare.sh
+```
+
+It runs `cargo tauri ios init --ci`. It reads the entitlements paths from the
+generated project and copies `reviewer_iOS.entitlements` and
+`ReviewerWidget/ReviewerWidget.entitlements` to them. It replaces the
+generated `AppIcon.appiconset` with `ios/AppIcon.appiconset`. Then it checks
+that both entitlements files name the App Group, and that the project targets
+iOS 17.0 under team `L22C9S8VZ7`. Any mismatch stops it with a non-zero exit.
+It does not build or sign.
+
+## The iOS version number
+
+`ios-project.yml` names `CFBundleShortVersionString` once per target, and both
+have to match `tauri.conf.json` and `Cargo.toml`. They drifted three minor
+releases before anyone looked, so `.github/version.mjs` now reads them too and
+the release workflow refuses a tag that disagrees. `test/release/version.test.js`
+asserts the same thing at commit time.
+
+`CFBundleVersion` is `$(CURRENT_PROJECT_VERSION)` in both targets.
+`cargo tauri ios build` sets that setting to the app version, so the first
+archive shipped `CFBundleVersion` 0.9.0. The literal in the `version` setting
+group never reaches the bundle.
+
+Apple rejects an upload whose build number repeats one it has already seen,
+so each version uploads to TestFlight once. To upload again, release the next
+patch version. Do not use `--build-number`: tauri-cli appends it as a fourth
+number (0.9.0.1), and Apple allows one to three. No workflow uploads to
+TestFlight yet.
+
 ## Path containment
 
 `src/storage.rs` treats containment as a security boundary rather than
@@ -227,9 +306,4 @@ Not verified:
   permission, so the webview was confirmed to exist and be composited rather
   than read pixel by pixel. The CSP as the webview finally applies it and the
   asset protocol streaming a real video are still unproven.
-- The remote font stylesheet `web/index.html` links from `fonts.googleapis.com`.
-  `style-src` is `'self' 'unsafe-inline'`, which does not cover it, so inside the
-  shell the type falls back to `system-ui` where the browser build gets IBM Plex
-  Sans. Nothing breaks, and widening `style-src` to reach a third party to fix
-  cosmetics is the worse trade.
 - Anything on Windows or mobile.

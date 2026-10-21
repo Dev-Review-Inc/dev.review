@@ -124,6 +124,8 @@ export default {
   // The proposed close, which the reader can leave out of the triage.
   "pulls.dropClose": moment("closeDroppedAt"),
   "pulls.restoreClose": moment("closeDroppedAt", null),
+  "pulls.dropLabels": moment("labelsDroppedAt"),
+  "pulls.restoreLabels": moment("labelsDroppedAt", null),
 
   "pulls.post": change((data, event) => ({
     postedAt: event.time,
@@ -194,6 +196,10 @@ export default {
   // What the reader wants ahead of everything sent - a tag their team reads
   // as "an agent had a hand in this," a name, whatever they configure.
   "preferences.setCommentPrefix": change((data) => ({ commentPrefix: data.prefix })),
+
+  // Labels every posted issue has taken off - the queue's own marker, most
+  // often, which a triaged ticket should no longer wear.
+  "preferences.setStrippedLabels": change((data) => ({ strippedLabels: data.labels })),
 
   // ---- How far through the diff the reader has got.
 
