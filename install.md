@@ -637,24 +637,14 @@ export function searchRoots(env, fallback) {
  * The folder of checkouts a directory belongs to.
  *
  * Working inside a checkout, the repositories worth searching are its
- * neighbors — the folder holding it. A worktree's neighbors are its main
- * checkout's, wherever the worktree itself lives. Anywhere else, the directory
- * itself is the place to look.
+ * neighbors — the folder holding it. Anywhere else, the directory itself is
+ * the place to look.
  *
  * @param {string} dir the directory to start from
  * @returns {string} the folder to search for checkouts
  */
 export function neighborhood(dir) {
-  const dotGit = path.join(dir, ".git");
-
-  if (!fs.existsSync(dotGit)) return dir;
-
-  const gitdir = fs.statSync(dotGit).isFile()
-    ? fs.readFileSync(dotGit, "utf8").match(/^gitdir:\s*(.+?)\s*$/m)?.[1]
-    : null;
-  const main = gitdir?.match(/^(.*)[\\/]\.git[\\/]worktrees[\\/][^\\/]+$/)?.[1];
-
-  return path.dirname(main ? path.resolve(dir, main) : dir);
+  return fs.existsSync(path.join(dir, ".git")) ? path.dirname(dir) : dir;
 }
 
 const SEARCH_ROOTS = searchRoots(process.env, neighborhood(process.cwd()));
