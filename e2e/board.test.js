@@ -55,6 +55,13 @@ describe("Looking over the whole queue on the board", () => {
     assert.equal(await page.eval('document.querySelector("#board-button").getAttribute("aria-pressed")'), "true");
   });
 
+  test("nothing can be posted from the board, since no review is on screen", async () => {
+    for (const id of ["post-split", "consequence", "staged", "counts"]) {
+      assert.equal(await page.eval(`document.getElementById("${id}").hidden`), true, id);
+    }
+    assert.equal(await page.eval('document.getElementById("status").hidden'), false);
+  });
+
   test("each pull request sits in the column for its state", async () => {
     assert.equal(await page.eval(`document.querySelector(${JSON.stringify(card(42))}).closest(".board-column").dataset.state`), "ready");
     assert.equal(await page.eval(`document.querySelector(${JSON.stringify(card(43))}).closest(".board-column").dataset.state`), "stalled");

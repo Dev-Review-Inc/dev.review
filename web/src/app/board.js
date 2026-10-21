@@ -20,6 +20,10 @@ export function drawBoard(app) {
   board.hidden = !app.board;
   document.querySelector("main").hidden = Boolean(app.board);
 
+  // The footer acts on the review in the reader; with none on screen, only
+  // its status line stays.
+  for (const id of ["post-split", "consequence", "staged", "counts"]) find(id).hidden = Boolean(app.board);
+
   if (!app.board) return;
 
   board.replaceChildren(
