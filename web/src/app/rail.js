@@ -23,6 +23,7 @@ import {
 import { button } from "../ui/button.js";
 import { render, restyle } from "../ui/render.js";
 import { webUrl } from "../domain/url.js";
+import { resumeCommand } from "../domain/draft.js";
 
 /**
  * Fold the pane's content away, or bring it back. View-only state kept on the
@@ -138,7 +139,15 @@ function drawBlurb(app) {
 
   // Nothing to copy, so nothing offering to. A button that put a url the
   // reader cannot follow on their clipboard would be offering a dead end.
-  if (address) line.append(copyButton(address, Boolean(pull.isIssue)));
+  if (address) {
+    line.append(copyButton(address, pull.isIssue ? "Copy the issue url" : "Copy the pull request url"));
+  }
+
+  // The agent that wrote the draft can be talked to: resuming its session in
+  // its own folder picks the conversation up where the review left it.
+  const resume = resumeCommand(pull.draft?.agent);
+
+  if (resume) line.append(copyButton(resume, "Copy the command that resumes the agent that wrote this"));
 
   // Only where there is a document to throw away. With nothing written yet the
   // pull request is already waiting to be picked up, and a button offering to
@@ -254,25 +263,19 @@ function pullName(pull, address) {
 }
 
 /**
- * Put the pull request's url on the clipboard.
+ * Put some text on the clipboard.
  *
- * @param {string} address the url, already checked
- * @param {boolean} isIssue whether the open thing is an issue rather than a pull request
+ * @param {string} text what to copy, already checked
+ * @param {string} title what the button says it copies
  * @returns {HTMLElement} the button
  */
-function copyButton(address, isIssue) {
-  const copy = render(
-    button({
-      role: "icon",
-      icon: COPY_ICON,
-      title: isIssue ? "Copy the issue url" : "Copy the pull request url",
-    }),
-  );
+function copyButton(text, title) {
+  const copy = render(button({ role: "icon", icon: COPY_ICON, title }));
 
   copy.classList.add("copy-url");
   copy.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(address);
+      await navigator.clipboard.writeText(text);
 
       // The button itself says it worked, right where the eye already is.
       copy.classList.add("is-copied");

@@ -66,6 +66,7 @@ so `org/app#42` is `org--app-42/review.json`. Media the draft refers to — QA r
 | `owner`, `repo`, `number` | yes | Identify the pull request. They must agree with the filename. |
 | `title`, `url` | no | Shown in the header and on the queue. The `url` is also how the app tells an issue draft from a pull request draft — `/issues/` or `/pull/` — so a draft without one renders nowhere. |
 | `author` | no | Login of whoever opened the pull request or issue, shown on the queue row. |
+| `agent` | no | `{ "session": "<uuid>", "cwd": "/abs/path" }`: the Claude Code session that wrote the draft and the folder it ran in, so the reader can resume that agent with `claude --resume`. Dropped unless `session` is a UUID and `cwd` an absolute single-line path. |
 | `reviewedAt` | no | The commit the review was written against. Shown so a stale draft is visible as stale, and sent as the review's `commit_id`. |
 | `draftedAt` | no | ISO 8601 timestamp of the most recent write — including an in-progress one. |
 | `finishedAt` | no | ISO 8601 timestamp set only on the write that finishes the review. Absent while still in progress, however much of `sections` and `findings` has landed so far. |

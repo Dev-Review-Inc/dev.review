@@ -332,11 +332,43 @@ function qaOf(qa) {
   };
 }
 
+const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The Claude Code session that wrote the draft, and the folder it ran in.
+ *
+ * Both end up in a `claude --resume` command, so anything but a UUID and an
+ * absolute single-line path is dropped rather than quoted.
+ *
+ * @param {*} agent the agent field of a draft
+ * @returns {{session: string, cwd: string}|null}
+ */
+function agentOf(agent) {
+  const { session, cwd } = agent && typeof agent === "object" ? agent : {};
+
+  if (typeof session !== "string" || !SESSION.test(session)) return null;
+  if (typeof cwd !== "string" || !cwd.startsWith("/") || /[\0-\x1f]/.test(cwd)) return null;
+
+  return { session, cwd };
+}
+
+/**
+ * The shell command that resumes the agent that wrote a draft.
+ *
+ * @param {{session: string, cwd: string}|null} agent a parsed draft's agent
+ * @returns {string} the command, or "" when the draft names no agent
+ */
+export function resumeCommand(agent) {
+  if (!agent) return "";
+
+  return `cd '${agent.cwd.replaceAll("'", "'\\''")}' && claude --resume ${agent.session}`;
+}
+
 /**
  * Read a draft written by the review sweep.
  *
  * @param {object} payload the decoded JSON document
- * @returns {{title: string, url: string, reviewedAt: string, draftedAt: string, verdict: string, description: string, close: object|null, labels: object|null, summary: string, sections: object[], comment: string}}
+ * @returns {{title: string, url: string, agent: object|null, reviewedAt: string, draftedAt: string, verdict: string, description: string, close: object|null, labels: object|null, summary: string, sections: object[], comment: string}}
  * @throws {Error} if the draft is not a shape this client can act on, or proposes nothing
  */
 export function parseDraft(payload) {
@@ -392,6 +424,8 @@ export function parseDraft(payload) {
     sections: sectionsOf(draft.sections, findings),
     kinds: kindsOf(draft.kinds),
     progress: progressOf(draft.progress),
+    // Who wrote it, so the reader can talk to that agent; null when unknown.
+    agent: agentOf(draft.agent),
     // Empty is a legitimate summary: the findings can be the whole review.
     comment,
   };

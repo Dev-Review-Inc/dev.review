@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 
-import { parseDraft } from "../web/src/domain/draft.js";
+import { parseDraft, resumeCommand } from "../web/src/domain/draft.js";
 
 const DRAFT = {
   schema: 3,
@@ -51,6 +51,32 @@ test("carries the kinds with their summaries, tolerating their absence", () => {
   ]);
 
   assert.deepStrictEqual(draft({ kinds: undefined }).kinds, []);
+});
+
+test("carries the session that wrote it, so the reader can resume that agent", () => {
+  const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app" };
+
+  assert.deepStrictEqual(draft({ agent }).agent, agent);
+});
+
+test("says how to resume the agent, quoting the folder for the shell", () => {
+  const session = "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90";
+
+  assert.strictEqual(
+    resumeCommand({ session, cwd: "/Users/me/it's here" }),
+    `cd '/Users/me/it'\\''s here' && claude --resume ${session}`,
+  );
+  assert.strictEqual(resumeCommand(null), "");
+});
+
+test("drops a session it could not safely hand to a shell", () => {
+  const cwd = "/Users/me/apps/app";
+
+  assert.strictEqual(draft({}).agent, null);
+  assert.strictEqual(draft({ agent: { session: "x; rm -rf ~", cwd } }).agent, null);
+  assert.strictEqual(draft({ agent: { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "apps/app" } }).agent, null);
+  assert.strictEqual(draft({ agent: { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/a\nb" } }).agent, null);
+  assert.strictEqual(draft({ agent: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90" }).agent, null);
 });
 
 test("carries the reviewer's progress, tolerating junk and absence", () => {
