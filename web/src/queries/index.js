@@ -16,6 +16,12 @@ const SORT_BY_NAME = (a, b) => String(a.name || "").localeCompare(String(b.name 
 // Worst first, for picking the tone of a chip that stands for several findings.
 const TONES = ["critical", "warn", "accent", "ok", "neutral"];
 
+// How long an unfinished draft may go without the agent writing to it before
+// its run is taken for dead. The sweep's queue retries such a claim after the
+// same silence (skills/collector/draft-state.js, STALE_AFTER_MS), measured off
+// the folder's files there and off draftedAt here.
+export const STALE_AFTER_MS = 30 * 60 * 1000;
+
 // How far back the dismissed list reaches. A mis-hit is noticed within days, so
 // a week is long enough to undo one and short enough that the list stays a list
 // of recent mistakes rather than every pull request ever resolved this way.
@@ -151,11 +157,12 @@ export class Queries {
    *
    * @param {object} source the source being read
    * @param {object[]} pulls the drafted entries, from {@link pullsFromDrafts}
+   * @param {number} [now] the moment to judge unfinished drafts against
    * @returns {object[]} the queue, each entry carrying its own reading state
    */
-  queue(source, pulls) {
+  queue(source, pulls, now = Date.now()) {
     return pulls
-      .map((pull) => this.pullState(source, pull))
+      .map((pull) => this.pullState(source, pull, now))
       .filter((entry) => !entry.dismissedAt)
       .sort((a, b) => Number(b.isReady) - Number(a.isReady));
   }
@@ -215,12 +222,18 @@ export class Queries {
    *
    * @param {object} source the source being read
    * @param {object} pull one entry from the queue
+   * @param {number} [now] the moment to judge an unfinished draft against
    * @returns {object} the pull request, its draft, and what the reader decided
    */
-  pullState(source, pull) {
+  pullState(source, pull, now = Date.now()) {
     const key = draftKey(pull.owner, pull.repo, pull.number);
     const draft = this.drafts.find(key);
     const decision = this._pullDecision(source, key);
+    const unfinished = Boolean(draft && !draft.finishedAt);
+    // The agent refreshes draftedAt on every write, so a stamp this old is a
+    // run that died with its claim on disk. A stamp that will not parse, or
+    // one in the future, measures nothing and leaves the draft drafting.
+    const stalled = unfinished && now - Date.parse(draft.draftedAt) >= STALE_AFTER_MS;
 
     return {
       ...pull,
@@ -229,7 +242,8 @@ export class Queries {
       // A draft is worth opening once the agent has finished writing it. An
       // unfinished one still shows its progress, but is not what "ready" means.
       isReady: Boolean(draft && draft.finishedAt),
-      isDrafting: Boolean(draft && !draft.finishedAt),
+      isDrafting: unfinished && !stalled,
+      isStalled: stalled,
       dismissedAt: this._dismissal(pull, decision),
       postedAt: decision.postedAt || null,
       postedUrl: decision.postedUrl || "",

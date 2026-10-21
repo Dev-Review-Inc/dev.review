@@ -11,6 +11,7 @@
 // without the two importing each other.
 
 import { UNREAD } from "../state/drafts.js";
+import { age } from "./dom.js";
 
 /**
  * What the screen says about a draft it has not got.
@@ -221,4 +222,24 @@ export function dismissedWords() {
     cta: { text: "", href: "" },
     record: "dismissed {age} ago",
   };
+}
+
+/**
+ * What the banner over an unfinished review says.
+ *
+ * While the agent is writing, its own note on where it has got to; failing
+ * that, a plain word that the summary is still coming. Once the claim has
+ * stalled the note is history, not progress, so the banner says instead how
+ * long the agent has been silent and that the next sweep drafts the pull
+ * request again - which is the sweep's rule, not a promise this app keeps.
+ *
+ * @param {object} entry the pull request, from pullState
+ * @returns {string} the banner's words
+ */
+export function progressWords(entry) {
+  if (entry.isStalled) {
+    return `review stalled - the agent last wrote ${age(entry.draft.draftedAt)} ago; the next sweep retries it`;
+  }
+
+  return entry.draft.progress.note || "review in progress - this summary is still being written";
 }

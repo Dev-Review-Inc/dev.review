@@ -17,6 +17,7 @@ import {
   postedWords,
   leaveWords,
   dismissedWords,
+  progressWords,
 } from "../../web/src/app/words.js";
 import { UNREAD, UNPARSED } from "../../web/src/state/drafts.js";
 import { GitHubDestination } from "../../web/src/destinations/github-destination.js";
@@ -211,5 +212,33 @@ describe("the words on a draft that did not arrive", () => {
 
     assert.notEqual(unread.title, unparsed.title);
     assert.notEqual(unread.note, unparsed.note);
+  });
+});
+
+describe("the banner over an unfinished review", () => {
+  const unfinished = (overrides) => ({
+    isStalled: false,
+    draft: { draftedAt: "", progress: { note: "", percent: null } },
+    ...overrides,
+  });
+
+  test("carries the agent's own note on where it has got to", () => {
+    const entry = unfinished({ draft: { draftedAt: "", progress: { note: "QA: 2 of 3", percent: 60 } } });
+
+    assert.equal(progressWords(entry), "QA: 2 of 3");
+  });
+
+  test("says the summary is still coming when the agent left no note", () => {
+    assert.match(progressWords(unfinished()), /in progress/);
+  });
+
+  test("says the review stalled and that the next sweep retries it, over any note the agent left", () => {
+    const draftedAt = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+    const entry = unfinished({ isStalled: true, draft: { draftedAt, progress: { note: "QA: 2 of 3", percent: 60 } } });
+    const words = progressWords(entry);
+
+    assert.match(words, /stalled/);
+    assert.match(words, /next sweep/);
+    assert.doesNotMatch(words, /QA: 2 of 3/);
   });
 });

@@ -666,6 +666,7 @@
   .state.comment { color: var(--accent); }
   .state.request_changes { color: var(--red); }
   .state.pending { color: var(--faint); }
+  .state.stalled { color: var(--amber); }
   .state.posted { color: var(--accent); }
 
   /* Analysis ------------------------------------------------------------ */
@@ -933,6 +934,8 @@
   }
 
   .wip .progress { width: 120px; margin-left: auto; flex-shrink: 0; }
+  /* A claim whose run died: the one unfinished state that wants the eye. */
+  .wip.is-stalled { border-style: solid; border-color: var(--amber); color: var(--text); }
   .empty-text { font-size: var(--textBody); line-height: 1.6; color: var(--dim2); text-wrap: pretty; }
 
   /* Files list ---------------------------------------------------------- */

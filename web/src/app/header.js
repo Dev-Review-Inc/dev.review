@@ -473,6 +473,11 @@ export function stateOf(entry) {
     return { tone: "pending", word: entry.draft.progress.note || "reviewing" };
   }
 
+  // A claim the agent stopped writing to long enough ago that its run is dead.
+  // Its last note says where it got to, not where it is, so it is not shown;
+  // the pane says what happens next (the sweep drafts it again).
+  if (entry.isStalled) return { tone: "stalled", word: "stalled" };
+
   if (!entry.isReady) return { tone: "pending", word: "not started" };
 
   const verdict = entry.draft.verdict || "";
