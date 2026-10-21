@@ -49,6 +49,10 @@ appstore = []
 objc2 = "0.6.2"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSURL", "NSString", "NSData", "NSError", "NSArray", "std"] }
 
+# agent.rs signals a run's whole process group on cancel.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # Gating the Keychain's actual Face ID prompt is only meaningful where a
 # Keychain exists to gate - iOS. Desktop keeps using the same IndexedDB
 # secret storage it always has; nothing here is a security regression for

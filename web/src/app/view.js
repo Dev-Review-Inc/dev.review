@@ -10,7 +10,7 @@ import { App } from "./app.js";
 import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
-import { inTauriIOS } from "../adapters/tauri.js";
+import { agentRunner, inTauriIOS } from "../adapters/tauri.js";
 import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
 import { drawBoard } from "./board.js";
@@ -67,6 +67,15 @@ app.settingsSelection = { kind: "", id: null };
 // The board in the reader's place, and which of its cards are opened out.
 app.board = false;
 app.boardOpen = new Set();
+// The card whose agent the drawer talks to, each card's chat so far, and what
+// runs the agent: null until the desktop build says it can.
+app.boardChat = null;
+app.chats = new Map();
+app.agentRunner = null;
+agentRunner().then((runner) => {
+  app.agentRunner = runner;
+  if (runner) app.changed();
+});
 
 // Whether the first finished review has been opened for the reader. Opening
 // cold, that review is the obvious next action, so it is opened rather than

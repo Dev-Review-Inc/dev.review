@@ -2,9 +2,15 @@
 // cards in columns by state. A card opens in place onto its findings; its
 // title opens it in the reader.
 
-import { element, find, say } from "./dom.js";
+import { CLOSE_ICON, element, find, say } from "./dom.js";
 import { VERDICT_TONE } from "./footer.js";
+import { copyButton } from "./rail.js";
+import { AgentChat } from "./agent-chat.js";
 import { boardColumns, findingsByKind, firstLine } from "./board-layout.js";
+import { button } from "../ui/button.js";
+import { render } from "../ui/render.js";
+import { resumeCommand } from "../domain/draft.js";
+import { draftPath } from "../domain/draft-path.js";
 
 /**
  * Show the board or the reader, and draw the board when it is the one shown.
@@ -26,9 +32,117 @@ export function drawBoard(app) {
 
   if (!app.board) return;
 
-  board.replaceChildren(
-    ...boardColumns([...app.queue(), ...app.dismissed()]).map((column) => drawColumn(app, column)),
-  );
+  const entries = [...app.queue(), ...app.dismissed()];
+  const chatting = entries.find((entry) => entry.key === app.boardChat);
+  const columns = element("div", "board-columns", "");
+
+  columns.append(...boardColumns(entries).map((column) => drawColumn(app, column)));
+  board.classList.toggle("is-chatting", Boolean(chatting));
+  board.replaceChildren(columns, ...(chatting ? [drawChat(app, chatting)] : []));
+
+  const log = board.querySelector(".board-chat-log");
+
+  if (log) log.scrollTop = log.scrollHeight;
+}
+
+/**
+ * The drawer for talking to the agent that wrote a card's draft.
+ *
+ * @param {object} app the application
+ * @param {object} entry the card being chatted about
+ * @returns {HTMLElement} the drawer
+ */
+function drawChat(app, entry) {
+  const drawer = element("aside", "board-chat", "");
+  drawer.id = "board-chat";
+
+  const head = element("div", "board-chat-head", "");
+  const close = render(button({ role: "icon", icon: CLOSE_ICON, title: "Close the chat" }));
+
+  close.classList.add("board-chat-close");
+  close.addEventListener("click", () => {
+    app.boardChat = null;
+    app.changed();
+  });
+  head.append(element("span", "board-repo mono", `agent · ${entry.owner}/${entry.repo}#${entry.number}`), element("span", "spacer", ""), close);
+  drawer.append(head);
+
+  const agent = entry.draft?.agent;
+
+  if (!agent) {
+    drawer.append(element("p", "board-chat-note", "No agent to talk to: this draft does not name the one that wrote it."));
+    return drawer;
+  }
+
+  const elsewhere = (words) => {
+    const note = element("p", "board-chat-note", words);
+
+    note.append(copyButton(resumeCommand(agent), "Copy the command that resumes the agent that wrote this"));
+    drawer.append(note);
+
+    return drawer;
+  };
+
+  if (!app.agentRunner) return elsewhere("Talking to the agent needs the desktop app. Resume it in a terminal instead.");
+  if (typeof app.adapter?.absolute !== "function") {
+    return elsewhere("The agent can edit only a draft in a folder on this computer. Resume it in a terminal instead.");
+  }
+
+  const chat = chatFor(app, entry);
+
+  if (chat.elsewhere) return elsewhere("The agent ran on another machine. Resume it there.");
+
+  const log = element("div", "board-chat-log", "");
+
+  log.append(...chat.said.map((said) => element("div", `board-chat-line is-${said.who}${said.who === "tool" ? " mono" : ""}`, said.text)));
+
+  const input = element("textarea", "board-chat-input", "");
+
+  input.dataset.focusKey = "board-chat";
+  input.rows = 2;
+  input.value = chat.typing;
+  input.disabled = chat.busy;
+  input.placeholder = chat.busy ? "The agent is working…" : "Ask the agent about its review";
+  input.addEventListener("input", () => (chat.typing = input.value));
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+
+    event.preventDefault();
+    chat.send(input.value);
+  });
+
+  const act = chat.busy
+    ? button({ role: "ghost", compact: true, label: "Cancel", onClick: () => chat.cancel() })
+    : button({ role: "primary", compact: true, label: "Send", onClick: () => chat.send(input.value) });
+
+  const form = element("div", "board-chat-form", "");
+
+  form.append(input, render(act));
+  drawer.append(log, form);
+
+  return drawer;
+}
+
+function chatFor(app, entry) {
+  const key = entry.key;
+  const id = `${app.source?.id}|${key}`;
+
+  if (!app.chats.has(id)) {
+    app.chats.set(
+      id,
+      new AgentChat({
+        runner: app.agentRunner,
+        commands: app.commands,
+        queries: app.queries,
+        source: app.source,
+        entry: () => [...app.queue(), ...app.dismissed()].find((found) => found.key === key) || entry,
+        review: app.adapter.absolute(draftPath(entry.owner, entry.repo, entry.number)),
+        changed: () => app.changed(),
+      }),
+    );
+  }
+
+  return app.chats.get(id);
 }
 
 function drawColumn(app, column) {
@@ -44,8 +158,22 @@ function drawColumn(app, column) {
 }
 
 function drawCard(app, entry) {
-  const card = element("article", "board-card", "");
+  const card = element("article", `board-card${app.boardChat === entry.key ? " is-chatting" : ""}`, "");
   card.dataset.key = entry.key;
+  card.tabIndex = 0;
+
+  // The card, away from its buttons, opens the chat with its agent.
+  const choose = () => {
+    app.boardChat = app.boardChat === entry.key ? null : entry.key;
+    app.changed();
+  };
+
+  card.addEventListener("click", (event) => {
+    if (!event.target.closest("button")) choose();
+  });
+  card.addEventListener("keydown", (event) => {
+    if (event.target === card && event.key === "Enter") choose();
+  });
 
   const open = app.boardOpen.has(entry.key);
   const findings = entry.draft?.findings || [];
