@@ -61,19 +61,7 @@ pub async fn storage_pick_root(app: tauri::AppHandle) -> Result<Option<String>, 
         return Ok(None);
     };
 
-    // Widening the scope is what lets `convertFileSrc` stream a recording out of
-    // this folder. Carrying on without it would hand back a folder that works
-    // for everything except the videos, and the reader would meet that hours
-    // later as a player that shows nothing and says nothing.
-    app.asset_protocol_scope()
-        .allow_directory(&path, true)
-        .map_err(|error| {
-            format!(
-                "{} cannot be opened for playback, so recordings in it would \
-                 not play: {error}. Choose a different folder.",
-                path.display()
-            )
-        })?;
+    allow_playback(&app, &path)?;
 
     // The dialog's own grant to this path dies with the process under App
     // Sandbox - see the comment at the top of bookmark.rs. Saved here rather
@@ -98,8 +86,8 @@ pub async fn storage_pick_root(app: tauri::AppHandle) -> Result<Option<String>, 
 /// in.
 #[cfg(not(target_os = "ios"))]
 #[tauri::command]
-pub async fn storage_resume_root(
-    #[allow(unused_variables)] app: tauri::AppHandle,
+pub async fn storage_resume_root<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     root: String,
 ) -> Result<(), String> {
     // Fingerprinted by the path exactly as storage_pick_root returned it,
@@ -114,12 +102,30 @@ pub async fn storage_resume_root(
         }
     }
 
-    #[cfg(not(all(target_os = "macos", feature = "appstore")))]
-    {
-        let _ = root;
+    // The asset scope lives in memory, so a relaunch starts it empty again.
+    if !root.is_empty() {
+        allow_playback(&app, Path::new(&root))?;
     }
 
     Ok(())
+}
+
+/// Widen the asset protocol to a folder, so `convertFileSrc` can stream a
+/// recording out of it.
+///
+/// Without it a folder works for everything except the videos, and the reader
+/// meets that later as a player that shows nothing and says nothing.
+#[cfg(not(target_os = "ios"))]
+fn allow_playback<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: &Path) -> Result<(), String> {
+    app.asset_protocol_scope()
+        .allow_directory(path, true)
+        .map_err(|error| {
+            format!(
+                "{} cannot be opened for playback, so recordings in it would \
+                 not play: {error}. Choose a different folder.",
+                path.display()
+            )
+        })
 }
 
 /// What the dialog answered, with the one dismissal told apart from the rest.
@@ -575,5 +581,23 @@ mod tests {
         let base = dir.path().to_string_lossy().into_owned();
 
         assert!(storage_write(base, "../escaped.json".into(), b"x".to_vec()).is_err());
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    #[test]
+    fn a_resumed_root_plays_its_recordings() {
+        let dir = root();
+        let base = canonical(&dir);
+        let app = tauri::test::mock_app();
+
+        tauri::async_runtime::block_on(storage_resume_root(
+            app.handle().clone(),
+            base.to_string_lossy().into_owned(),
+        ))
+        .expect("resumed");
+
+        assert!(app
+            .asset_protocol_scope()
+            .is_allowed(base.join("drafts/org--app-1/qa.mp4")));
     }
 }
