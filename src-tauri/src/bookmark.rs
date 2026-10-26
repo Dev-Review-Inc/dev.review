@@ -39,7 +39,7 @@ use objc2_foundation::{
 /// already what storage_pick_root answers with, so there is nothing for the
 /// frontend to do differently for this to work - restoring access on launch
 /// is `resume`'s job alone.
-pub fn save(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+pub fn save<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: &Path) -> Result<(), String> {
     let url = file_url(path)?;
 
     // WithSecurityScope is what makes the bookmark carry sandbox access
@@ -70,7 +70,7 @@ pub fn save(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
 /// volume is not mounted - is reported rather than swallowed, because the
 /// alternative is every read after it failing with no explanation of why a
 /// folder the reader chose stopped working.
-pub fn resume(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+pub fn resume<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: &Path) -> Result<(), String> {
     let saved = bookmark_path(app, path)?;
 
     let Ok(bytes) = fs::read(&saved) else {
@@ -123,7 +123,7 @@ fn file_url(path: &Path) -> Result<Retained<NSURL>, String> {
 /// Where bookmarks are kept: the app's own data directory, which App Sandbox
 /// grants unconditionally, rather than anywhere under the folder the
 /// bookmark is about, which the app may not yet be able to write to.
-fn store_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn store_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     use tauri::Manager;
 
     app.path()
@@ -134,7 +134,7 @@ fn store_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 /// One bookmark file per chosen folder, named after the path it stands in
 /// for so a later `resume` for the same path finds it without an index.
-fn bookmark_path(app: &tauri::AppHandle, path: &Path) -> Result<PathBuf, String> {
+fn bookmark_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>, path: &Path) -> Result<PathBuf, String> {
     Ok(store_dir(app)?.join(format!("{:x}.bookmark", fingerprint(path))))
 }
 
