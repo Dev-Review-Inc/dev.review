@@ -28,6 +28,10 @@ export function developing(page) {
 export async function offline(page, agent, store) {
   if (!agent?.serviceWorker) return false;
 
+  // The desktop shell serves the page from tauri:, and a browser takes a
+  // worker only over http(s). The shell has its files on disk anyway.
+  if (!/^https?:$/.test(page.location?.protocol)) return false;
+
   if (developing(page)) {
     // A worker registered by a visit to the shipped server on this same origin
     // outlives the switch to -dir. Left alone it would go on answering while

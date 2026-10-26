@@ -23,8 +23,9 @@ const ORIGIN = "https://dev.review";
 
 // The smallest document these functions look at: one query, for the tag the
 // development server appends to index.html.
-function pageServed({ byTheDevelopmentServer }) {
+function pageServed({ byTheDevelopmentServer, protocol = "https:" }) {
   return {
+    location: { protocol },
     querySelector: (selector) =>
       selector === 'script[src="/reload.js"]' && byTheDevelopmentServer ? {} : null,
   };
@@ -110,6 +111,16 @@ describe("turning the offline shell on", () => {
 
     assert.deepEqual(agent.unregistered, ["an old worker"]);
     assert.deepEqual(store.emptied, ["shell-1"]);
+  });
+
+  // The desktop shell serves the interface from tauri:, where a browser takes a
+  // worker only over http(s), and the shell has its files on disk anyway.
+  test("registers nothing in the desktop shell", async () => {
+    const agent = fakeAgent();
+    const page = pageServed({ byTheDevelopmentServer: false, protocol: "tauri:" });
+
+    assert.equal(await offline(page, agent, fakeStore()), false);
+    assert.deepEqual(agent.registered, []);
   });
 
   test("does nothing in a browser that has no workers", async () => {
