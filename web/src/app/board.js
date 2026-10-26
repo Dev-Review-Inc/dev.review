@@ -36,9 +36,16 @@ export function drawBoard(app) {
   const chatting = entries.find((entry) => entry.key === app.boardChat);
   const columns = element("div", "board-columns", "");
 
+  // A chat redraws on every line it streams, so the columns keep their place.
+  const left = board.querySelector(".board-columns")?.scrollLeft || 0;
+  const tops = new Map([...board.querySelectorAll(".board-column")].map((node) => [node.dataset.state, node.scrollTop]));
+
   columns.append(...boardColumns(entries).map((column) => drawColumn(app, column)));
   board.classList.toggle("is-chatting", Boolean(chatting));
   board.replaceChildren(columns, ...(chatting ? [drawChat(app, chatting)] : []));
+
+  columns.scrollLeft = left;
+  for (const node of columns.children) node.scrollTop = tops.get(node.dataset.state) || 0;
 
   const log = board.querySelector(".board-chat-log");
 
