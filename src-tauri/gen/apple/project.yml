@@ -1,0 +1,159 @@
+name: reviewer
+options:
+  bundleIdPrefix: review.dev.app
+  deploymentTarget:
+    iOS: "17.0"
+fileGroups: [../../src]
+configs:
+  debug: debug
+  release: release
+settingGroups:
+  # Both Info.plists read CFBundleVersion from $(CURRENT_PROJECT_VERSION).
+  # Neither the literal below nor the version `cargo tauri ios build` sets
+  # ships: the Set Build Number phase overwrites both plists with whole
+  # minutes since 2026, so one version can upload more than once. Do not use
+  # `--build-number`: it appends a fourth number (0.9.0.1).
+  version:
+    base:
+      CURRENT_PROJECT_VERSION: 1
+  app:
+    base:
+      PRODUCT_NAME: Reviewer
+      PRODUCT_BUNDLE_IDENTIFIER: review.dev.app
+      DEVELOPMENT_TEAM: L22C9S8VZ7
+targetTemplates:
+  app:
+    type: application
+    sources:
+      - path: Sources
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      groups: [app]
+targets:
+  reviewer_iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+      # The built libapp.a copies are linked through LIBRARY_SEARCH_PATHS and
+      # never bundled. Without this, a regenerate after a build makes them
+      # colliding resources ("Multiple commands produce .../libapp.a").
+      - path: Externals
+        excludes: ["**/*.a"]
+      - path: reviewer_iOS
+      - path: assets
+        buildPhase: resources
+        type: folder
+      - path: LaunchScreen.storyboard
+      # Apple requires PrivacyInfo.xcprivacy in the bundle to accept an App
+      # Store submission. Two levels up because every path in this file is
+      # resolved from gen/apple/, where tauri copies it - the same reason
+      # `fileGroups: [../../src]` at the top reaches src-tauri/src. gen/apple/
+      # is gitignored and regenerated, so the manifest is committed beside
+      # tauri.conf.json instead of in there.
+      - path: ../../PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: reviewer_iOS/Info.plist
+      properties:
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiredDeviceCapabilities: [arm64, metal]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleShortVersionString: 1.0.5
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+    entitlements:
+      path: reviewer_iOS/reviewer_iOS.entitlements
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      base:
+        ENABLE_BITCODE: false
+        ARCHS: [arm64]
+        VALID_ARCHS: arm64
+        LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
+        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+      groups: [app, version]
+    dependencies:
+      - framework: libapp.a
+        embed: false
+      - sdk: CoreGraphics.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: QuartzCore.framework
+      - sdk: Security.framework
+      - sdk: UIKit.framework
+      - sdk: WebKit.framework
+      # The widget has nothing to say until this is signed and embedded in the
+      # app that carries it - an extension is not installed on its own.
+      - target: ReviewerWidgetExtension
+        embed: true
+        codeSign: true
+    preBuildScripts:
+      - script: |
+          cargo tauri ios xcode-script -v --platform "${PLATFORM_DISPLAY_NAME:?}" --sdk-root "${SDKROOT:?}" --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration "${CONFIGURATION:?}" ${FORCE_COLOR} ${ARCHS:?}
+        name: Build Rust Code
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
+          - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+    # Last, after the plists are copied in and before the signature is taken,
+    # where the CLI cannot reach. See ios-build-number.sh.
+    postBuildScripts:
+      - script: sh "$SRCROOT/../../ios-build-number.sh"
+        name: Set Build Number
+        basedOnDependencyAnalysis: false
+
+  # The home screen widget - see the top of ../ReviewerWidget/ReviewerWidget.swift
+  # for what it shows and where it gets it. A widget extension is its own
+  # target because WidgetKit runs it as its own process; there is no way to
+  # bolt a widget onto the app target itself.
+  ReviewerWidgetExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ../../ReviewerWidget/ReviewerWidget.swift
+      # Its own reference, not the host app's. An extension is its own bundle
+      # and a privacy manifest is not inherited from the app that carries it,
+      # so the extension that actually reads the App Group's UserDefaults has
+      # to declare that itself.
+      - path: ../../PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: ReviewerWidgetExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Reviewer
+        CFBundleShortVersionString: 1.0.5
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: ReviewerWidgetExtension/ReviewerWidget.entitlements
+    settings:
+      base:
+        PRODUCT_NAME: ReviewerWidget
+        PRODUCT_BUNDLE_IDENTIFIER: review.dev.app.widget
+        DEVELOPMENT_TEAM: L22C9S8VZ7
+        SWIFT_VERSION: "5.0"
+        SKIP_INSTALL: false
+      groups: [version]
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework

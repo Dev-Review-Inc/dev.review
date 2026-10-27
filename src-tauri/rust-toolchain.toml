@@ -1,9 +1,11 @@
 # Tauri v2's dependency tree reaches crates published for edition 2024, which
 # older toolchains refuse to parse with an error that names a transitive crate
-# rather than the real problem. Pinning stable here means `cargo test` works
-# from a checkout instead of failing in a way nobody can read.
+# rather than the real problem. Pinned here so `cargo test` works from a
+# checkout, and to the version in ../.tool-versions, which the TestFlight
+# workflow Follow Along and 66 Scripts share installs. test/release/testflight
+# fails when the two disagree.
 [toolchain]
-channel = "stable"
+channel = "1.99.0"
 # swift-rs runs llvm-objcopy from llvm-tools to export the Swift plugins'
 # @_cdecl symbols, which Xcode 27 builds as local. Without it, the iOS link
 # fails with "_register_plugin" and similar names undefined.

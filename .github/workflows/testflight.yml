@@ -1,0 +1,46 @@
+name: TestFlight
+
+# The iOS app, built and sent to TestFlight on every version tag or by hand.
+# The steps live in the workflow Follow Along and 66 Scripts share, so a fix to
+# the release lands in all three. A separate file from release.yml, so a
+# failure here does not hold back the .dmg.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: testflight
+
+permissions:
+  contents: read
+
+jobs:
+  # The same gate release.yml uses: the cheap runner decides whether the
+  # expensive one starts. The version check rides along, because the shared
+  # workflow does not know a tag from a branch.
+  test:
+    uses: ./.github/workflows/test.yml
+
+  version:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node .github/version.mjs "$GITHUB_REF_NAME"
+
+  testflight:
+    needs: [test, version]
+    if: ${{ !failure() && !cancelled() }}
+    uses: followalong/www.followalong.com/.github/workflows/testflight.yml@main
+    with:
+      project: "."
+    # Another owner's workflow cannot inherit secrets, so each is passed by
+    # name. APPLE_API_KEY here is the App Store Connect key that uploads, not
+    # release.yml's notarisation key of the same name.
+    secrets:
+      APPLE_API_KEY: ${{ secrets.APP_STORE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY_P8: ${{ secrets.APP_STORE_API_KEY_P8 }}
+      APPLE_DISTRIBUTION_P12: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+      APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}

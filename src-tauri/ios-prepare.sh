@@ -1,19 +1,17 @@
 #!/bin/sh
 # Regenerate gen/apple and put back what `cargo tauri ios init` overwrites.
-# Run it from anywhere, before every iOS build. It builds and signs nothing.
+# Run it from anywhere after changing the iOS project or bumping the version,
+# then commit gen/apple. It builds and signs nothing.
 #
 # Init blanks both entitlements files and fills the asset catalog with
-# Tauri's default icon. This script restores both from src-tauri/, then
-# checks the result and exits non-zero on any mismatch.
+# Tauri's default icon. This script restores both from src-tauri/, then runs
+# ../ios-project.test.sh and exits non-zero on any mismatch.
 set -eu
 
 cd "$(dirname "$0")"
 
 apple=gen/apple
 project=$apple/reviewer.xcodeproj/project.pbxproj
-group=group.review.dev.app
-team=L22C9S8VZ7
-target=17.0
 
 fail() {
   echo "ios-prepare: $*" >&2
@@ -43,22 +41,4 @@ rm -rf "$icons"
 cp -R ios/AppIcon.appiconset "$icons"
 echo "ios-prepare: ios/AppIcon.appiconset -> $icons"
 
-# Verify.
-for destination in $destinations; do
-  [ -s "$apple/$destination" ] || fail "$apple/$destination is empty"
-  grep -q "$group" "$apple/$destination" || fail "$apple/$destination does not name $group"
-done
-
-diff -r ios/AppIcon.appiconset "$icons" >/dev/null || fail "$icons differs from ios/AppIcon.appiconset"
-
-grep -q "IPHONEOS_DEPLOYMENT_TARGET = $target;" "$project" ||
-  fail "$project has no IPHONEOS_DEPLOYMENT_TARGET = $target"
-! grep "IPHONEOS_DEPLOYMENT_TARGET = " "$project" | grep -qv "= $target;" ||
-  fail "$project has an IPHONEOS_DEPLOYMENT_TARGET other than $target"
-
-grep -Eq "DEVELOPMENT_TEAM = \"?$team\"?;" "$project" ||
-  fail "$project has no DEVELOPMENT_TEAM = $team"
-! grep "DEVELOPMENT_TEAM = " "$project" | grep -Eqv "= \"?$team\"?;" ||
-  fail "$project has a DEVELOPMENT_TEAM other than $team"
-
-echo "ios-prepare: entitlements, icon, deployment target and team verified"
+../ios-project.test.sh

@@ -13,8 +13,8 @@ exists.
 
 ## Prerequisites
 
-- Rust, stable, 1.88 or newer. Tauri itself asks for 1.77.2; its current
-  dependency tree does not resolve below 1.88.
+- Rust, at the version `rust-toolchain.toml` pins. Tauri itself asks for
+  1.77.2; its current dependency tree does not resolve below 1.88.
 - macOS: Xcode command line tools.
 - Windows: the Microsoft C++ build tools and WebView2 (WebView2 ships with
   Windows 11 and current Windows 10).
@@ -42,7 +42,7 @@ shipped artifact - `index.html` plus vanilla ES modules, no bundler. Editing a
 file under `web/` and reloading the window is the whole development loop.
 
 Run both from this directory rather than the repository root. `rust-toolchain.toml`
-lives here, so only here does the toolchain resolve to the stable this crate
+lives here, so only here does the toolchain resolve to the version this crate
 needs; from the root you get whatever the machine's default is, which on a
 machine pinned below 1.88 fails while naming a transitive crate. The same
 applies to installing the CLI, so `cargo install tauri-cli` wants running from
@@ -219,10 +219,11 @@ Report on the archive, which reads the built binary instead of the source.
 
 ## Preparing the iOS project
 
-`gen/apple/` is gitignored, and `cargo tauri ios init` rebuilds it. Init
-blanks both entitlements files and fills the asset catalog with Tauri's
-default icon. The first TestFlight build shipped that default icon. Run the
-script below instead of a bare init:
+`gen/apple/` is committed, because the TestFlight workflow builds it as it is.
+`cargo tauri ios init` rebuilds it, blanks both entitlements files, and fills
+the asset catalog with Tauri's default icon. The first TestFlight build
+shipped that default icon. Run the script below instead of a bare init, after
+changing `ios-project.yml` or bumping the version, and commit the result:
 
 ```sh
 ./ios-prepare.sh
@@ -231,10 +232,10 @@ script below instead of a bare init:
 It runs `cargo tauri ios init --ci`. It reads the entitlements paths from the
 generated project and copies `reviewer_iOS.entitlements` and
 `ReviewerWidget/ReviewerWidget.entitlements` to them. It replaces the
-generated `AppIcon.appiconset` with `ios/AppIcon.appiconset`. Then it checks
-that both entitlements files name the App Group, and that the project targets
-iOS 17.0 under team `L22C9S8VZ7`. Any mismatch stops it with a non-zero exit.
-It does not build or sign.
+generated `AppIcon.appiconset` with `ios/AppIcon.appiconset`. Then it runs
+`../ios-project.test.sh`, which checks the entitlements, the icon, iOS 17.0,
+team `L22C9S8VZ7`, the Set Build Number phase, and the version. Any mismatch
+stops it with a non-zero exit. It does not build or sign.
 
 ## The iOS version number
 
@@ -244,16 +245,13 @@ releases before anyone looked, so `.github/version.mjs` now reads them too and
 the release workflow refuses a tag that disagrees. `test/release/version.test.js`
 asserts the same thing at commit time.
 
-`CFBundleVersion` is `$(CURRENT_PROJECT_VERSION)` in both targets.
-`cargo tauri ios build` sets that setting to the app version, so the first
-archive shipped `CFBundleVersion` 0.9.0. The literal in the `version` setting
-group never reaches the bundle.
-
-Apple rejects an upload whose build number repeats one it has already seen,
-so each version uploads to TestFlight once. To upload again, release the next
-patch version. Do not use `--build-number`: tauri-cli appends it as a fourth
-number (0.9.0.1), and Apple allows one to three. No workflow uploads to
-TestFlight yet.
+`CFBundleVersion` is `$(CURRENT_PROJECT_VERSION)` in both targets, and
+`cargo tauri ios build` sets that to the app version. Neither reaches the
+upload: the Set Build Number phase runs `ios-build-number.sh` last, which sets
+the app's and the widget's build number to whole minutes since 2026. Apple
+refuses a build number it has seen, and this one always rises, so one version
+can upload more than once. Do not use `--build-number`: tauri-cli appends it
+as a fourth number (0.9.0.1).
 
 ## Path containment
 
