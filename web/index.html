@@ -794,6 +794,10 @@
   }
   .drift-chip:hover { color: var(--accent); border-color: var(--accent); }
 
+  /* The settled chip's pill, but a login and a team keep their own case. */
+  .reviewers { display: flex; flex-wrap: wrap; gap: 6px; }
+  .reviewer-chip { text-transform: none; letter-spacing: 0; }
+
   .drift-list { display: grid; gap: 4px; padding-top: 4px; }
   .drift-row { display: flex; gap: 8px; font-size: var(--textSmall); color: var(--dim2); }
   .drift-row .drift-cell:first-child { color: var(--dim); font-family: var(--mono, monospace); flex-shrink: 0; }
