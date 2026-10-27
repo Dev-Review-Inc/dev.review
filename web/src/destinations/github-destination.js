@@ -10,6 +10,7 @@ import {
   viewer,
   pullRequest,
   pullFiles,
+  pullReviewers,
   postComment,
   postReview,
   issue as issueDetail,
@@ -21,6 +22,7 @@ import {
   compareCommits,
   issueComments as issueCommentsList,
 } from "./github.js";
+import { reviewersFrom } from "../domain/reviewers.js";
 
 export class GitHubDestination {
   static type = "github";
@@ -88,6 +90,17 @@ export class GitHubDestination {
       mergedAt: detail.merged_at || null,
       closedAt: detail.closed_at || null,
     };
+  }
+
+  /**
+   * Who was asked to review a pull request, people and teams, and what each
+   * has said.
+   *
+   * @param {object} pull which pull request
+   * @returns {Promise<object[]>} from reviewersFrom
+   */
+  async reviewers(pull) {
+    return reviewersFrom(await pullReviewers(this.token, pull));
   }
 
   /**

@@ -69,6 +69,45 @@ async function call(token, path, options = {}) {
   return payload;
 }
 
+// One query for both halves of "who reviews this": the open requests, and the
+// latest review per person with the teams it was written for. REST answers
+// neither the second half nor which team a review spoke for.
+const REVIEWERS = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      author { login }
+      reviewRequests(first: 50) {
+        nodes { requestedReviewer { __typename ... on User { login } ... on Team { combinedSlug } } }
+      }
+      latestReviews(first: 50) {
+        nodes { state author { login } onBehalfOf(first: 10) { nodes { combinedSlug } } }
+      }
+    }
+  }
+}`;
+
+/**
+ * Who was asked to review a pull request, and the latest review from each.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} pull which pull request
+ * @returns {Promise<object>} the GraphQL pullRequest node
+ * @throws {Error} carrying GitHub's first error when no pull request came back
+ */
+export async function pullReviewers(token, { owner, repo, number }) {
+  const answer = await call(token, "/graphql", {
+    method: "POST",
+    body: { query: REVIEWERS, variables: { owner, repo, number } },
+  });
+
+  // A team the token cannot read errors alongside data that is still good.
+  const node = answer.data?.repository?.pullRequest;
+
+  if (!node) throw new Error(answer.errors?.[0]?.message || "GitHub did not say who reviews this");
+
+  return node;
+}
+
 /**
  * The account a token belongs to, used to check it works before anything else.
  *

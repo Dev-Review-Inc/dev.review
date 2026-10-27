@@ -170,7 +170,34 @@ function drawBlurb(app) {
     if (app.driftExpanded) inner.append(driftList(app.drift));
   }
 
+  if (app.reviewers?.length) inner.append(reviewerChips(app.reviewers));
+
   blurb.append(inner);
+}
+
+const REVIEWER_TONES = { approved: "ok", "changes requested": "critical", waiting: "warn" };
+
+/**
+ * One chip per reviewer, person or team, saying whether they have answered.
+ *
+ * @param {{name: string, team: boolean, state: string, by?: string}[]} reviewers from reviewersFrom
+ * @returns {HTMLElement} the row
+ */
+function reviewerChips(reviewers) {
+  const row = document.createElement("div");
+  row.className = "reviewers";
+
+  for (const reviewer of reviewers) {
+    const tone = REVIEWER_TONES[reviewer.state] || "neutral";
+    const chip = element("span", `reviewer-chip verdict-badge mono is-${tone}`, `${reviewer.name} ${reviewer.state}`);
+
+    // A team never reviews itself; say which member answered for it.
+    if (reviewer.by) chip.title = `by ${reviewer.by}`;
+
+    row.append(chip);
+  }
+
+  return row;
 }
 
 /**

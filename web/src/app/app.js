@@ -134,6 +134,10 @@ export class App {
     // never a false "nothing changed".
     this.drift = null;
 
+    // Who was asked to review the open pull request, people and teams, and
+    // what each has said. Null like `settled` until the destination answers.
+    this.reviewers = null;
+
     // Why the diff or the head commit is missing, when they were asked for and
     // did not come. Kept apart from `problems` because it belongs to the pull
     // request that is open rather than to the source or the destination, and is
@@ -685,6 +689,7 @@ export class App {
     this.issueProblem = "";
     this.settled = null;
     this.drift = null;
+    this.reviewers = null;
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
@@ -711,10 +716,11 @@ export class App {
     const isIssue = Boolean(this.selected.isIssue);
     const wantsBody = isIssue || Boolean(this.selected.draft?.description);
 
-    const [files, detail, issue] = await Promise.allSettled([
+    const [files, detail, issue, reviewers] = await Promise.allSettled([
       isIssue ? [] : this.destination.files(pull),
       isIssue ? null : this.destination.pullDetail(pull),
       wantsBody ? this.destination.issue(pull) : null,
+      isIssue || !this.destination.reviewers ? null : this.destination.reviewers(pull),
     ]);
 
     if (files.status === "fulfilled") this.files = files.value;
@@ -725,6 +731,9 @@ export class App {
     }
 
     if (issue.status === "fulfilled") this.issue = issue.value;
+
+    // Unknown stays null and draws nothing, the same as settled.
+    if (reviewers.status === "fulfilled") this.reviewers = reviewers.value;
 
     // An issue's fate rides on the same response as its body. Only an issue's:
     // a pull request already answered above, from the endpoint that knows
