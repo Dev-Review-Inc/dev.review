@@ -65,6 +65,7 @@
 		23BBACF577705DEF53451C24 /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
 		2A9C5E0610F10406D3623233 /* bookmark.rs */ = {isa = PBXFileReference; path = bookmark.rs; sourceTree = "<group>"; };
 		3D64E7836EFBF39DC1737DA2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		487D4DCF2C88AA981254C996 /* editor.rs */ = {isa = PBXFileReference; path = editor.rs; sourceTree = "<group>"; };
 		4B3F1427C96C350C584935A9 /* agent.rs */ = {isa = PBXFileReference; path = agent.rs; sourceTree = "<group>"; };
 		5266D8655BFAEF9F0FFB4245 /* links.rs */ = {isa = PBXFileReference; path = links.rs; sourceTree = "<group>"; };
 		5DA6C56616E9E51C322EA5DB /* icloud.rs */ = {isa = PBXFileReference; path = icloud.rs; sourceTree = "<group>"; };
@@ -179,6 +180,7 @@
 			children = (
 				4B3F1427C96C350C584935A9 /* agent.rs */,
 				2A9C5E0610F10406D3623233 /* bookmark.rs */,
+				487D4DCF2C88AA981254C996 /* editor.rs */,
 				C0BAA37AA87F37E4FAF6FA78 /* git.rs */,
 				5DA6C56616E9E51C322EA5DB /* icloud.rs */,
 				23BBACF577705DEF53451C24 /* keychain.rs */,
