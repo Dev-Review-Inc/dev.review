@@ -124,11 +124,29 @@ describe("the suggestion on a finding card", () => {
     const card = findingCard(app, pull, aFinding({ suggestion: "raise Error\n", suggestionEditedAt: 1 }));
 
     const [block] = all(card, "suggestion");
-    const pre = block.children.find((child) => child.tag === "pre");
-    assert.equal(pre.textContent, "raise Error\n");
+    const lines = all(block, "code-line").map((line) => [line.className, line.textContent]);
+    assert.deepEqual(lines, [["code-line add", "raise Error"]]);
 
     const chips = all(card, "edited").map((chip) => chip.textContent);
     assert.ok(chips.includes("suggestion edited"));
+  });
+
+  test("shows the suggestion as a diff against the line it replaces", () => {
+    app.files = [
+      {
+        filename: "lib/error.rb",
+        patch: "@@ -10,3 +10,3 @@\n begin\n   call\n-rescue => e\n+rescue Error, e\n",
+      },
+    ];
+
+    const card = findingCard(app, pull, aFinding());
+
+    const [block] = all(card, "suggestion");
+    const lines = all(block, "code-line").map((line) => [line.className, line.textContent]);
+    assert.deepEqual(lines, [
+      ["code-line del", "rescue Error, e"],
+      ["code-line add", "rescue Error => e"],
+    ]);
   });
 
   test("offers the way into editing the suggestion", () => {
