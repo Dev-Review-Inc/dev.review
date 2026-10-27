@@ -149,12 +149,28 @@ function drawBlurb(app) {
 
   if (resume) line.append(copyButton(resume, "Copy the command that resumes the agent that wrote this"));
 
+
   // Only where there is a document to throw away. With nothing written yet the
   // pull request is already waiting to be picked up, and a button offering to
   // ask for that again would be offering nothing.
   if (pull.draft) line.append(redraftButton(app, pull));
 
   provenance.append(line);
+
+  // The folder the agent ran in, in the reader's own editor. Only where the
+  // build can open one, and only for the editors it found installed. A row of
+  // its own: the number line is already full at the rail's width.
+  const folder = pull.draft?.agent?.cwd;
+
+  if (folder && app.editorOpener) {
+    const editors = document.createElement("div");
+    editors.className = "editors";
+    editors.append(element("span", "summary-meta mono", "open in"));
+
+    for (const editor of app.editorOpener.editors) editors.append(editorButton(app, editor, folder));
+
+    provenance.append(editors);
+  }
 
   inner.append(provenance);
 
@@ -171,6 +187,27 @@ function drawBlurb(app) {
   }
 
   blurb.append(inner);
+}
+
+/**
+ * A button that opens a folder in one editor.
+ *
+ * @param {object} app the application
+ * @param {{key: string, label: string}} editor one of the installed editors
+ * @param {string} folder the absolute folder to open
+ * @returns {HTMLElement} the button
+ */
+function editorButton(app, editor, folder) {
+  const opener = document.createElement("button");
+  opener.className = "editor-button mono";
+  opener.type = "button";
+  opener.textContent = editor.label;
+  opener.title = `Open ${folder} in ${editor.label}`;
+  opener.addEventListener("click", () => {
+    app.editorOpener.open(editor.key, folder).catch((failure) => say(failure.message, "error"));
+  });
+
+  return opener;
 }
 
 /**
