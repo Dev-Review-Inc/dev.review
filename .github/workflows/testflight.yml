@@ -1,0 +1,116 @@
+name: TestFlight
+
+# The iOS app, built for the App Store and uploaded to TestFlight on every
+# version tag. A separate file from release.yml so that a failure here does not
+# hold back the .dmg, and the other way round: the two need different
+# certificates and different keys, and either can expire on its own.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # The same gate release.yml uses, for the same reason: the cheap runner
+  # decides whether the expensive one starts.
+  test:
+    uses: ./.github/workflows/test.yml
+
+  testflight:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Apple refuses a build number it has seen, and tauri sets the build
+      # number to the app version. A tag over a stale version would spend the
+      # whole build to be rejected at upload.
+      - run: node .github/version.mjs "$GITHUB_REF_NAME"
+
+      - name: Check the App Store secrets are set
+        env:
+          APPLE_DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          APP_STORE_API_KEY: ${{ secrets.APP_STORE_API_KEY }}
+          APP_STORE_API_KEY_P8: ${{ secrets.APP_STORE_API_KEY_P8 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          missing=
+          for name in APPLE_DISTRIBUTION_CERTIFICATE APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD APP_STORE_API_KEY APP_STORE_API_KEY_P8 APPLE_API_ISSUER; do
+            eval "value=\$$name"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "This build cannot be signed or uploaded. Unset secrets:$missing" >&2
+            echo "See docs/releasing.md." >&2
+            exit 1
+          fi
+
+      # tauri generates the Xcode project with xcodegen, which the runner
+      # image does not carry.
+      - run: brew install xcodegen
+
+      - run: rustup target add aarch64-apple-ios
+        working-directory: src-tauri
+
+      - run: cargo install tauri-cli --version "^2" --locked
+        working-directory: src-tauri
+
+      # With an API key, tauri archives unsigned and signs at export with
+      # automatic signing, so Xcode needs an Apple Distribution identity in a
+      # keychain it searches. The keychain and its password last as long as
+      # the runner.
+      - name: Put the distribution certificate in a keychain
+        env:
+          APPLE_DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/distribution.keychain-db"
+          password=$(openssl rand -hex 24)
+          printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$keychain" \
+            -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          rm "$RUNNER_TEMP/distribution.p12"
+
+      - name: Lay down the App Store Connect key
+        env:
+          APP_STORE_API_KEY_P8: ${{ secrets.APP_STORE_API_KEY_P8 }}
+        run: |
+          printf '%s' "$APP_STORE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/app-store.p8"
+          chmod 600 "$RUNNER_TEMP/app-store.p8"
+
+      # A bare `cargo tauri ios init` blanks both entitlements files and ships
+      # tauri's default icon. This script restores both and checks them.
+      - run: ./ios-prepare.sh
+        working-directory: src-tauri
+
+      # The key must be able to create provisioning profiles, since automatic
+      # signing makes them on first use for the app and the widget.
+      - run: cargo tauri ios build --export-method app-store-connect
+        working-directory: src-tauri
+        env:
+          APPLE_API_KEY: ${{ secrets.APP_STORE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/app-store.p8
+
+      # altool takes no key path. It looks for AuthKey_<id>.p8 in
+      # API_PRIVATE_KEYS_DIR.
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_API_KEY: ${{ secrets.APP_STORE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          ipa=$(find src-tauri/gen/apple/build -name '*.ipa' | head -1)
+          [ -n "$ipa" ] || { echo "The build produced no .ipa." >&2; exit 1; }
+          mkdir -p "$RUNNER_TEMP/keys"
+          cp "$RUNNER_TEMP/app-store.p8" "$RUNNER_TEMP/keys/AuthKey_$APP_STORE_API_KEY.p8"
+          API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/keys" xcrun altool --upload-app --type ios \
+            --file "$ipa" \
+            --apiKey "$APP_STORE_API_KEY" \
+            --apiIssuer "$APPLE_API_ISSUER"

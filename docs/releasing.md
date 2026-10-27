@@ -109,11 +109,27 @@ The keychain also holds an *Apple Development* identity. Its name carries a pers
 
 The certificates live in the login keychain of the machine that made them. They are not in this repository, and they are not in books66. books66 commits its generated Xcode project, so its `project.pbxproj` shows the team ID in use. This repository sets the team in `tauri.conf.json` as `bundle.iOS.developmentTeam`. A team ID is not a secret: every signed binary carries it.
 
+### TestFlight
+
+Pushing a `v*` tag also runs [.github/workflows/testflight.yml](../.github/workflows/testflight.yml). It builds the iOS app for the App Store and uploads it to TestFlight. It runs apart from the `.dmg` release, so a failure in one does not stop the other.
+
+The job runs `ios-prepare.sh`, then `cargo tauri ios build --export-method app-store-connect`. With an API key in the environment, tauri archives unsigned and signs at export with automatic signing. Xcode then creates the App Store provisioning profiles for the app and the widget on first use. `xcrun altool` uploads the `.ipa`.
+
+Apple refuses a build number it has already seen, and tauri sets the build number to the app version. So each version uploads once. To upload again, release the next patch version.
+
+It needs four secrets of its own, and it reuses `APPLE_API_ISSUER`, because the issuer belongs to the team:
+
+| Secret | What it holds |
+| --- | --- |
+| `APPLE_DISTRIBUTION_CERTIFICATE` | The Apple Distribution certificate, `.p12`, base64 |
+| `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD` | The password set when exporting that `.p12` |
+| `APP_STORE_API_KEY` | The key ID of a second App Store Connect key |
+| `APP_STORE_API_KEY_P8` | That key's `.p8` private key, base64 |
+
+Export the Apple Distribution certificate the same way as the Developer ID one above. Make the second key with **Admin** access. It must create provisioning profiles and upload builds, and the notarisation key's Developer access can do neither. A separate key keeps the notarisation key at the least access it needs.
+
 What is still manual:
 
-- Selecting the Apple Distribution certificate when you archive, in Xcode or with `xcodebuild`.
-- Creating the App Store Connect record and an App Store provisioning profile for each bundle identifier.
-- Uploading through Xcode or `xcrun altool`. The notarisation key above has Developer access, which cannot upload a build. Raise that key to App Manager, or make a second key for uploads.
+- Creating the App Store Connect record for each bundle identifier. The record for `review.dev.app` exists, because TestFlight has taken builds since 0.9.0.
+- The macOS App Store build. The job builds only the iOS app.
 - Confirming, by hand, that a folder picked before quitting the app is still reachable after relaunching it. A security-scoped bookmark that resolves in a unit test is not the same claim as one that survives an actual quit-and-reopen. Nothing in this repository can drive that check. It needs a person, once, before this ships.
-
-There is no CI job for this build yet. The Distribution certificate exists, so automating the sign-and-upload step is the next piece of work.
