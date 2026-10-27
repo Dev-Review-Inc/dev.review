@@ -6,6 +6,7 @@
 
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
+import { diffText } from "../domain/text-diff.js";
 import { withPrefix } from "../domain/review.js";
 import { arm, element, say } from "./dom.js";
 import { includeToggle } from "./include.js";
@@ -45,6 +46,29 @@ function snippetFor(app, path, line) {
   }
 
   return [];
+}
+
+/**
+ * The suggestion as a diff against the line it replaces. With the line out of
+ * reach (no patch loaded), every line of the suggestion reads as added.
+ *
+ * @param {object} app the application
+ * @param {object} finding a finding carrying a suggestion
+ * @returns {object[]} hunk lines, removed then added
+ */
+function suggestionLines(app, finding) {
+  const file = app.files.find((candidate) => candidate.filename === finding.path);
+  const anchored = file
+    ? parsePatch(file.patch)
+        .flatMap((hunk) => hunk.lines)
+        .find((candidate) => candidate.newLine === finding.line)
+    : null;
+
+  // GitHub's suggestion block ends in a newline that is not a line of its own.
+  const proposed = finding.suggestion.replace(/\n$/, "");
+  const lines = diffText(anchored ? anchored.text : "", proposed).flatMap((hunk) => hunk.lines);
+
+  return lines.length ? lines : proposed.split("\n").map((text) => ({ kind: "context", text }));
 }
 
 /**
@@ -176,7 +200,11 @@ export function findingCard(app, pull, finding, { snippet = false, actions = tru
     block.append(element("div", "suggestion-head", "suggested change · committable"));
 
     const pre = document.createElement("pre");
-    pre.textContent = finding.suggestion;
+
+    for (const line of suggestionLines(app, finding)) {
+      pre.append(element("div", `code-line ${line.kind}`, line.text || " "));
+    }
+
     block.append(pre);
 
     body.append(block);
