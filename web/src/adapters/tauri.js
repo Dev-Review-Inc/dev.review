@@ -130,6 +130,33 @@ export async function agentRunner() {
   };
 }
 
+/**
+ * What opens a folder in the reader's editor in this build, or null where
+ * nothing can or no editor is installed. See src-tauri/src/editor.rs.
+ *
+ * @returns {Promise<{editors: {key: string, label: string}[], open: Function}|null>} the opener
+ */
+export async function editorOpener() {
+  const api = core();
+
+  if (!api) return null;
+
+  const editors = await api.invoke("editors_installed").catch(() => []);
+
+  if (!editors.length) return null;
+
+  return {
+    editors,
+    async open(editor, folder) {
+      try {
+        await api.invoke("editor_open", { editor, folder });
+      } catch (failure) {
+        throw failure instanceof Error ? failure : new Error(String(failure));
+      }
+    },
+  };
+}
+
 export class TauriAdapter extends Adapter {
   static type = "tauri";
   // Matches FilesystemAdapter's own label deliberately: adapterTypes() only

@@ -10,7 +10,7 @@ import { App } from "./app.js";
 import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
-import { agentRunner, inTauriIOS } from "../adapters/tauri.js";
+import { agentRunner, editorOpener, inTauriIOS } from "../adapters/tauri.js";
 import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
 import { drawBoard } from "./board.js";
@@ -75,6 +75,14 @@ app.agentRunner = null;
 agentRunner().then((runner) => {
   app.agentRunner = runner;
   if (runner) app.changed();
+});
+
+// What opens the agent's folder in an editor: null until the desktop build
+// says which editors it found.
+app.editorOpener = null;
+editorOpener().then((opener) => {
+  app.editorOpener = opener;
+  if (opener) app.changed();
 });
 
 // Whether the first finished review has been opened for the reader. Opening

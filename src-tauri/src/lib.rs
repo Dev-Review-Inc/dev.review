@@ -20,6 +20,10 @@ mod git;
 // The agent chat spawns `claude`, so it is compiled out where git.rs is.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
 mod agent;
+// Opening a folder in an editor spawns `open`, so it goes where agent.rs goes.
+// Off macOS it finds no editors in /Applications and offers none.
+#[cfg(not(any(target_os = "ios", feature = "appstore")))]
+mod editor;
 mod links;
 mod storage;
 
@@ -113,6 +117,10 @@ pub fn run() {
             agent::agent_chat_start,
             #[cfg(not(feature = "appstore"))]
             agent::agent_chat_cancel,
+            #[cfg(not(feature = "appstore"))]
+            editor::editors_installed,
+            #[cfg(not(feature = "appstore"))]
+            editor::editor_open,
             git_native_available,
             agent_chat_available,
         ])

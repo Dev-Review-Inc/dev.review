@@ -788,11 +788,14 @@
      status word ("merged"), sized and uppercased for one. This one carries a
      whole phrase ("3 commits since review"), so it takes the hunk-toggle's
      shape instead - a short-phrase control, not a status pill. */
-  .drift-chip {
+  .drift-chip,
+  .editor-button {
     border: 1px solid var(--border); border-radius: 5px; background: none;
     color: var(--dim); font-size: var(--textSmall); padding: 2px 8px; cursor: pointer;
   }
-  .drift-chip:hover { color: var(--accent); border-color: var(--accent); }
+  .drift-chip:hover,
+  .editor-button:hover { color: var(--accent); border-color: var(--accent); }
+  .editors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
   /* The settled chip's pill, but a login and a team keep their own case. */
   .reviewers { display: flex; flex-wrap: wrap; gap: 6px; }
