@@ -111,22 +111,26 @@ The certificates live in the login keychain of the machine that made them. They 
 
 ### TestFlight
 
-Pushing a `v*` tag also runs [.github/workflows/testflight.yml](../.github/workflows/testflight.yml). It builds the iOS app for the App Store and uploads it to TestFlight. It runs apart from the `.dmg` release, so a failure in one does not stop the other.
+Pushing a `v*` tag also runs [.github/workflows/testflight.yml](../.github/workflows/testflight.yml). It can run by hand too. After the suite and the version check pass, it calls the TestFlight workflow that Follow Along and 66 Scripts share, `followalong/www.followalong.com/.github/workflows/testflight.yml@main`, with `project: "."`. A fix to that workflow reaches all three apps. It runs apart from the `.dmg` release, so a failure in one does not stop the other.
 
-The job runs `ios-prepare.sh`, then `cargo tauri ios build --export-method app-store-connect`. With an API key in the environment, tauri archives unsigned and signs at export with automatic signing. Xcode then creates the App Store provisioning profiles for the app and the widget on first use. `xcrun altool` uploads the `.ipa`.
+The shared workflow expects the same layout in each app, so this repository keeps it:
 
-Apple refuses a build number it has already seen, and tauri sets the build number to the app version. So each version uploads once. To upload again, release the next patch version.
+- `src-tauri/gen/apple` is committed. Regenerate it with `src-tauri/ios-prepare.sh` after changing `ios-project.yml` or bumping the version, then commit it. `test/release/testflight.test.js` fails when the committed project is not at the app's version.
+- `ios-project.test.sh` at the root checks the committed project against `src-tauri`. The shared workflow runs it before it builds.
+- `.tool-versions` at the root names the Rust version the shared workflow installs. `src-tauri/rust-toolchain.toml` pins the same one.
+- `src-tauri/ios-build-number.sh` runs as the app's last build phase. It sets the build number of the app and the widget to whole minutes since 2026, so one version can upload more than once.
 
-It needs four secrets of its own, and it reuses `APPLE_API_ISSUER`, because the issuer belongs to the team:
+The shared workflow names its secrets differently, so the caller maps this repository's secrets onto them:
 
-| Secret | What it holds |
-| --- | --- |
-| `APPLE_DISTRIBUTION_CERTIFICATE` | The Apple Distribution certificate, `.p12`, base64 |
-| `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD` | The password set when exporting that `.p12` |
-| `APP_STORE_API_KEY` | The key ID of a second App Store Connect key |
-| `APP_STORE_API_KEY_P8` | That key's `.p8` private key, base64 |
+| Secret | What it holds | Passed as |
+| --- | --- | --- |
+| `APPLE_DISTRIBUTION_CERTIFICATE` | The Apple Distribution certificate, `.p12`, base64 | `APPLE_DISTRIBUTION_P12` |
+| `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD` | The password set when exporting that `.p12` | `APPLE_DISTRIBUTION_P12_PASSWORD` |
+| `APP_STORE_API_KEY` | The key ID of the App Store Connect key that uploads | `APPLE_API_KEY` |
+| `APP_STORE_API_KEY_P8` | That key's `.p8` private key, base64 | `APPLE_API_KEY_P8` |
+| `APPLE_API_ISSUER` | The issuer ID, shared with the notarisation key | `APPLE_API_ISSUER` |
 
-Export the Apple Distribution certificate the same way as the Developer ID one above. Make the second key with **Admin** access. It must create provisioning profiles and upload builds, and the notarisation key's Developer access can do neither. A separate key keeps the notarisation key at the least access it needs.
+Use the same upload key 66 Scripts uses. The notarisation key's Developer access cannot upload a build, so it is not that key.
 
 What is still manual:
 

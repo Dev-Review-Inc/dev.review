@@ -9,12 +9,10 @@ configs:
   release: release
 settingGroups:
   # Both Info.plists read CFBundleVersion from $(CURRENT_PROJECT_VERSION).
-  # The literal below never ships: `cargo tauri ios build` sets the setting
-  # to the app version, so the first archive read 0.9.0.
-  #
-  # Apple refuses an upload whose CFBundleVersion repeats one it has seen, so
-  # each version uploads once. Do not use `--build-number`: it appends a
-  # fourth number (0.9.0.1), and Apple allows one to three.
+  # Neither the literal below nor the version `cargo tauri ios build` sets
+  # ships: the Set Build Number phase overwrites both plists with whole
+  # minutes since 2026, so one version can upload more than once. Do not use
+  # `--build-number`: it appends a fourth number (0.9.0.1).
   version:
     base:
       CURRENT_PROJECT_VERSION: 1
@@ -115,6 +113,12 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+    # Last, after the plists are copied in and before the signature is taken,
+    # where the CLI cannot reach. See ios-build-number.sh.
+    postBuildScripts:
+      - script: sh "$SRCROOT/../../ios-build-number.sh"
+        name: Set Build Number
+        basedOnDependencyAnalysis: false
 
   # The home screen widget - see the top of ../ReviewerWidget/ReviewerWidget.swift
   # for what it shows and where it gets it. A widget extension is its own

@@ -1,90 +1,71 @@
-// The TestFlight upload is read here as the artefact it is, the same way
-// signing.test.js reads release.yml. Nothing runs it but a tag on a macOS
-// runner, so these assert the wiring a run would otherwise find out about
-// after the compile: the gate, the version, the secrets, and the order.
+// TestFlight goes through the workflow Follow Along and 66 Scripts share, so a
+// fix to the release lands in all three. That workflow expects the caller's
+// repo to look a certain way; these assert Reviewer does, since the only
+// other check is a tag on a macOS runner.
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 
 const workflow = readFileSync(".github/workflows/testflight.yml", "utf8");
+const project = readFileSync("src-tauri/ios-project.yml", "utf8");
 
-// One entry per `- ` under steps:, comments removed (see toolchain.test.js).
-const steps = workflow
-  .split(/\n {6}- /)
-  .slice(1)
-  .map((step) => step.replace(/^\s*#.*$/gm, ""));
-
-const used = [...new Set([...workflow.matchAll(/secrets\.(\w+)/g)].map((m) => m[1]))];
-
-const checked = (workflow.match(/for name in ([A-Z0-9_ ]+); do/) ?? [, ""])[1]
-  .split(/\s+/)
-  .filter(Boolean);
-
-const indexOf = (pattern) => steps.findIndex((step) => pattern.test(step));
+const executable = (path) => existsSync(path) && (statSync(path).mode & 0o111) !== 0;
 
 describe("the TestFlight upload", () => {
   test("runs on a version tag, behind the suite", () => {
     assert.match(workflow, /tags: \["v\*"\]/);
     assert.match(workflow, /uses: \.\/\.github\/workflows\/test\.yml/);
-    assert.match(workflow, /needs: test/);
+    assert.match(workflow, /needs: \[?test/);
   });
 
-  test("refuses a tag that disagrees with the version before it builds", () => {
-    const version = indexOf(/node \.github\/version\.mjs "\$GITHUB_REF_NAME"/);
-
-    assert.ok(version !== -1, "the version is never checked against the tag");
-    assert.ok(version < indexOf(/cargo tauri ios build/));
+  test("calls the workflow Follow Along and 66 Scripts share, from the repo root", () => {
+    assert.match(workflow, /uses: followalong\/www\.followalong\.com\/\.github\/workflows\/testflight\.yml@main/);
+    assert.match(workflow, /project: "\."/);
   });
 
-  test("names every secret it needs before it builds", () => {
-    assert.ok(used.length > 0, "the workflow reads no secrets");
-
-    for (const name of used.filter((one) => one !== "GITHUB_TOKEN")) {
-      assert.ok(checked.includes(name), `${name} reaches the build without the preflight checking it is set`);
-    }
-
-    assert.ok(indexOf(/for name in/) < indexOf(/cargo tauri ios build/));
-  });
-
-  test("runs rust from src-tauri, where the toolchain pin is", () => {
-    for (const step of steps.filter((one) => /\b(rustup|cargo)\b/.test(one))) {
-      assert.match(step, /working-directory: src-tauri/, `rust runs outside src-tauri:\n${step.trim()}`);
+  test("passes every secret the shared workflow requires", () => {
+    for (const name of [
+      "APPLE_API_KEY",
+      "APPLE_API_ISSUER",
+      "APPLE_API_KEY_P8",
+      "APPLE_DISTRIBUTION_P12",
+      "APPLE_DISTRIBUTION_P12_PASSWORD",
+    ]) {
+      assert.match(workflow, new RegExp(`^\\s+${name}: \\$\\{\\{ secrets\\.\\w+ \\}\\}`, "m"), `${name} is not passed`);
     }
   });
 
-  test("prepares the Xcode project before building it", () => {
-    // A bare init ships blank entitlements and tauri's default icon.
-    const prepare = indexOf(/\.\/ios-prepare\.sh/);
-
-    assert.ok(prepare !== -1, "ios-prepare.sh never runs");
-    assert.ok(prepare < indexOf(/cargo tauri ios build/));
+  test("has what the shared workflow reads at the project root", () => {
+    assert.match(readFileSync(".tool-versions", "utf8"), /^rust \d+\.\d+\.\d+$/m);
+    assert.ok(executable("ios-project.test.sh"), "ios-project.test.sh is missing or not executable");
   });
 
-  test("hands tauri a key file it wrote, so tauri signs for the App Store", () => {
-    const build = steps[indexOf(/cargo tauri ios build/)];
+  test("pins one Rust version, in both places that name it", () => {
+    const [, tools] = readFileSync(".tool-versions", "utf8").match(/^rust (\S+)$/m);
+    const [, channel] = readFileSync("src-tauri/rust-toolchain.toml", "utf8").match(/^channel = "(\S+)"$/m);
 
-    assert.match(build, /--export-method app-store-connect/);
-    assert.doesNotMatch(build, /--build-number/, "tauri appends it as a fourth version number");
-
-    const [, file] = build.match(/APPLE_API_KEY_PATH: \$\{\{ runner\.temp \}\}\/(\S+)/) ?? [];
-
-    assert.ok(file, "the build is not given APPLE_API_KEY_PATH");
-    assert.ok(workflow.includes(`base64 --decode > "$RUNNER_TEMP/${file}"`), `nothing writes ${file}`);
+    assert.equal(channel, tools);
   });
 
-  test("puts the distribution certificate in a keychain the build can search", () => {
-    const keychain = indexOf(/security import/);
-
-    assert.ok(keychain !== -1, "the certificate is never imported");
-    assert.match(steps[keychain], /security list-keychains/);
-    assert.ok(keychain < indexOf(/cargo tauri ios build/));
+  test("commits the Xcode project the shared workflow builds", () => {
+    assert.doesNotMatch(readFileSync("src-tauri/.gitignore", "utf8"), /gen\/apple/);
+    assert.ok(existsSync("src-tauri/gen/apple/project.yml"), "src-tauri/gen/apple is not committed");
   });
 
-  test("uploads the archive it built to App Store Connect", () => {
-    const upload = indexOf(/altool --upload-app/);
+  test("commits the Xcode project at the app's version", () => {
+    // A version bump that skips ios-prepare.sh would otherwise fail on the
+    // macOS runner, after the suite has passed.
+    const { version } = JSON.parse(readFileSync("src-tauri/tauri.conf.json", "utf8"));
+    const generated = readFileSync("src-tauri/gen/apple/project.yml", "utf8");
+    const found = [...generated.matchAll(/CFBundleShortVersionString: (\S+)/g)].map((m) => m[1]);
 
-    assert.ok(upload > indexOf(/cargo tauri ios build/), "nothing uploads after the build");
-    assert.match(steps[upload], /--type ios/);
+    assert.ok(found.length > 0);
+    assert.deepEqual([...new Set(found)], [version], "run src-tauri/ios-prepare.sh and commit gen/apple");
+  });
+
+  test("gives each build a whole-number build number, set before signing", () => {
+    assert.ok(executable("src-tauri/ios-build-number.sh"), "ios-build-number.sh is missing or not executable");
+    assert.match(project, /postBuildScripts:\s+- script: sh "\$SRCROOT\/\.\.\/\.\.\/ios-build-number\.sh"\s+name: Set Build Number/);
   });
 });
