@@ -209,7 +209,7 @@ the app handles and where it goes.
 ## Getting it
 
 **macOS.** Download the `.dmg` from [Releases](../../releases/latest) and drag it
-to Applications. It is a universal build, signed with a Developer ID and
+to Applications. It runs on Apple Silicon Macs only. It is signed with a Developer ID and
 notarised, and the ticket is stapled to the disk image as well as the app, so
 Gatekeeper is satisfied on first launch even offline
 ([`.github/workflows/release.yml`](.github/workflows/release.yml)).

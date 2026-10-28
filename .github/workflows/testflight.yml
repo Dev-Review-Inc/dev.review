@@ -32,7 +32,7 @@ jobs:
   testflight:
     needs: [test, version]
     if: ${{ !failure() && !cancelled() }}
-    uses: followalong/www.followalong.com/.github/workflows/testflight.yml@main
+    uses: dallasread/releases/.github/workflows/testflight.yml@main
     with:
       project: "."
     # Another owner's workflow cannot inherit secrets, so each is passed by

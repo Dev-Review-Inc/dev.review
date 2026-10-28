@@ -290,7 +290,7 @@ Verified:
 - Signing and notarisation, by building the release locally with the Developer
   ID certificate and the App Store Connect key the workflow uses. Apple accepted
   both submissions; `spctl` answers `Notarized Developer ID` for the `.dmg` on
-  mount and for the `.app` on launch, and the binary carries both architectures.
+  mount and for the `.app` on launch.
   That build is what found that tauri leaves the `.dmg` unnotarised, which no
   amount of checking the `.app` would have shown.
 - The icon, by extracting `Reviewer.icns` back out of the built `.app` with

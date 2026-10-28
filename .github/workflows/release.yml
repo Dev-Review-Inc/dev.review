@@ -1,187 +1,45 @@
 name: Release
 
-# Tags only. A release is a deliberate act, and the desktop build takes minutes
-# on a macOS runner that costs ten times a Linux one per minute, so nothing here
-# should run on a branch push or a pull request. Docker.yml already covers those.
+# Tags only. A release is a deliberate act, and the macOS runner costs ten times
+# a Linux one per minute, so nothing here runs on a branch push or a pull request.
+#
+# The build, signing, notarisation, checks and upload live in the workflow
+# Follow Along and 66 Scripts share, so a fix to the release lands in all three.
+# It builds for Apple Silicon only and publishes Reviewer_<version>_aarch64.dmg.
 on:
   push:
     tags: ["v*"]
 
-# Read-only by default. The one job that needs to write does so by asking for it
-# itself, so nothing else in this file can be given a token that pushes.
 permissions:
   contents: read
 
 jobs:
-  # The gate. The suite already ran on a tag push, because docker.yml is
-  # triggered by tags too, but it ran in a workflow this one could not wait on:
-  # two workflows fired by the same push run alongside each other, and neither
-  # can block the other. v0.5.0 and v0.5.1 were both signed, notarised and
-  # published off commits whose suite was failing, and nothing stopped either.
-  #
-  # It runs on ubuntu-latest, inside test.yml, and that is the point rather than
-  # an incidental detail: the cheap runner is the one that decides whether the
-  # expensive one starts, so a red suite costs Linux minutes instead of macOS
-  # ones.
+  # The gate. docker.yml also runs the suite on a tag, but two workflows fired by
+  # the same push cannot wait on each other: v0.5.0 and v0.5.1 shipped off a red
+  # suite that way. Here the cheap runner decides whether the expensive one starts.
   test:
     uses: ./.github/workflows/test.yml
 
-  release:
-    needs: test
-    runs-on: macos-latest
-    permissions:
-      contents: write
+  # The shared workflow checks the tag against tauri.conf.json only. This also
+  # checks Cargo.toml and both versions in ios-project.yml.
+  version:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # Before anything is built, because building first would spend ten minutes
-      # to produce an installer named after the wrong version. The tag is a
-      # third hand-typed copy of a number that already exists twice in
-      # src-tauri/, and `cargo tauri build` reads tauri.conf.json and never
-      # looks at the tag: tag v0.2.0 over a conf that still says 0.1.0 and the
-      # release page and the About box disagree, with nothing failing.
       - run: node .github/version.mjs "$GITHUB_REF_NAME"
 
-      # macos-latest is Apple Silicon, so the default target would build an
-      # arm64-only app. Intel Macs are still in the hands of the people this is
-      # for, and a .dmg that refuses to open on one reads as a broken download
-      # rather than an unsupported machine. A universal binary is roughly twice
-      # the compile and twice the download, which is the right trade for a job
-      # that runs once per release.
-      #
-      # From src-tauri, because rust-toolchain.toml is there and a pin only
-      # applies where it can be seen. Run at the root, this adds the targets to
-      # whatever the machine's default toolchain is, and the build - which does
-      # run in src-tauri - then asks the pinned one for a target nobody gave it,
-      # failing after the compile and naming the target rather than the
-      # directory. The runner's default happens to be the same stable the pin
-      # resolves to, so this worked on a coincidence about an image nobody here
-      # controls.
-      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-        working-directory: src-tauri
-
-      # The CLI comes from crates.io rather than @tauri-apps/cli, because
-      # package.json has no dependencies and CONTRIBUTING.md says adding one
-      # needs an argument first. tauri-apps/tauri-action would do the install,
-      # the build and the upload in one step, but it would also be the first
-      # third-party action in this repository - everything here is actions/* or
-      # docker/*, both of which are as trusted as the runner itself - and it
-      # would take a write-scoped token with it. Three plain commands are worth
-      # more than the minutes saved.
-      #
-      # Uncached deliberately. Caching a compiled binary keyed on a version that
-      # never changes is a cache that only ever goes stale in ways nobody
-      # notices, and this job runs once per release, not once per push.
-      - run: cargo install tauri-cli --version "^2" --locked
-        working-directory: src-tauri
-
-      # Before the ten minutes, not after them. tauri branches on each of these
-      # being present rather than on it being non-empty, so a secret nobody set
-      # expands to "" and the build spends the whole compile before failing on
-      # an empty certificate - a message that reads like a broken certificate
-      # rather than a missing one. Named here, the same mistake costs a second
-      # and says which secret. docs/releasing.md is where they come from.
-      - name: Check the signing secrets are set
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-        run: |
-          missing=
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8; do
-            eval "value=\$$name"
-            [ -n "$value" ] || missing="$missing $name"
-          done
-          if [ -n "$missing" ]; then
-            echo "This release cannot be signed. Unset secrets:$missing" >&2
-            echo "See docs/releasing.md." >&2
-            exit 1
-          fi
-
-      # APPLE_API_KEY_PATH is a path, and a .p8 is a file: a secret can hold the
-      # key but tauri will only read it off disk. RUNNER_TEMP is wiped with the
-      # runner, which is the whole life of this job, so the key never outlives
-      # the build that used it.
-      - name: Lay down the notarisation key
-        env:
-          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-        run: |
-          printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notarisation.p8"
-          chmod 600 "$RUNNER_TEMP/notarisation.p8"
-
-      # Signed with the Developer ID certificate and then handed to Apple to
-      # notarise, which is the half that matters: a signature alone still gets
-      # the malware warning, because Gatekeeper wants Apple's countersignature
-      # and not ours. tauri does both, staples the result to the .app so an
-      # offline first launch still passes, and only then builds the .dmg.
-      #
-      # The certificate arrives base64'd because a .p12 is binary; tauri imports
-      # it into a throwaway keychain of its own for the length of the build.
-      - run: cargo tauri build --target universal-apple-darwin
-        working-directory: src-tauri
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY_PATH: ${{ runner.temp }}/notarisation.p8
-
-      # tauri notarises and staples the .app and then wraps it in a disk image
-      # that it signs and never submits, so the bundle it hands back holds a
-      # notarised app inside an unnotarised container. Nobody downloads the
-      # .app. The .dmg is what is published, it arrives from a browser carrying
-      # a quarantine flag, and Gatekeeper assesses it on mount: unnotarised, it
-      # is refused there, before the stapled app inside is ever reached.
-      #
-      # --wait blocks until Apple has ruled rather than returning a submission
-      # id nobody reads, so a rejection fails this job instead of publishing.
-      # Stapling then writes the ticket into the file, which is what lets a Mac
-      # with no network open it.
-      - name: Notarise the installer
-        env:
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: |
-          dmg=$(echo src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
-          xcrun notarytool submit "$dmg" \
-            --key "$RUNNER_TEMP/notarisation.p8" \
-            --key-id "$APPLE_API_KEY" \
-            --issuer "$APPLE_API_ISSUER" \
-            --wait
-          xcrun stapler staple "$dmg"
-
-      # Asking macOS rather than trusting the build. Notarisation is the step
-      # most able to fail softly - a rejected submission, a certificate that
-      # expired last month, a future tauri that treats an unset variable as
-      # permission to skip - and every one of those still produces a .dmg that
-      # uploads cleanly and warns the first person to open it. These are the
-      # commands that person's Mac runs, run here instead, against both the file
-      # that is published and the app it carries.
-      - name: Check what is published is signed and notarised
-        run: |
-          app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Reviewer.app
-          dmg=$(echo src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
-          codesign --verify --deep --strict --verbose=2 "$app"
-          xcrun stapler validate "$app"
-          xcrun stapler validate "$dmg"
-          # `--type open` is the assessment a mount performs; `--type execute`
-          # is the one a launch performs. A release has to pass both, and they
-          # are separate verdicts, so both are asked for by name.
-          spctl --assess --type open --context context:primary-signature -v "$dmg"
-          spctl --assess --type execute --verbose=4 "$app"
-
-      # `gh` is on the runner already, so the upload needs no action either. The
-      # release is created here rather than by hand so that the tag, the notes
-      # and the installer arrive together; a release drafted first and filled in
-      # later is one that eventually ships empty.
-      - name: Publish the installer
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --generate-notes \
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+  macos:
+    needs: [test, version]
+    uses: dallasread/releases/.github/workflows/macos-release.yml@main
+    with:
+      project: "."
+    permissions:
+      contents: write
+    # Another owner's workflow cannot inherit secrets, so each is passed by name.
+    secrets:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}

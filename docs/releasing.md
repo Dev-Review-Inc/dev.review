@@ -1,8 +1,8 @@
 # Releasing
 
-A release is a tag. Pushing `v0.2.0` runs [.github/workflows/release.yml](../.github/workflows/release.yml), which checks the tag against the version in `src-tauri/`, builds a universal macOS app, signs and notarises it, and publishes the `.dmg` to a GitHub release.
+A release is a tag. Pushing `v0.2.0` runs [.github/workflows/release.yml](../.github/workflows/release.yml). It runs the suite and checks the tag against the version in `src-tauri/`. Then it calls `dallasread/releases/.github/workflows/macos-release.yml@main` with `project: "."`. Follow Along and 66 Scripts call the same workflow, so a fix to it reaches all three apps. It builds the macOS app for Apple Silicon only, signs and notarises it, and publishes `Reviewer_<version>_aarch64.dmg` to a GitHub release. Intel Macs are not supported.
 
-The version lives in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Both must already say `0.2.0` before the tag is pushed; the workflow refuses the tag otherwise, before it spends the build.
+The version lives in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and twice in `src-tauri/ios-project.yml`. All of them must already say `0.2.0` before the tag is pushed. `.github/version.mjs` refuses the tag otherwise, before the build starts. The shared workflow installs the Rust version that `.tool-versions` names, and builds from `src-tauri/`.
 
 ## Signing
 
@@ -19,13 +19,13 @@ All of it needs an [Apple Developer Program](https://developer.apple.com/program
 
 ## The six secrets
 
-Set these in the repository's Settings → Secrets and variables → Actions. The workflow names any that are unset and stops before building.
+Set these in the repository's Settings → Secrets and variables → Actions. The caller passes each one by name, because a workflow of another owner cannot inherit secrets. The shared workflow names any that are unset and stops before building.
 
 | Secret | What it holds |
 | --- | --- |
 | `APPLE_CERTIFICATE` | The Developer ID certificate, `.p12`, base64 |
 | `APPLE_CERTIFICATE_PASSWORD` | The password set when exporting that `.p12` |
-| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Name (TEAMID)`, or the certificate's SHA-1 |
 | `APPLE_API_KEY` | The App Store Connect key ID, ten characters |
 | `APPLE_API_ISSUER` | The issuer ID, a UUID |
 | `APPLE_API_KEY_P8` | The `.p8` private key, base64 |
@@ -36,7 +36,7 @@ Done once on a Mac, on the keychain the certificate will live in.
 
 1. **Make a signing request.** Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority. Enter the email and a common name, choose *Saved to disk*, and let it generate the key pair. This writes a `.certSigningRequest` and puts its private half in the login keychain. The certificate is worthless without that private half, so this is the step to do on a machine that gets backed up.
 
-2. **Ask Apple for the certificate.** [developer.apple.com/account/resources/certificates](https://developer.apple.com/account/resources/certificates) → +. Choose **Developer ID Application** — not Mac Development, and not Developer ID Installer, which signs `.pkg` files and cannot sign an app. Upload the request from step 1 and download the `.cer` it issues.
+2. **Ask Apple for the certificate.** [developer.apple.com/account/resources/certificates](https://developer.apple.com/account/resources/certificates) → +. Choose **Developer ID Application** — not Mac Development, and not Developer ID Installer, which signs `.pkg` files and cannot sign an app. Choose the **G2 Sub-CA**. The shared workflow refuses a certificate from the older Sub-CA, which stops signing on 2027-02-01. Upload the request from step 1 and download the `.cer` it issues.
 
 3. **Install it.** Double-click the `.cer`. Keychain Access now shows *Developer ID Application: Name (TEAMID)* with a private key nested under it. That full string, team ID and all, is `APPLE_SIGNING_IDENTITY`; `security find-identity -v -p codesigning` prints it exactly.
 
@@ -71,6 +71,7 @@ Notarisation authenticates separately, with an App Store Connect API key rather 
 ## When a release fails
 
 - **Stops immediately naming secrets.** They are unset, or set on the wrong repository. Nothing was built.
+- **Stops on the G2 check.** The certificate is not a Developer ID Application certificate from the G2 Sub-CA. Make a new one as in step 2 above.
 - **Fails in the build on the certificate.** The `.p12` did not carry its private key, or the password is wrong.
 - **Fails on notarisation with a 403 naming an agreement.** Apple will not notarise for a team with an unsigned or expired Program License Agreement, however valid the key is. The Account Holder accepts it at [developer.apple.com/account](https://developer.apple.com/account), and it reappears whenever Apple revises the terms — so a release that has worked for a year can fail this way on a Tuesday, having changed nothing.
 - **Fails on notarisation otherwise.** Usually the API key's access is below Developer, or the membership has lapsed. `xcrun notarytool log` against the submission ID in the run output gives Apple's own reason.
@@ -111,7 +112,7 @@ The certificates live in the login keychain of the machine that made them. They 
 
 ### TestFlight
 
-Pushing a `v*` tag also runs [.github/workflows/testflight.yml](../.github/workflows/testflight.yml). It can run by hand too. After the suite and the version check pass, it calls the TestFlight workflow that Follow Along and 66 Scripts share, `followalong/www.followalong.com/.github/workflows/testflight.yml@main`, with `project: "."`. A fix to that workflow reaches all three apps. It runs apart from the `.dmg` release, so a failure in one does not stop the other.
+Pushing a `v*` tag also runs [.github/workflows/testflight.yml](../.github/workflows/testflight.yml). It can run by hand too. After the suite and the version check pass, it calls the TestFlight workflow that Follow Along and 66 Scripts share, `dallasread/releases/.github/workflows/testflight.yml@main`, with `project: "."`. A fix to that workflow reaches all three apps. It runs apart from the `.dmg` release, so a failure in one does not stop the other.
 
 The shared workflow expects the same layout in each app, so this repository keeps it:
 

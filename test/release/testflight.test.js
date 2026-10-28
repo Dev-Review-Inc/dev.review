@@ -20,7 +20,7 @@ describe("the TestFlight upload", () => {
   });
 
   test("calls the workflow Follow Along and 66 Scripts share, from the repo root", () => {
-    assert.match(workflow, /uses: followalong\/www\.followalong\.com\/\.github\/workflows\/testflight\.yml@main/);
+    assert.match(workflow, /uses: dallasread\/releases\/\.github\/workflows\/testflight\.yml@main/);
     assert.match(workflow, /project: "\."/);
   });
 
