@@ -273,6 +273,21 @@ library. The page carries a content security policy that keeps script to its own
 origin. `test/adapters/conformance.js` is the shared backend suite described
 above.
 
+## Releasing
+
+A version tag releases the app. Do these steps:
+
+1. Set the new version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/ios-project.yml` (twice).
+2. Merge the change to `main` through a pull request.
+3. Tag the merge commit and push the tag: `git tag -m v1.2.3 v1.2.3 && git push origin v1.2.3`.
+
+The tag starts two workflows. Each runs the tests and [`.github/version.mjs`](.github/version.mjs) first. The version check fails when a file does not match the tag.
+
+- [`release.yml`](.github/workflows/release.yml) builds the Mac app for Apple Silicon. It signs the app with the Developer ID certificate, notarizes it and staples the ticket. Then it creates the GitHub release of the tag with `Reviewer_<version>_aarch64.dmg`.
+- [`testflight.yml`](.github/workflows/testflight.yml) builds the iOS app and sends it to TestFlight.
+
+The steps live in the shared [dallasread/releases](https://github.com/dallasread/releases) workflows. Reviewer, Follow Along and 66 Scripts use the same ones. A fix there reaches all three apps. A re-run of a failed job uses the old copy of the shared workflow, so push the tag again to get a fix.
+
 ## Contributing
 
 Issues and pull requests are welcome. `main` is protected, so everything lands
