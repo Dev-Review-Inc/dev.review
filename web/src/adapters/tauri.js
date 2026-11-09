@@ -99,32 +99,33 @@ export async function chooseRoot() {
 }
 
 /**
- * What runs the agent chat in this build, or null where nothing can.
+ * What opens the agent in a terminal in this build, or null where nothing can.
+ * See src-tauri/src/terminal.rs.
  *
- * Each run streams over a Tauri channel: one message per line the agent
- * prints, then one for the exit. See src-tauri/src/agent.rs.
- *
- * @returns {Promise<{start: Function}|null>} the runner
+ * @returns {Promise<{open: Function}|null>} the opener
  */
-export async function agentRunner() {
+export async function terminalOpener() {
   const api = core();
 
   if (typeof api?.Channel !== "function") return null;
-  if (!(await api.invoke("agent_chat_available").catch(() => false))) return null;
+  if (!(await api.invoke("terminal_available").catch(() => false))) return null;
 
   return {
-    start(request, onLine) {
-      const run = globalThis.crypto.randomUUID();
+    // Output arrives as raw bytes, the exit as JSON, on one channel.
+    async open(request, onOutput, onExit) {
       const events = new api.Channel();
-      let exit;
-      const done = new Promise((resolve) => (exit = resolve));
 
-      events.onmessage = (event) => (event.kind === "exit" ? exit({ code: event.code }) : onLine(event.text));
+      events.onmessage = (message) =>
+        message instanceof ArrayBuffer ? onOutput(new Uint8Array(message)) : onExit(message.exit);
+
+      const id = await api.invoke("terminal_open", { request, events }).catch((refusal) => {
+        throw new Error(refusal?.message || String(refusal));
+      });
 
       return {
-        started: api.invoke("agent_chat_start", { run, request, events }),
-        done,
-        cancel: () => api.invoke("agent_chat_cancel", { run }).catch(() => {}),
+        write: (data) => api.invoke("terminal_write", { id, data }),
+        resize: (cols, rows) => api.invoke("terminal_resize", { id, cols, rows }),
+        close: () => api.invoke("terminal_close", { id }).catch(() => {}),
       };
     },
   };

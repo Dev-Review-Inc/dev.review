@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -277,5 +278,32 @@ func TestPolicyExclusionsAreDeliberate(t *testing.T) {
 		if !covered[directive] {
 			t.Errorf("%s declares %s, which is neither in mustAgree nor in excluded", goPolicyFile, directive)
 		}
+	}
+}
+
+// Tauri adds a nonce to style-src for index.html's own <style>, and a nonce
+// makes browsers ignore 'unsafe-inline'. xterm.js draws the agent's terminal
+// with <style> elements it makes itself, so the shell must leave style-src as
+// written: the same 'unsafe-inline' the other two copies allow.
+func TestTauriLeavesStyleSrcAsWritten(t *testing.T) {
+	raw, err := os.ReadFile("../" + tauriPolicyFile)
+	if err != nil {
+		t.Fatalf("read %s: %v", tauriPolicyFile, err)
+	}
+
+	var config struct {
+		App struct {
+			Security struct {
+				Untouched []string `json:"dangerousDisableAssetCspModification"`
+			} `json:"security"`
+		} `json:"app"`
+	}
+
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatalf("parse %s: %v", tauriPolicyFile, err)
+	}
+
+	if !slices.Contains(config.App.Security.Untouched, "style-src") {
+		t.Fatalf("%s: app.security.dangerousDisableAssetCspModification must list style-src", tauriPolicyFile)
 	}
 }

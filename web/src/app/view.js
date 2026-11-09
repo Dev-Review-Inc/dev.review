@@ -10,10 +10,9 @@ import { App } from "./app.js";
 import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
-import { agentRunner, editorOpener, inTauriIOS } from "../adapters/tauri.js";
+import { editorOpener, inTauriIOS, terminalOpener } from "../adapters/tauri.js";
 import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
-import { drawBoard } from "./board.js";
 import { leaveWords } from "./words.js";
 import { closeConfirm, dismiss, openConfirm, post } from "./confirm.js";
 import {
@@ -30,6 +29,8 @@ import { drawDiff } from "./diff-pane.js";
 import { DISMISS, closeVerdictMenu, drawFooter, labelList, toggleVerdictMenu } from "./footer.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail, togglePaneCollapsed } from "./rail.js";
+import { drawTerminal } from "./terminal.js";
+import { resizableRail } from "./resize.js";
 import { closeEditor, drawSummary } from "./summary.js";
 
 // Registered first, before anything that could fail has run. It handles
@@ -64,17 +65,11 @@ app.destinationSetup = newDestinationSetup();
 // Which item the settings panel's detail is showing: a source, a destination,
 // an add in progress, or nothing.
 app.settingsSelection = { kind: "", id: null };
-// The board in the reader's place, and which of its cards are opened out.
-app.board = false;
-app.boardOpen = new Set();
-// The card whose agent the drawer talks to, each card's chat so far, and what
-// runs the agent: null until the desktop build says it can.
-app.boardChat = null;
-app.chats = new Map();
-app.agentRunner = null;
-agentRunner().then((runner) => {
-  app.agentRunner = runner;
-  if (runner) app.changed();
+// What opens the agent in a terminal: null until the desktop build says it can.
+app.terminal = null;
+terminalOpener().then((opener) => {
+  app.terminal = opener;
+  if (opener) app.changed();
 });
 
 // What opens the agent's folder in an editor: null until the desktop build
@@ -130,7 +125,7 @@ function render() {
   drawDescription(app);
   drawQa(app);
   drawFooter(app);
-  drawBoard(app);
+  drawTerminal(app);
 
   restorePlace(places);
   autoOpen();
@@ -221,15 +216,11 @@ function open(pull) {
 
 // ---- Wiring
 
+resizableRail();
 find("source-button").addEventListener("click", () => toggleSetup(app));
 find("setup-backdrop").addEventListener("click", closeSetup);
 find("queue-button").addEventListener("click", () => toggleQueue(app));
 find("queue-backdrop").addEventListener("click", closeQueue);
-
-find("board-button").addEventListener("click", () => {
-  app.board = !app.board;
-  app.changed();
-});
 
 find("files-flagged").addEventListener("click", () => {
   if (!app.source) return;

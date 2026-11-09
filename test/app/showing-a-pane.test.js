@@ -58,13 +58,4 @@ describe("showing a pane", () => {
 
     assert.equal(app.paneCollapsed, true);
   });
-
-  test("a review opened from the board opens in the reader", async () => {
-    const app = await reading();
-
-    app.board = true;
-    await app.select(app.queue()[0]);
-
-    assert.equal(app.board, false);
-  });
 });

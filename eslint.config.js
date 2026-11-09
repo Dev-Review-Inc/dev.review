@@ -80,6 +80,7 @@ export default [
         setInterval: "readonly",
         clearInterval: "readonly",
         requestAnimationFrame: "readonly",
+        ResizeObserver: "readonly",
         indexedDB: "readonly",
         localStorage: "readonly",
         crypto: "readonly",

@@ -17,10 +17,10 @@
 // module's entire premise. See git.rs's own top comment.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
 mod git;
-// The agent chat spawns `claude`, so it is compiled out where git.rs is.
+// The agent in a terminal spawns `claude`, so it is compiled out where git.rs is.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
-mod agent;
-// Opening a folder in an editor spawns `open`, so it goes where agent.rs goes.
+mod terminal;
+// Opening a folder in an editor spawns `open`, so it goes where git.rs goes.
 // Off macOS it finds no editors in /Applications and offers none.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
 mod editor;
@@ -73,13 +73,15 @@ mod widget;
 pub fn run() {
     let builder = tauri::Builder::default();
 
-    // A run outlives nothing: closing the window stops every one in flight.
+    // A terminal outlives nothing: closing the window closes them all.
     #[cfg(not(feature = "appstore"))]
-    let builder = builder.manage(agent::Runs::default()).on_window_event(|window, event| {
-        if let tauri::WindowEvent::Destroyed = event {
-            agent::stop_all(&tauri::Manager::state::<agent::Runs>(window));
-        }
-    });
+    let builder = builder
+        .manage(terminal::Terminals::default())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                terminal::close_all(&tauri::Manager::state::<terminal::Terminals>(window));
+            }
+        });
 
     builder
         // The folder picker is opened from Rust, so the frontend needs no
@@ -114,15 +116,19 @@ pub fn run() {
             #[cfg(not(feature = "appstore"))]
             git::git_ready,
             #[cfg(not(feature = "appstore"))]
-            agent::agent_chat_start,
+            terminal::terminal_open,
             #[cfg(not(feature = "appstore"))]
-            agent::agent_chat_cancel,
+            terminal::terminal_write,
+            #[cfg(not(feature = "appstore"))]
+            terminal::terminal_resize,
+            #[cfg(not(feature = "appstore"))]
+            terminal::terminal_close,
             #[cfg(not(feature = "appstore"))]
             editor::editors_installed,
             #[cfg(not(feature = "appstore"))]
             editor::editor_open,
             git_native_available,
-            agent_chat_available,
+            terminal_available,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");
@@ -144,10 +150,10 @@ fn git_native_available() -> bool {
     cfg!(not(any(target_os = "ios", feature = "appstore")))
 }
 
-/// Whether this build can talk to the agent that wrote a draft. Asked, like
-/// git_native_available, rather than inferred from a failed invoke.
+/// Whether this build can open the agent that wrote a draft in a terminal.
+/// Asked, like git_native_available, rather than inferred from a failed invoke.
 #[tauri::command]
-fn agent_chat_available() -> bool {
+fn terminal_available() -> bool {
     cfg!(not(any(target_os = "ios", feature = "appstore")))
 }
 
@@ -177,7 +183,7 @@ pub fn run() {
             icloud::icloud_root,
             widget::widget_update,
             git_native_available,
-            agent_chat_available,
+            terminal_available,
         ])
         .run(tauri::generate_context!())
         .expect("the desktop app failed to start");
