@@ -66,7 +66,6 @@
 		2A9C5E0610F10406D3623233 /* bookmark.rs */ = {isa = PBXFileReference; path = bookmark.rs; sourceTree = "<group>"; };
 		3D64E7836EFBF39DC1737DA2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		487D4DCF2C88AA981254C996 /* editor.rs */ = {isa = PBXFileReference; path = editor.rs; sourceTree = "<group>"; };
-		4B3F1427C96C350C584935A9 /* agent.rs */ = {isa = PBXFileReference; path = agent.rs; sourceTree = "<group>"; };
 		5266D8655BFAEF9F0FFB4245 /* links.rs */ = {isa = PBXFileReference; path = links.rs; sourceTree = "<group>"; };
 		5DA6C56616E9E51C322EA5DB /* icloud.rs */ = {isa = PBXFileReference; path = icloud.rs; sourceTree = "<group>"; };
 		74817D797B0A60DC3F449BFD /* reviewer_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = reviewer_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -82,6 +81,7 @@
 		CEF6A3CAC593BBA1A71B120D /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		D03C6BD4D965EC23170A80EA /* ReviewerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewerWidget.swift; sourceTree = "<group>"; };
 		D34AB69634524E6A4B5DC98C /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		D8E76F411226544BF0A142B1 /* terminal.rs */ = {isa = PBXFileReference; path = terminal.rs; sourceTree = "<group>"; };
 		DAECEE9A377BBB8B280FA5FB /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		E5891BB66B1AEB97CE950682 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		F7DF8B1FEB22D855C4ED8AA7 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
@@ -178,7 +178,6 @@
 		9E19C9AB17AA08F08C02EE9A /* src */ = {
 			isa = PBXGroup;
 			children = (
-				4B3F1427C96C350C584935A9 /* agent.rs */,
 				2A9C5E0610F10406D3623233 /* bookmark.rs */,
 				487D4DCF2C88AA981254C996 /* editor.rs */,
 				C0BAA37AA87F37E4FAF6FA78 /* git.rs */,
@@ -188,6 +187,7 @@
 				5266D8655BFAEF9F0FFB4245 /* links.rs */,
 				13C45D5BD6BC34BF911BE9B1 /* main.rs */,
 				A0D76F655B17A1743ADD7DB9 /* storage.rs */,
+				D8E76F411226544BF0A142B1 /* terminal.rs */,
 				1F07B3C231D9537B9697B791 /* unlock.rs */,
 				C3D33031C147FD83B9E4D3A5 /* widget.rs */,
 			);
