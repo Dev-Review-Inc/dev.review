@@ -145,10 +145,11 @@ function drawBlurb(app) {
 
   // The agent that wrote the draft can be talked to: resuming its session in
   // its own folder picks the conversation up where the review left it.
-  const resume = resumeCommand(pull.draft?.agent);
-
-  if (resume) line.append(copyButton(resume, "Copy the command that resumes the agent that wrote this"));
-
+  // Where the build has no terminal dock to resume it in, the command that
+  // does, to copy.
+  if (pull.draft?.agent && !app.terminal) {
+    line.append(copyButton(resumeCommand(pull.draft.agent), "Copy the command that resumes the agent that wrote this"));
+  }
 
   // Only where there is a document to throw away. With nothing written yet the
   // pull request is already waiting to be picked up, and a button offering to
@@ -167,7 +168,7 @@ function drawBlurb(app) {
     editors.className = "editors";
     editors.append(element("span", "summary-meta mono", "open in"));
 
-    for (const editor of app.editorOpener.editors) editors.append(editorButton(app, editor, folder));
+    editors.append(editorSplit(app, folder));
 
     provenance.append(editors);
   }
@@ -216,25 +217,96 @@ function reviewerChips(reviewers) {
   return row;
 }
 
+const EDITOR_KEY = "reviewer.editor";
+
 /**
- * A button that opens a folder in one editor.
+ * The editor last chosen, else the first installed.
+ *
+ * @param {{key: string, label: string}[]} editors the installed editors
+ * @returns {{key: string, label: string}} the editor
+ */
+function chosenEditor(editors) {
+  let key = null;
+
+  try {
+    key = globalThis.localStorage?.getItem(EDITOR_KEY);
+  } catch {
+    // Storage turned off: the first editor it is.
+  }
+
+  return editors.find((editor) => editor.key === key) || editors[0];
+}
+
+/**
+ * The agent's folder in an editor: the one last chosen, and a caret listing
+ * every installed one. Choosing one opens it and remembers it.
  *
  * @param {object} app the application
- * @param {{key: string, label: string}} editor one of the installed editors
- * @param {string} folder the absolute folder to open
- * @returns {HTMLElement} the button
+ * @param {string} folder the folder the agent ran in
+ * @returns {HTMLElement} the split button
  */
-function editorButton(app, editor, folder) {
-  const opener = document.createElement("button");
-  opener.className = "editor-button mono";
-  opener.type = "button";
-  opener.textContent = editor.label;
-  opener.title = `Open ${folder} in ${editor.label}`;
-  opener.addEventListener("click", () => {
-    app.editorOpener.open(editor.key, folder).catch((failure) => say(failure.message, "error"));
+function editorSplit(app, folder) {
+  const { editors } = app.editorOpener;
+  const chosen = chosenEditor(editors);
+  const open = (editor) => app.editorOpener.open(editor.key, folder).catch((failure) => say(failure.message, "error"));
+
+  const split = document.createElement("div");
+  split.className = "editor-split";
+
+  const main = document.createElement("button");
+  main.className = "editor-button mono";
+  main.type = "button";
+  main.textContent = chosen.label;
+  main.title = `Open ${folder} in ${chosen.label}`;
+  main.addEventListener("click", () => open(chosen));
+
+  const caret = document.createElement("button");
+  caret.className = "editor-caret";
+  caret.type = "button";
+  caret.textContent = "\u25BE";
+  caret.setAttribute("aria-label", "Choose an editor");
+  caret.addEventListener("click", () => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "editor-backdrop";
+
+    const menu = document.createElement("div");
+    menu.className = "verdict-sheet editor-menu";
+
+    const shut = () => {
+      menu.remove();
+      backdrop.remove();
+    };
+
+    backdrop.addEventListener("click", shut);
+
+    for (const editor of editors) {
+      const choice = document.createElement("button");
+      choice.type = "button";
+      choice.textContent = editor.label;
+      choice.setAttribute("aria-pressed", String(editor === chosen));
+      choice.addEventListener("click", () => {
+        shut();
+        try {
+          globalThis.localStorage?.setItem(EDITOR_KEY, editor.key);
+        } catch {
+          // Not remembered: the next draw offers the first again.
+        }
+        open(editor);
+        drawRail(app);
+      });
+      menu.append(choice);
+    }
+
+    const anchor = caret.getBoundingClientRect();
+
+    menu.style.left = `${anchor.left}px`;
+    menu.style.top = `${anchor.bottom + 4}px`;
+    document.body.append(backdrop, menu);
   });
 
-  return opener;
+  split.append(main, caret);
+
+  return split;
 }
 
 /**
@@ -333,7 +405,7 @@ function pullName(pull, address) {
  * @param {string} title what the button says it copies
  * @returns {HTMLElement} the button
  */
-export function copyButton(text, title) {
+function copyButton(text, title) {
   const copy = render(button({ role: "icon", icon: COPY_ICON, title }));
 
   copy.classList.add("copy-url");

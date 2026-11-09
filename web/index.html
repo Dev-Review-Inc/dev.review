@@ -634,7 +634,7 @@
   .teach-actions { display: flex; align-items: center; gap: 9px; }
   .teach-actions .either { font-size: var(--textSmall); color: var(--setFaint); }
 
-  main { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+  main { position: relative; display: grid; grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr); min-height: 0; }
 
   .pane { border-right: 1px solid var(--border); background: var(--panel); min-height: 0; overflow-y: auto; }
 
@@ -796,6 +796,17 @@
   .drift-chip:hover,
   .editor-button:hover { color: var(--accent); border-color: var(--accent); }
   .editors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+  /* The chosen editor and a caret that lists the rest, one control: rail.js. */
+  .editor-split { display: inline-flex; align-items: stretch; }
+  .editor-split .editor-button { border-radius: 5px 0 0 5px; }
+  .editor-caret {
+    border: 1px solid var(--border); border-left: none; border-radius: 0 5px 5px 0;
+    background: none; color: var(--dim); font-size: var(--textSmall); padding: 2px 6px; cursor: pointer;
+  }
+  .editor-caret:hover { color: var(--accent); border-color: var(--accent); }
+  .editor-backdrop { position: fixed; inset: 0; z-index: 80; }
+  .editor-menu { width: 160px; }
 
   /* The settled chip's pill, but a login and a team keep their own case. */
   .reviewers { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1608,83 +1619,46 @@
     overscroll-behavior: contain;
   }
 
-  /* Board ---------------------------------------------------------------
-     Columns side by side, scrolling sideways when they outrun the screen;
-     each column scrolls its own cards. */
-  .chip[aria-pressed="true"] { border-color: var(--accent); }
+  /* The rail and the terminal dock drag to a width: web/src/app/resize.js.
+     A width set by dragging lands in --rail-width or --dock-width. */
+  main:not(.dragging) { transition: grid-template-columns .2s ease; }
+  main.dragging { cursor: col-resize; user-select: none; }
+  .grip { position: absolute; top: 0; bottom: 0; width: 7px; z-index: 5; cursor: col-resize; }
+  .grip:hover, main.dragging .grip { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  #rail-grip { left: calc(var(--rail-width, 300px) - 4px); }
+  .terminal-grip { left: -3px; }
+  #terminal-dock.collapsed .terminal-grip { display: none; }
 
-  #board { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
-  #board.is-chatting { grid-template-columns: minmax(0, 1fr) 360px; }
-
-  .board-columns {
-    display: flex; align-items: flex-start; gap: var(--space4);
-    padding: var(--space4); min-height: 0;
-    overflow-x: auto; scroll-snap-type: x proximity;
+  /* The agent in a terminal, docked right in the space the reading column
+     leaves: web/src/app/terminal.js. Folded, it is a strip with a way back. */
+  main:has(> #terminal-dock:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 46rem) minmax(280px, 1fr); }
+  main.dock-sized:has(> #terminal-dock:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr) var(--dock-width); }
+  main:has(> #terminal-dock.collapsed:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr) 32px; }
+  #terminal-dock {
+    position: relative;
+    display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0;
+    border-left: 1px solid var(--border); background: var(--bg);
   }
-
-  /* The chat with a card's agent, beside the columns. */
-  .board-card { cursor: pointer; }
-  .board-card.is-chatting { border-color: var(--accent); }
-
-  .board-chat {
-    display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space3);
-    min-height: 0; padding: var(--space4);
-    border-left: 1px solid var(--border); background: var(--panel);
+  #terminal-dock[hidden] { display: none; }
+  .terminal-host { overflow: hidden; grid-row: 2; }
+  .terminal-head {
+    grid-row: 1; display: flex; align-items: center; gap: var(--space2);
+    padding: var(--space2) var(--space3); border-bottom: 1px solid var(--border); background: var(--panel);
   }
-
-  .board-chat-head { display: flex; align-items: center; gap: var(--space2); }
-  .board-chat-note { color: var(--dim); font-size: var(--textSmall); display: flex; align-items: center; gap: var(--space2); }
-  .board-chat-log { display: grid; gap: var(--space2); align-content: start; overflow-y: auto; }
-  .board-chat-line { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--textSmall); }
-  .board-chat-line.is-reader { justify-self: end; padding: var(--space2) var(--space3); border-radius: var(--radius); background: var(--hl); }
-  .board-chat-line.is-agent { color: var(--text); }
-  .board-chat-line.is-tool { color: var(--dim2); }
-  .board-chat-line.is-error { color: var(--red); }
-  .board-chat-form { display: flex; align-items: flex-end; gap: var(--space2); }
-
-  .board-chat-input {
-    flex: 1; resize: vertical; padding: var(--space2) var(--space3);
-    border: 1px solid var(--border); border-radius: var(--radius);
-    background: var(--panel2); color: var(--text); font: inherit; font-size: var(--textSmall);
+  /* min-width: 0, or a long folder will not shrink to an ellipsis. */
+  .terminal-title { flex: 1; min-width: 0; color: var(--dim2); font-size: var(--textSmall); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .terminal-head > button { flex-shrink: 0; }
+  .terminal-fold {
+    border: none; background: none; color: var(--dim); cursor: pointer;
+    font-size: var(--textLead); line-height: 1; padding: 0 4px;
   }
-
-  .board-column {
-    flex: 1 0 340px; max-height: 100%; overflow-y: auto;
-    display: grid; gap: var(--space3); align-content: start;
-    padding: var(--space3); border: 1px solid var(--border); border-radius: var(--radiusPanel);
-    background: var(--panel); scroll-snap-align: start;
-  }
-
-  .board-column-head {
-    display: flex; justify-content: space-between;
-    font-size: var(--textMicro); letter-spacing: .08em; text-transform: uppercase; color: var(--dim2);
-  }
-
-  .board-count { color: var(--faint); }
-
-  .board-card {
-    display: grid; gap: var(--space2);
-    padding: var(--space3); border: 1px solid var(--border2); border-radius: var(--radius);
-    background: var(--panel2);
-  }
-
-  .board-card-top, .board-card-meta { display: flex; align-items: center; gap: var(--space2); }
-  .board-repo, .board-author { font-size: var(--textSmall); color: var(--dim2); }
-  .board-title { text-align: left; font-weight: 600; padding: 0; }
-  .board-title:hover { color: var(--accent); }
-  .board-expand { font-size: var(--textSmall); color: var(--dim); padding: 0; }
-  .board-expand:disabled { color: var(--faint); cursor: default; }
-
-  .board-kind { display: grid; gap: var(--space1); }
-  .board-kind-name { font-size: var(--textMicro); color: var(--dim2); }
-
-  .board-finding {
-    display: grid; gap: 2px;
-    padding: var(--space2) var(--space3); border-left: 2px solid var(--border); border-radius: var(--radiusTight);
-    background: var(--panel3); font-size: var(--textSmall);
-  }
-
-  .board-finding-at { color: var(--dim2); overflow-wrap: anywhere; }
+  .terminal-fold:hover { color: var(--accent); }
+  .terminal-host { min-height: 0; padding: var(--space3); }
+  .terminal-host .xterm { height: 100%; }
+  #terminal-dock.collapsed .terminal-head { flex-direction: column; padding: var(--space2) 0; border-bottom: none; height: 100%; }
+  #terminal-dock.collapsed .terminal-title,
+  #terminal-dock.collapsed .terminal-head > button:not(.terminal-fold),
+  #terminal-dock.collapsed .terminal-host { display: none; }
 
   /* A narrow viewport ----------------------------------------------------
      The app on a phone, and inside a marketing page being read on one. One
@@ -1693,13 +1667,6 @@
      what wrapped. Nothing outside this block changes. */
   @media (max-width: 760px) {
     #shell { grid-template-rows: auto 1fr auto; }
-
-    /* One column a screen, swiped sideways. */
-    .board-column { flex-basis: calc(100vw - 48px); }
-
-    /* The chat opens as a sheet below the columns. */
-    #board.is-chatting { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 55%); }
-    .board-chat { border-left: none; border-top: 1px solid var(--border); }
 
     header, footer {
       height: auto;
@@ -1756,6 +1723,7 @@
     .head-open .title { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--textLead); }
 
     main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    #rail-grip { display: none; }
 
     /* The pane and the comment section share the same grid cell instead of
        stacking in their own rows, so opening the pane lays it over the
@@ -1843,8 +1811,7 @@
     .settings-fields input.mono,
     #editor,
     #description-editor,
-    .finding-editor,
-    .board-chat-input {
+    .finding-editor {
       font-size: 16px;
     }
   }
@@ -1897,13 +1864,6 @@
       </div>
     </div>
 
-    <!-- Swaps the reader for the board and back. -->
-    <div class="popover-host">
-      <button class="chip" id="board-button" aria-pressed="false" title="Every pull request at once">
-        <span class="chip-value">board</span>
-      </button>
-    </div>
-
     <!-- Chips alone are wider than a phone screen has room to also fit the
          open pull request beside, so it needs the line to itself.
          flex-basis:100% forces that break, but only on this empty,
@@ -1931,6 +1891,8 @@
   </header>
 
   <main>
+    <!-- Drags the rail to a width: web/src/app/resize.js. -->
+    <div id="rail-grip" class="grip" aria-hidden="true"></div>
     <section class="pane">
       <div id="pane-content">
         <div class="pane-head" id="blurb-head" hidden><span>summary</span></div>
@@ -1971,10 +1933,10 @@
         <div id="qa"></div>
       </div>
     </section>
-  </main>
 
-  <!-- Shown in main's place: every pull request at once, in columns by state. -->
-  <div id="board" hidden></div>
+    <!-- The agent in a terminal, filled by web/src/app/terminal.js. -->
+    <aside id="terminal-dock" hidden></aside>
+  </main>
 
   <footer>
     <div class="payload mono">

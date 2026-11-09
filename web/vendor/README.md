@@ -9,6 +9,8 @@ or it does not exist. Nothing here may reach the network at import time.
 | `isomorphic-git.js` | `isomorphic-git` | 1.40.0 | MIT |
 | `isomorphic-git-http.js` | `isomorphic-git` (web http client) | 1.40.0 | MIT |
 | `lightning-fs.js` | `@isomorphic-git/lightning-fs` | 4.7.0 | MIT |
+| `xterm.js`, `xterm.css` | `@xterm/xterm` | 6.0.0 | MIT |
+| `xterm-addon-fit.js` | `@xterm/addon-fit` | 0.11.0 | MIT |
 
 Each file carries its own header giving the exact source URL. The bodies are
 upstream byte for byte; the only additions are that header and, where upstream
@@ -20,7 +22,14 @@ ships UMD, a few lines of wrapper.
 import git from "./vendor/isomorphic-git.js";        // default only: git.clone, git.TREE, git.Errors, ...
 import http from "./vendor/isomorphic-git-http.js";  // default, plus named `request`
 import FS from "./vendor/lightning-fs.js";           // default: the constructor
+import { Terminal } from "./vendor/xterm.js";        // named only
+import { FitAddon } from "./vendor/xterm-addon-fit.js";
 ```
+
+The xterm files load only when a terminal opens (web/src/app/terminal.js
+imports them and links `xterm.css`). Each still ends in upstream's
+`sourceMappingURL` line; the `.map` files are not vendored, so only devtools
+notices.
 
 `isomorphic-git.js` and `lightning-fs.js` come from UMD builds, so their whole
 API hangs off the default export. There are no named exports to destructure at
@@ -32,6 +41,9 @@ import time.
 curl -L https://cdn.jsdelivr.net/npm/isomorphic-git@VERSION/index.umd.min.js
 curl -L https://cdn.jsdelivr.net/npm/isomorphic-git@VERSION/http/web/index.js
 curl -L https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@VERSION/dist/lightning-fs.min.js
+curl -L https://cdn.jsdelivr.net/npm/@xterm/xterm@VERSION/lib/xterm.mjs
+curl -L https://cdn.jsdelivr.net/npm/@xterm/xterm@VERSION/css/xterm.css
+curl -L https://cdn.jsdelivr.net/npm/@xterm/addon-fit@VERSION/lib/addon-fit.mjs
 ```
 
 Keep the existing headers and wrappers, swap the bodies, then check the result
@@ -48,13 +60,15 @@ all of which need the network. The UMD is the only self-contained distribution.
 
 ## Licences
 
-Both packages are MIT, which requires the copyright notice and permission text
+Every package here is MIT, which requires the copyright notice and permission text
 to travel with the code rather than be linked to. They are here:
 
 | Licence | Covers |
 | --- | --- |
 | `LICENSE-isomorphic-git.md` | `isomorphic-git.js`, `isomorphic-git-http.js` |
 | `LICENSE-lightning-fs.md` | `lightning-fs.js` |
+| `LICENSE-xterm.md` | `xterm.js`, `xterm.css` |
+| `LICENSE-xterm-addon-fit.md` | `xterm-addon-fit.js` |
 
 Re-vendoring at a new version means re-fetching these too, in case the notice
 has changed.

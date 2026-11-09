@@ -1,7 +1,7 @@
 // The rail's way back to the agent that wrote the draft.
 //
-// A copy button for the resume command exists exactly when the draft names the
-// session that wrote it.
+// Exactly when the draft names the session that wrote it, and the build has no
+// terminal dock to resume it in, the rail offers to copy the command that does.
 
 import { test, describe, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -55,13 +55,14 @@ function marks(node) {
   return [node.title, node.innerHTML, node["aria-label"], ...(node.children || []).flatMap(marks)].filter(Boolean);
 }
 
-async function railMarks(draft) {
+async function railMarks(draft, terminal = null) {
   const adapter = new MemoryAdapter();
 
   await agentWrites(adapter, draft);
 
   const app = await theApp({ adapter, pulls: [aPull()] });
 
+  app.terminal = terminal;
   await app.select(app.queue()[0]);
 
   const doc = fakeDocument();
@@ -85,5 +86,14 @@ describe("the rail over a draft", () => {
 
   test("offers nothing to resume when the draft names no agent", async () => {
     assert.doesNotMatch(await railMarks(aDraft()), /resumes the agent/);
+    assert.doesNotMatch(await railMarks(aDraft(), { open() {} }), /in a terminal/);
+  });
+
+  test("leaves the agent to the terminal dock where the build has one", async () => {
+    const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app" };
+    const drawn = await railMarks(aDraft({ agent }), { open() {} });
+
+    assert.doesNotMatch(drawn, /in a terminal/);
+    assert.doesNotMatch(drawn, /resumes the agent/);
   });
 });

@@ -50,9 +50,13 @@ appstore = []
 objc2 = "0.6.2"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSURL", "NSString", "NSData", "NSError", "NSArray", "std"] }
 
-# agent.rs signals a run's whole process group on cancel.
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
+# terminal.rs runs `claude` in a pseudo-terminal. portable-pty rather than
+# tauri-plugin-pty: the plugin lets the page spawn any program with any
+# arguments, where a command of our own spawns only `claude --resume <uuid>`.
+# Linked into the appstore build too (a feature cannot remove a dependency),
+# but nothing there calls it.
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+portable-pty = "0.9.0"
 
 # Gating the Keychain's actual Face ID prompt is only meaningful where a
 # Keychain exists to gate - iOS. Desktop keeps using the same IndexedDB

@@ -1,9 +1,10 @@
 // The rail's way into the agent's folder, in the reader's own editor.
 //
-// One button per installed editor, offered only when the draft names the
-// folder its agent ran in and the build can open an editor at all.
+// One split button: the editor last chosen, and a caret that lists every
+// installed editor. Offered only when the draft names the folder its agent
+// ran in and the build can open an editor at all.
 
-import { test, describe, afterEach } from "node:test";
+import { test, describe, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { drawRail } from "../../web/src/app/rail.js";
@@ -25,8 +26,13 @@ function stub(tag = "div") {
     style: { cssText: "", setProperty() {} },
     classList: { add() {}, remove() {}, toggle() {} },
     append(...nodes) {
+      for (const node of nodes) node.parent = this;
       this.children.push(...nodes);
     },
+    remove() {
+      if (this.parent) this.parent.children = this.parent.children.filter((node) => node !== this);
+    },
+    getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }),
     replaceChildren(...nodes) {
       this.children = [...nodes];
     },
@@ -47,6 +53,7 @@ function fakeDocument() {
   const byId = new Map();
 
   return {
+    body: stub("body"),
     createElement: (tag) => stub(tag),
     querySelector: () => null,
     getElementById(id) {
@@ -57,15 +64,34 @@ function fakeDocument() {
   };
 }
 
-function editorButtons(node) {
-  const own = String(node.className || "").split(" ").includes("editor-button") ? [node] : [];
+function withClass(name) {
+  const find = (node) => [
+    ...(String(node.className || "").split(" ").includes(name) ? [node] : []),
+    ...(node.children || []).flatMap(find),
+  ];
 
-  return [...own, ...(node.children || []).flatMap(editorButtons)];
+  return find;
+}
+
+const editorButtons = withClass("editor-button");
+const carets = withClass("editor-caret");
+const menus = withClass("editor-menu");
+
+function memoryStore() {
+  const items = new Map();
+
+  return { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => items.set(key, String(value)) };
 }
 
 const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app" };
 
 async function railButtons(draft, editorOpener) {
+  const doc = await drawn(draft, editorOpener);
+
+  return editorButtons(doc.getElementById("blurb"));
+}
+
+async function drawn(draft, editorOpener) {
   const adapter = new MemoryAdapter();
 
   await agentWrites(adapter, draft);
@@ -80,38 +106,74 @@ async function railButtons(draft, editorOpener) {
   globalThis.document = doc;
   drawRail(app);
 
-  return editorButtons(doc.getElementById("blurb"));
+  return doc;
 }
 
 describe("opening the agent's folder in an editor", () => {
-  afterEach(() => {
-    delete globalThis.document;
-  });
+  let opened;
+  let opener;
 
-  test("offers each installed editor, and opens the agent's folder in it", async () => {
-    const opened = [];
-    const opener = {
+  beforeEach(() => {
+    globalThis.localStorage = memoryStore();
+    opened = [];
+    opener = {
       editors: [
         { key: "zed", label: "Zed" },
         { key: "sublime", label: "Sublime" },
       ],
       open: async (key, folder) => opened.push([key, folder]),
     };
+  });
+
+  afterEach(() => {
+    delete globalThis.document;
+    delete globalThis.localStorage;
+  });
+
+  test("offers the first installed editor, and opens the agent's folder in it", async () => {
+    const buttons = await railButtons(aDraft({ agent }), opener);
+
+    assert.deepEqual(
+      buttons.map((button) => button.textContent),
+      ["Zed"],
+    );
+
+    buttons[0].click();
+    assert.deepEqual(opened, [["zed", "/Users/me/apps/app"]]);
+  });
+
+  test("lists every installed editor behind the caret, and opens the one chosen", async () => {
+    const doc = await drawn(aDraft({ agent }), opener);
+
+    carets(doc.getElementById("blurb"))[0].click();
+
+    const [menu] = menus(doc.body);
+
+    assert.deepEqual(
+      menu.children.map((choice) => choice.textContent),
+      ["Zed", "Sublime"],
+    );
+
+    menu.children[1].click();
+    assert.deepEqual(opened, [["sublime", "/Users/me/apps/app"]]);
+    assert.deepEqual(menus(doc.body), []);
+  });
+
+  test("remembers the editor chosen, for the next draw", async () => {
+    const doc = await drawn(aDraft({ agent }), opener);
+
+    carets(doc.getElementById("blurb"))[0].click();
+    menus(doc.body)[0].children[1].click();
 
     const buttons = await railButtons(aDraft({ agent }), opener);
 
     assert.deepEqual(
       buttons.map((button) => button.textContent),
-      ["Zed", "Sublime"],
+      ["Sublime"],
     );
-
-    buttons[1].click();
-    assert.deepEqual(opened, [["sublime", "/Users/me/apps/app"]]);
   });
 
   test("offers nothing when the draft names no folder", async () => {
-    const opener = { editors: [{ key: "zed", label: "Zed" }], open: async () => {} };
-
     assert.deepEqual(await railButtons(aDraft(), opener), []);
   });
 

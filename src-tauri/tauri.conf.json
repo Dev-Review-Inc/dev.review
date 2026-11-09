@@ -15,11 +15,13 @@
         "width": 1280,
         "height": 860,
         "minWidth": 900,
-        "minHeight": 600
+        "minHeight": 600,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; connect-src 'self' https: ipc: http://ipc.localhost; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com asset: http://asset.localhost; media-src 'self' blob: asset: http://asset.localhost",
+      "dangerousDisableAssetCspModification": ["style-src"],
       "assetProtocol": {
         "enable": true,
         "scope": []

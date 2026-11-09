@@ -196,9 +196,10 @@ export class EventStore {
 
     const runner = this._runners[`${event.collection}.${event.action}`];
 
-    // An action with no runner is a newer version of this app writing an event
-    // this one does not understand. Keeping it means it still syncs on, and is
-    // still there when this browser catches up.
+    // An action with no runner is one this version does not understand: a
+    // newer version wrote it, or an older one wrote an action since retired.
+    // Keeping it means it still syncs on, and is still there for a version
+    // that does understand it.
     if (runner) runner.call(this._state, event);
   }
 }

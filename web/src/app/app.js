@@ -695,8 +695,6 @@ export class App {
     this.tab = "summary";
     // Mobile only: a review opens on its text, not under the drawer.
     this.paneCollapsed = true;
-    // Opening a review is reading it, wherever it was picked from.
-    this.board = false;
     this.dismissing = false;
     this.driftExpanded = false;
     this.changed();
