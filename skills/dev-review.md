@@ -29,7 +29,7 @@ Store all media related to this (videos, screenshots) in the same directory.
   "comment": "A review of this pull request is being written." }
 ```
 
-`agent` is how the reader talks to you later: `session` is your Claude Code session ID, exactly as shown, and `cwd` is the absolute folder you run in, from `pwd`. The reader resumes this session in that folder, so keep both on every write.
+`agent` is how the reader talks to you later: `session` is your Claude Code session ID, exactly as shown, and `cwd` is the absolute folder you run in, from `pwd`. The reader resumes this session in that folder, so keep both on every write. Add `checkout` once the pull request's code is on disk: the absolute folder that holds it, which is rarely your `cwd`. The reader opens that folder in an editor.
 
 `title`, `url` and `author` are load-bearing from the first write: the queue is the drafts directory, so the app knows nothing about a pull request except what the draft says, and a draft with no `url` renders nowhere.
 
@@ -71,7 +71,7 @@ Never touch git config. Never force-push. Never ask.
   "title": "Re-root the Records errors",
   "url": "https://github.com/org/app/pull/42",
   "author": "priya",
-  "agent": { "session": "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", "cwd": "/Users/priya/apps/app" },
+  "agent": { "session": "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", "cwd": "/Users/priya/apps/app", "checkout": "/Users/priya/apps/app-pr42" },
   "reviewedAt": "e612b1b",
   "draftedAt": "2026-07-29T15:36:52Z",
   "finishedAt": "2026-07-29T15:41:10Z",

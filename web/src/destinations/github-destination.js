@@ -21,6 +21,7 @@ import {
   removeIssueLabel,
   compareCommits,
   issueComments as issueCommentsList,
+  markNotificationsRead,
 } from "./github.js";
 import { reviewersFrom } from "../domain/reviewers.js";
 
@@ -257,6 +258,18 @@ export class GitHubDestination {
     const posted = await postIssueComment(this.token, target, body);
 
     return { url: posted.html_url || "" };
+  }
+
+  /**
+   * Mark the reader's notification about a pull request or issue read, once
+   * something is posted to it. Best effort: the post already landed, and a
+   * token that cannot read notifications must not turn it into a failure.
+   *
+   * @param {object} target which pull request or issue
+   * @returns {Promise<void>} when done, or given up on
+   */
+  async markRead(target) {
+    await markNotificationsRead(this.token, target).catch(() => {});
   }
 
   /**

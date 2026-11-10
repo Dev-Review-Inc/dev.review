@@ -56,7 +56,20 @@ test("carries the kinds with their summaries, tolerating their absence", () => {
 test("carries the session that wrote it, so the reader can resume that agent", () => {
   const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app" };
 
+  assert.deepStrictEqual(draft({ agent }).agent, { ...agent, checkout: null });
+});
+
+test("carries the checkout of the code under review, apart from the agent's own folder", () => {
+  const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app", checkout: "/Users/me/apps/app-pr42" };
+
   assert.deepStrictEqual(draft({ agent }).agent, agent);
+});
+
+test("drops a checkout that is not an absolute single-line path, and keeps the agent", () => {
+  const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app" };
+
+  assert.strictEqual(draft({ agent: { ...agent, checkout: "apps/app" } }).agent.checkout, null);
+  assert.strictEqual(draft({ agent: { ...agent, checkout: "/a\nb" } }).agent.checkout, null);
 });
 
 test("says how to resume the agent, quoting the folder for the shell", () => {

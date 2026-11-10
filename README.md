@@ -201,6 +201,11 @@ repositories. If yours does, a classic token with the single `repo` scope works,
 but understand that `repo` grants read and write to every repository you can
 reach. There is no narrower classic scope that can post a review.
 
+After a post, the app marks your GitHub notification about that pull request or
+issue read. GitHub lets only classic tokens reach notifications, so with a
+fine-grained token the notification stays unread. The post itself is not
+affected.
+
 Set an expiry either way. [`SECURITY.md`](SECURITY.md) has the threat model,
 including the one case where the token is exposed to somebody else: a git CORS
 proxy you do not operate. [`docs/privacy.md`](docs/privacy.md) says what data
