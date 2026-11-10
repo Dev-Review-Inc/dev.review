@@ -465,6 +465,7 @@ async function postTriage(app, pull) {
     const url = commented?.url || patched?.url || pull.url;
 
     await app.commands.recordPostedTriage(app.source, pull, { url });
+    await app.destination.markRead(pull);
     await app.reselect();
 
     closeConfirm(app);

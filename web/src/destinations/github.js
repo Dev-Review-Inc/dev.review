@@ -298,3 +298,23 @@ export function postReview(token, { owner, repo, number }, payload) {
     body: payload,
   });
 }
+
+/**
+ * Mark read the reader's unread notifications about one pull request or issue.
+ *
+ * GitHub has no lookup by subject, so the repository's unread threads are
+ * listed and matched on the subject's API url. Fine-grained tokens cannot
+ * reach notifications at all; that refusal throws like any other.
+ *
+ * @param {string} token a personal access token
+ * @param {{owner: string, repo: string, number: number}} target which pull request or issue
+ * @returns {Promise<void>} when every matching thread is read
+ */
+export async function markNotificationsRead(token, { owner, repo, number }) {
+  const threads = await call(token, `/repos/${owner}/${repo}/notifications`);
+  const about = (thread) => [`/pulls/${number}`, `/issues/${number}`].some((end) => thread.subject?.url?.endsWith(end));
+
+  for (const thread of threads.filter(about)) {
+    await call(token, `/notifications/threads/${thread.id}`, { method: "PATCH" });
+  }
+}

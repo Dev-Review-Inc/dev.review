@@ -283,3 +283,52 @@ describe("a github destination naming an author's avatar", () => {
     assert.equal(destination.avatarFor(42), "");
   });
 });
+
+describe("a github destination marking a notification read", () => {
+  // answering replaces fetch for several calls, one answer per path.
+  function answering(byPath) {
+    const calls = [];
+
+    globalThis.fetch = async (url, options) => {
+      calls.push({ url, method: options.method });
+
+      const answer = byPath[new URL(url).pathname];
+
+      return { ok: !(answer instanceof Error), status: answer instanceof Error ? 403 : 205, json: async () => answer };
+    };
+
+    return calls;
+  }
+
+  test("marks read the thread about this pull request, and no other", async () => {
+    const calls = answering({
+      "/repos/org/app/notifications": [
+        { id: "1", subject: { url: "https://api.github.com/repos/org/app/pulls/7" } },
+        { id: "2", subject: { url: "https://api.github.com/repos/org/app/pulls/70" } },
+        { id: "3", subject: { url: "https://api.github.com/repos/org/app/issues/8" } },
+      ],
+    });
+
+    await new GitHubDestination({ token: "t" }).markRead(anIssue());
+
+    assert.deepEqual(calls.slice(1), [{ url: "https://api.github.com/notifications/threads/1", method: "PATCH" }]);
+  });
+
+  test("marks read the thread about an issue", async () => {
+    const calls = answering({
+      "/repos/org/app/notifications": [{ id: "4", subject: { url: "https://api.github.com/repos/org/app/issues/7" } }],
+    });
+
+    await new GitHubDestination({ token: "t" }).markRead(anIssue());
+
+    assert.deepEqual(calls.slice(1), [{ url: "https://api.github.com/notifications/threads/4", method: "PATCH" }]);
+  });
+
+  test("a token that cannot read notifications marks nothing and throws nothing", async () => {
+    const calls = answering({ "/repos/org/app/notifications": new Error("Resource not accessible") });
+
+    await new GitHubDestination({ token: "t" }).markRead(anIssue());
+
+    assert.equal(calls.length, 1);
+  });
+});

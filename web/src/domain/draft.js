@@ -335,21 +335,27 @@ function qaOf(qa) {
 const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The Claude Code session that wrote the draft, and the folder it ran in.
+ * The Claude Code session that wrote the draft, the folder it ran in, and
+ * the folder holding the pull request's code, which can differ.
  *
- * Both end up in a `claude --resume` command, so anything but a UUID and an
- * absolute single-line path is dropped rather than quoted.
+ * Session and cwd end up in a `claude --resume` command, so anything but a
+ * UUID and an absolute single-line path is dropped rather than quoted. A bad
+ * checkout drops only itself.
  *
  * @param {*} agent the agent field of a draft
- * @returns {{session: string, cwd: string}|null}
+ * @returns {{session: string, cwd: string, checkout: string|null}|null}
  */
 function agentOf(agent) {
-  const { session, cwd } = agent && typeof agent === "object" ? agent : {};
+  const { session, cwd, checkout } = agent && typeof agent === "object" ? agent : {};
 
   if (typeof session !== "string" || !SESSION.test(session)) return null;
-  if (typeof cwd !== "string" || !cwd.startsWith("/") || /[\0-\x1f]/.test(cwd)) return null;
+  if (!absolute(cwd)) return null;
 
-  return { session, cwd };
+  return { session, cwd, checkout: absolute(checkout) ? checkout : null };
+}
+
+function absolute(path) {
+  return typeof path === "string" && path.startsWith("/") && !/[\0-\x1f]/.test(path);
 }
 
 /**

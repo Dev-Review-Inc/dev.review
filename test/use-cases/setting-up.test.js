@@ -24,8 +24,9 @@ function anAppOn(adapter, destination, database = someDatabases()) {
   return new App({ database, adapter: () => adapter, destination: () => destination });
 }
 
-function aForge() {
+function aForge(marked = []) {
   return {
+    markRead: async (pull) => marked.push(pull.number),
     identify: async () => ({ login: "reader" }),
     files: async () => [],
     pullDetail: async () => ({ headCommit: "e612b1b", state: "open", merged: false, mergedAt: null, closedAt: null }),
@@ -134,10 +135,12 @@ describe("Setting up a source and a destination", () => {
 describe("Working through the queue", () => {
   let app;
   let adapter;
+  let marked;
 
   beforeEach(async () => {
     adapter = new MemoryAdapter();
-    app = anAppOn(adapter, aForge());
+    marked = [];
+    app = anAppOn(adapter, aForge(marked));
     await app.boot();
     await agentWrites(adapter, aDraft());
     await app.addSource({ name: "Work", adapter: { type: "memory" } });
@@ -158,6 +161,22 @@ describe("Working through the queue", () => {
 
     assert.equal(app.selected.postedUrl, "https://github.com/review/1");
     assert.deepEqual(app.queue(), []);
+  });
+
+  test("posting the review marks its notification read", async () => {
+    await app.select(app.queue()[0]);
+
+    await app.postReview({ body: "Sending this.", event: "COMMENT", commit_id: "e612b1b" });
+
+    assert.deepEqual(marked, [app.selected.number]);
+  });
+
+  test("posting one finding marks its notification read", async () => {
+    await app.select(app.queue()[0]);
+
+    await app.postFinding(app.queries.findingsForPull(app.source, app.selected)[0]);
+
+    assert.deepEqual(marked, [app.selected.number]);
   });
 
   test("posting one finding leaves it out of the review that follows", async () => {

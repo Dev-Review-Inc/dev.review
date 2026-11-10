@@ -226,6 +226,7 @@ export async function theApp({
       patchDescription: async () => ({ url: "" }),
       commentOnIssue: async () => ({ url: "" }),
       closeIssue: async () => ({ url: "" }),
+      markRead: async () => {},
       ...destination,
     }),
   });

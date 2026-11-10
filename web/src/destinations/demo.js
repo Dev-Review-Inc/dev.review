@@ -209,6 +209,13 @@ export class DemoDestination {
   }
 
   /**
+   * Inert, like every other write here.
+   *
+   * @returns {Promise<void>} at once
+   */
+  async markRead() {}
+
+  /**
    * Name no avatar for an author.
    *
    * The demo's sample logins are nobody's GitHub account, so any image named

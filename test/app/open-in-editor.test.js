@@ -1,8 +1,8 @@
-// The rail's way into the agent's folder, in the reader's own editor.
+// The rail's way into the pull request's checkout, in the reader's own editor.
 //
 // One split button: the editor last chosen, and a caret that lists every
 // installed editor. Offered only when the draft names the folder its agent
-// ran in and the build can open an editor at all.
+// checked the pull request out in and the build can open an editor at all.
 
 import { test, describe, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -83,7 +83,11 @@ function memoryStore() {
   return { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => items.set(key, String(value)) };
 }
 
-const agent = { session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90", cwd: "/Users/me/apps/app" };
+const agent = {
+  session: "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90",
+  cwd: "/Users/me/apps/app",
+  checkout: "/Users/me/apps/app-pr42",
+};
 
 async function railButtons(draft, editorOpener) {
   const doc = await drawn(draft, editorOpener);
@@ -109,7 +113,7 @@ async function drawn(draft, editorOpener) {
   return doc;
 }
 
-describe("opening the agent's folder in an editor", () => {
+describe("opening the pull request's checkout in an editor", () => {
   let opened;
   let opener;
 
@@ -130,7 +134,7 @@ describe("opening the agent's folder in an editor", () => {
     delete globalThis.localStorage;
   });
 
-  test("offers the first installed editor, and opens the agent's folder in it", async () => {
+  test("offers the first installed editor, and opens the checkout in it", async () => {
     const buttons = await railButtons(aDraft({ agent }), opener);
 
     assert.deepEqual(
@@ -139,7 +143,7 @@ describe("opening the agent's folder in an editor", () => {
     );
 
     buttons[0].click();
-    assert.deepEqual(opened, [["zed", "/Users/me/apps/app"]]);
+    assert.deepEqual(opened, [["zed", "/Users/me/apps/app-pr42"]]);
   });
 
   test("lists every installed editor behind the caret, and opens the one chosen", async () => {
@@ -155,7 +159,7 @@ describe("opening the agent's folder in an editor", () => {
     );
 
     menu.children[1].click();
-    assert.deepEqual(opened, [["sublime", "/Users/me/apps/app"]]);
+    assert.deepEqual(opened, [["sublime", "/Users/me/apps/app-pr42"]]);
     assert.deepEqual(menus(doc.body), []);
   });
 
@@ -175,6 +179,12 @@ describe("opening the agent's folder in an editor", () => {
 
   test("offers nothing when the draft names no folder", async () => {
     assert.deepEqual(await railButtons(aDraft(), opener), []);
+  });
+
+  test("offers nothing when the draft names only the agent's own folder", async () => {
+    const elsewhere = { session: agent.session, cwd: agent.cwd };
+
+    assert.deepEqual(await railButtons(aDraft({ agent: elsewhere }), opener), []);
   });
 
   test("offers nothing where the build cannot open an editor", async () => {

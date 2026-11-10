@@ -83,6 +83,7 @@ describe("triaging an issue through the sheet", () => {
   let closed;
   let labelled;
   let sequence;
+  let read;
   let refuseComment;
   let refusePatch;
   let refuseClose;
@@ -98,6 +99,7 @@ describe("triaging an issue through the sheet", () => {
     closed = [];
     labelled = [];
     sequence = [];
+    read = [];
     refuseComment = false;
     refusePatch = false;
     refuseClose = false;
@@ -142,6 +144,7 @@ describe("triaging an issue through the sheet", () => {
 
           return { url: "https://x/closed" };
         },
+        markRead: async () => read.push(sequence.length),
       },
     });
 
@@ -202,6 +205,20 @@ describe("triaging an issue through the sheet", () => {
     assert.deepEqual(patched, []);
     assert.deepEqual(commented, ["Why the body should change."]);
     assert.equal(app.selected.postedUrl, "https://x/comment");
+  });
+
+  test("posting marks the ticket's notification read, after every write", async () => {
+    await post(app);
+
+    assert.deepEqual(read, [sequence.length]);
+  });
+
+  test("a refused send leaves the notification unread", async () => {
+    refuseComment = true;
+
+    await post(app);
+
+    assert.deepEqual(read, []);
   });
 
   test("a comment the destination refuses records nothing, for a safe retry", async () => {

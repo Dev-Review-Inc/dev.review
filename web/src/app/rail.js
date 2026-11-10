@@ -158,10 +158,12 @@ function drawBlurb(app) {
 
   provenance.append(line);
 
-  // The folder the agent ran in, in the reader's own editor. Only where the
-  // build can open one, and only for the editors it found installed. A row of
-  // its own: the number line is already full at the rail's width.
-  const folder = pull.draft?.agent?.cwd;
+  // The pull request's checkout, in the reader's own editor. Not the folder
+  // the agent ran in: a sweep runs from one folder for every repository.
+  // Only where the build can open one, and only for the editors it found
+  // installed. A row of its own: the number line is already full at the
+  // rail's width.
+  const folder = pull.draft?.agent?.checkout;
 
   if (folder && app.editorOpener) {
     const editors = document.createElement("div");

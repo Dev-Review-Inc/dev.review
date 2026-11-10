@@ -886,6 +886,7 @@ export class App {
     });
 
     this.commands.recordPostedFinding(this.source, pull, finding, posted);
+    await this.destination.markRead(pull);
     await this.reselect();
   }
 
@@ -906,6 +907,7 @@ export class App {
       url: posted.url,
       event: payload.event,
     });
+    await this.destination.markRead(pull);
     await this.reselect();
 
     return posted;
