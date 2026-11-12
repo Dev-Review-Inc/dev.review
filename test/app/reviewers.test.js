@@ -1,6 +1,6 @@
 // The reviewers beside the pull request's number: who was asked, people and
-// teams, and whether each has answered yet. Unknown draws nothing, the same
-// as the settled chip.
+// teams, and whether each has answered yet. A lookup that failed, and a pull
+// request nobody was asked to review, each say so.
 
 import { test, describe, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -93,13 +93,29 @@ describe("the reviewers beside the number", () => {
     assert.equal(found[3].title, "by cy");
   });
 
-  test("a destination that will not say draws no reviewers", async () => {
+  test("a lookup that failed says so, and why", async () => {
     const found = await railChips({
       reviewers: async () => {
         throw new Error("rate limited");
       },
     });
 
-    assert.deepEqual(found, []);
+    assert.deepEqual(
+      found.map((chip) => [chip.textContent, chip.title]),
+      [["reviewers unknown", "rate limited"]],
+    );
+  });
+
+  test("a pull request nobody was asked to review says so", async () => {
+    const found = await railChips({ reviewers: async () => [] });
+
+    assert.deepEqual(
+      found.map((chip) => chip.textContent),
+      ["no reviewers"],
+    );
+  });
+
+  test("a destination that cannot look reviewers up draws none", async () => {
+    assert.deepEqual(await railChips({ reviewers: undefined }), []);
   });
 });

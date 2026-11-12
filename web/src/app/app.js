@@ -137,6 +137,7 @@ export class App {
     // Who was asked to review the open pull request, people and teams, and
     // what each has said. Null like `settled` until the destination answers.
     this.reviewers = null;
+    this.reviewersProblem = "";
 
     // Why the diff or the head commit is missing, when they were asked for and
     // did not come. Kept apart from `problems` because it belongs to the pull
@@ -690,6 +691,7 @@ export class App {
     this.settled = null;
     this.drift = null;
     this.reviewers = null;
+    this.reviewersProblem = "";
     this.diffProblem = "";
     this.filter = { section: "", kind: "", path: "" };
     this.tab = "summary";
@@ -730,8 +732,12 @@ export class App {
 
     if (issue.status === "fulfilled") this.issue = issue.value;
 
-    // Unknown stays null and draws nothing, the same as settled.
     if (reviewers.status === "fulfilled") this.reviewers = reviewers.value;
+
+    // A failed lookup must not read like a pull request nobody reviews.
+    if (reviewers.status === "rejected") {
+      this.reviewersProblem = reviewers.reason?.message || "the destination did not say why";
+    }
 
     // An issue's fate rides on the same response as its body. Only an issue's:
     // a pull request already answered above, from the endpoint that knows

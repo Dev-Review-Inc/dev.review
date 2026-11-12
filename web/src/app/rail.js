@@ -170,7 +170,7 @@ function drawBlurb(app) {
     editors.className = "editors";
     editors.append(element("span", "summary-meta mono", "open in"));
 
-    editors.append(editorSplit(app, folder));
+    editors.append(editorSplit(app, pull, folder));
 
     provenance.append(editors);
   }
@@ -189,7 +189,17 @@ function drawBlurb(app) {
     if (app.driftExpanded) inner.append(driftList(app.drift));
   }
 
-  if (app.reviewers?.length) inner.append(reviewerChips(app.reviewers));
+  if (app.reviewers) inner.append(reviewerChips(app.reviewers));
+
+  if (app.reviewersProblem) {
+    const row = document.createElement("div");
+    const chip = element("span", "reviewer-chip verdict-badge mono is-neutral", "reviewers unknown");
+
+    row.className = "reviewers";
+    chip.title = app.reviewersProblem;
+    row.append(chip);
+    inner.append(row);
+  }
 
   blurb.append(inner);
 }
@@ -205,6 +215,8 @@ const REVIEWER_TONES = { approved: "ok", "changes requested": "critical", waitin
 function reviewerChips(reviewers) {
   const row = document.createElement("div");
   row.className = "reviewers";
+
+  if (!reviewers.length) row.append(element("span", "reviewer-chip verdict-badge mono is-neutral", "no reviewers"));
 
   for (const reviewer of reviewers) {
     const tone = REVIEWER_TONES[reviewer.state] || "neutral";
@@ -227,7 +239,7 @@ const EDITOR_KEY = "reviewer.editor";
  * @param {{key: string, label: string}[]} editors the installed editors
  * @returns {{key: string, label: string}} the editor
  */
-function chosenEditor(editors) {
+export function chosenEditor(editors) {
   let key = null;
 
   try {
@@ -244,10 +256,11 @@ function chosenEditor(editors) {
  * every installed one. Choosing one opens it and remembers it.
  *
  * @param {object} app the application
- * @param {string} folder the folder the agent ran in
+ * @param {object} pull the pull request being read
+ * @param {string} folder the pull request's checkout
  * @returns {HTMLElement} the split button
  */
-function editorSplit(app, folder) {
+function editorSplit(app, pull, folder) {
   const { editors } = app.editorOpener;
   const chosen = chosenEditor(editors);
   const open = (editor) => app.editorOpener.open(editor.key, folder).catch((failure) => say(failure.message, "error"));
@@ -298,6 +311,20 @@ function editorSplit(app, folder) {
       });
       menu.append(choice);
     }
+
+    const resume = document.createElement("button");
+    resume.type = "button";
+    resume.textContent = "Copy resume command";
+    resume.addEventListener("click", async () => {
+      shut();
+      try {
+        await navigator.clipboard.writeText(resumeCommand(pull.draft.agent));
+        say("resume command copied");
+      } catch {
+        say("could not reach the clipboard", "error");
+      }
+    });
+    menu.append(resume);
 
     const anchor = caret.getBoundingClientRect();
 

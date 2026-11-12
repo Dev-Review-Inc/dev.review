@@ -197,9 +197,14 @@ is the entire surface the app needs — pull requests for reviews, issues for
 posting a triage's comment, description edit, or close.
 
 Some organisations require an owner to approve fine-grained tokens on their
-repositories. If yours does, a classic token with the single `repo` scope works,
-but understand that `repo` grants read and write to every repository you can
+repositories. If yours does, use a classic token with the `repo` and `read:org`
+scopes. Understand that `repo` grants read and write to every repository you can
 reach. There is no narrower classic scope that can post a review.
+
+The rail shows who was asked to review a pull request. GitHub names a team
+reviewer only to a token that can read the organisation: `read:org` on a
+classic token, or organisation **Members** read on a fine-grained one. Without
+it, the rail shows the people and leaves the teams out.
 
 After a post, the app marks your GitHub notification about that pull request or
 issue read. GitHub lets only classic tokens reach notifications, so with a
