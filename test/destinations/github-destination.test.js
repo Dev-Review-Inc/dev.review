@@ -332,3 +332,55 @@ describe("a github destination marking a notification read", () => {
     assert.equal(calls.length, 1);
   });
 });
+
+describe("a github destination naming a pull request's reviewers", () => {
+  const SCOPES = {
+    data: null,
+    errors: [{ type: "INSUFFICIENT_SCOPES", message: "The 'combinedSlug' field requires one of the following scopes: ['read:org']" }],
+  };
+
+  const PEOPLE = {
+    data: {
+      repository: {
+        pullRequest: {
+          author: { login: "author" },
+          reviewRequests: { nodes: [{ requestedReviewer: { __typename: "User", login: "ana" } }, { requestedReviewer: null }] },
+          latestReviews: { nodes: [{ state: "APPROVED", author: { login: "ben" } }] },
+        },
+      },
+    },
+  };
+
+  function answering(...payloads) {
+    const queries = [];
+
+    globalThis.fetch = async (url, options) => {
+      queries.push(JSON.parse(options.body).query);
+
+      return { ok: true, status: 200, json: async () => payloads.shift() };
+    };
+
+    return queries;
+  }
+
+  test("names the people when the token cannot read the organisation's teams", async () => {
+    const queries = answering(SCOPES, PEOPLE);
+    const destination = new GitHubDestination({ token: "t" });
+
+    const reviewers = await destination.reviewers({ owner: "org", repo: "app", number: 42 });
+
+    assert.deepEqual(reviewers, [
+      { name: "ana", team: false, state: "waiting" },
+      { name: "ben", team: false, state: "approved" },
+    ]);
+    assert.equal(queries.length, 2);
+    assert.doesNotMatch(queries[1], /combinedSlug/);
+  });
+
+  test("says why when GitHub refuses for any other reason", async () => {
+    answering({ data: null, errors: [{ type: "NOT_FOUND", message: "Could not resolve to a Repository" }] });
+    const destination = new GitHubDestination({ token: "t" });
+
+    await assert.rejects(destination.reviewers({ owner: "org", repo: "app", number: 42 }), /Could not resolve/);
+  });
+});

@@ -8,6 +8,7 @@ import { test, describe, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { drawRail } from "../../web/src/app/rail.js";
+import { drawDiff } from "../../web/src/app/diff-pane.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
 import { aDraft, aPull, agentWrites, theApp } from "../use-cases/helper.js";
 
@@ -40,7 +41,7 @@ function stub(tag = "div") {
       (listeners[name] = listeners[name] || []).push(handler);
     },
     click() {
-      for (const handler of listeners.click || []) handler({ target: this });
+      for (const handler of listeners.click || []) handler({ target: this, stopPropagation() {} });
     },
     setAttribute(name, value) {
       this[name] = value;
@@ -55,6 +56,7 @@ function fakeDocument() {
   return {
     body: stub("body"),
     createElement: (tag) => stub(tag),
+    createTextNode: (text) => ({ textContent: text }),
     querySelector: () => null,
     getElementById(id) {
       if (!byId.has(id)) byId.set(id, stub());
@@ -95,12 +97,12 @@ async function railButtons(draft, editorOpener) {
   return editorButtons(doc.getElementById("blurb"));
 }
 
-async function drawn(draft, editorOpener) {
+async function opened_(draft, editorOpener, destination) {
   const adapter = new MemoryAdapter();
 
   await agentWrites(adapter, draft);
 
-  const app = await theApp({ adapter, pulls: [aPull()] });
+  const app = await theApp({ adapter, pulls: [aPull()], destination });
 
   app.editorOpener = editorOpener;
   await app.select(app.queue()[0]);
@@ -108,9 +110,26 @@ async function drawn(draft, editorOpener) {
   const doc = fakeDocument();
 
   globalThis.document = doc;
+
+  return { app, doc };
+}
+
+async function drawn(draft, editorOpener) {
+  const { app, doc } = await opened_(draft, editorOpener);
+
   drawRail(app);
 
   return doc;
+}
+
+const FILES = [{ filename: "lib/error.rb", additions: 1, deletions: 0, patch: "@@ -1,1 +1,2 @@\n a\n+b" }];
+
+async function diffNames(draft, editorOpener) {
+  const { app, doc } = await opened_(draft, editorOpener, { files: async () => FILES });
+
+  drawDiff(app);
+
+  return withClass("diff-name")(doc.getElementById("diff"));
 }
 
 describe("opening the pull request's checkout in an editor", () => {
@@ -155,7 +174,7 @@ describe("opening the pull request's checkout in an editor", () => {
 
     assert.deepEqual(
       menu.children.map((choice) => choice.textContent),
-      ["Zed", "Sublime"],
+      ["Zed", "Sublime", "Copy resume command"],
     );
 
     menu.children[1].click();
@@ -189,5 +208,45 @@ describe("opening the pull request's checkout in an editor", () => {
 
   test("offers nothing where the build cannot open an editor", async () => {
     assert.deepEqual(await railButtons(aDraft({ agent }), null), []);
+  });
+
+  test("copies the command that resumes the agent, from the caret", async () => {
+    const copied = [];
+
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { clipboard: { writeText: async (text) => copied.push(text) } },
+    });
+
+    const doc = await drawn(aDraft({ agent }), opener);
+
+    carets(doc.getElementById("blurb"))[0].click();
+
+    const [menu] = menus(doc.body);
+    const copy = menu.children.at(-1);
+
+    assert.equal(copy.textContent, "Copy resume command");
+    copy.click();
+    await Promise.resolve();
+
+    assert.deepEqual(copied, [`cd '${agent.cwd}' && claude --resume ${agent.session}`]);
+    assert.deepEqual(opened, []);
+  });
+
+  test("opens a diff's file from the checkout in the editor chosen", async () => {
+    localStorage.setItem("reviewer.editor", "sublime");
+
+    const [name] = await diffNames(aDraft({ agent }), opener);
+
+    assert.equal(name.textContent, "lib/error.rb");
+    name.click();
+    assert.deepEqual(opened, [["sublime", "/Users/me/apps/app-pr42/lib/error.rb"]]);
+  });
+
+  test("leaves a diff's file name as words where there is no checkout to open it from", async () => {
+    const [name] = await diffNames(aDraft(), opener);
+
+    name.click();
+    assert.deepEqual(opened, []);
   });
 });

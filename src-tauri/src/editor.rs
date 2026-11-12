@@ -1,8 +1,8 @@
-// Opening a review's folder in the reader's editor.
+// Opening a review's folder, or one of its files, in the reader's editor.
 //
 // `open -a` rather than each editor's URL scheme, because Sublime Text has
 // none. The editor is picked from a fixed list, never named by the frontend,
-// and the folder is one argv entry, never a shell string.
+// and the path is one argv entry, never a shell string.
 //
 // macOS desktop only: App Sandbox and iOS forbid spawning `open`. lib.rs
 // compiles this module out under both.
@@ -41,7 +41,7 @@ fn installed(home: Option<&Path>) -> Vec<Editor> {
         .collect()
 }
 
-/// The arguments to `open` for one editor and one folder.
+/// The arguments to `open` for one editor and one folder or file.
 fn arguments(editor: &str, folder: &str) -> Result<Vec<String>, String> {
     let (_, _, app) = EDITORS
         .iter()
@@ -50,8 +50,8 @@ fn arguments(editor: &str, folder: &str) -> Result<Vec<String>, String> {
 
     let path = Path::new(folder);
 
-    if !path.is_absolute() || !path.is_dir() {
-        return Err(format!("{folder} is not a folder on this computer"));
+    if !path.is_absolute() || !path.exists() {
+        return Err(format!("{folder} is not on this computer"));
     }
 
     Ok(vec!["-a".into(), (*app).into(), folder.into()])
@@ -92,12 +92,24 @@ mod tests {
     }
 
     #[test]
+    fn opens_a_file_in_a_known_editor() {
+        let file = std::env::temp_dir().join(format!("editor-file-{}", std::process::id()));
+        std::fs::write(&file, "").unwrap();
+        let file = file.to_str().unwrap().to_string();
+
+        let found = arguments("sublime", &file);
+
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(found, Ok(vec!["-a".to_string(), "Sublime Text".to_string(), file]));
+    }
+
+    #[test]
     fn refuses_an_editor_not_on_the_list() {
         assert!(arguments("Terminal", "/tmp").is_err());
     }
 
     #[test]
-    fn refuses_a_relative_or_missing_folder() {
+    fn refuses_a_relative_or_missing_path() {
         assert!(arguments("zed", "tmp").is_err());
         assert!(arguments("zed", "/no/such/folder/here").is_err());
     }

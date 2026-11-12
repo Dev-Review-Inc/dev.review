@@ -2,8 +2,9 @@
 
 import { parsePatch } from "../domain/diff.js";
 import { renderBody } from "../domain/render.js";
-import { element, emptyState, find } from "./dom.js";
+import { element, emptyState, find, say } from "./dom.js";
 import { addBox, findingCard } from "./findings.js";
+import { chosenEditor } from "./rail.js";
 
 /**
  * Draw the diff pane.
@@ -97,6 +98,29 @@ function fetchFailed(app) {
   );
 }
 
+// The file's name, which opens the file from the pull request's checkout in
+// the editor last chosen, where the rail would offer that editor.
+function fileName(app, pull, filename) {
+  const name = element("span", "diff-name", filename);
+  const folder = pull.draft?.agent?.checkout;
+
+  if (!folder || !app.editorOpener) return name;
+
+  const editor = chosenEditor(app.editorOpener.editors);
+  const path = `${folder}/${filename}`;
+
+  name.classList.add("is-openable");
+  name.setAttribute("role", "button");
+  name.title = `Open ${filename} in ${editor.label}`;
+  name.addEventListener("click", (event) => {
+    // The header toggles collapse; the name must not do both.
+    event.stopPropagation();
+    app.editorOpener.open(editor.key, path).catch((failure) => say(failure.message, "error"));
+  });
+
+  return name;
+}
+
 function fileBlock(app, pull, file, findings, readOnly) {
   const state = app.queries.fileState(app.source, pull, file.filename);
   const isViewed = Boolean(state.viewedAt);
@@ -110,7 +134,7 @@ function fileBlock(app, pull, file, findings, readOnly) {
   head.className = "diff-head";
   head.append(
     element("span", "caret", isCollapsed ? "▸" : "▾"),
-    element("span", "", file.filename),
+    fileName(app, pull, file.filename),
     element("span", "adds", `+${file.additions}`),
     element("span", "dels", `−${file.deletions}`),
     element("span", "spacer", ""),

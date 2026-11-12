@@ -72,15 +72,15 @@ async function call(token, path, options = {}) {
 // One query for both halves of "who reviews this": the open requests, and the
 // latest review per person with the teams it was written for. REST answers
 // neither the second half nor which team a review spoke for.
-const REVIEWERS = `query($owner: String!, $repo: String!, $number: Int!) {
+const reviewersQuery = (teams) => `query($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
       author { login }
       reviewRequests(first: 50) {
-        nodes { requestedReviewer { __typename ... on User { login } ... on Team { combinedSlug } } }
+        nodes { requestedReviewer { __typename ... on User { login }${teams ? " ... on Team { combinedSlug }" : ""} } }
       }
       latestReviews(first: 50) {
-        nodes { state author { login } onBehalfOf(first: 10) { nodes { combinedSlug } } }
+        nodes { state author { login }${teams ? " onBehalfOf(first: 10) { nodes { combinedSlug } }" : ""} }
       }
     }
   }
@@ -89,16 +89,25 @@ const REVIEWERS = `query($owner: String!, $repo: String!, $number: Int!) {
 /**
  * Who was asked to review a pull request, and the latest review from each.
  *
+ * GitHub names a team only to a token that can read the organisation, and
+ * refuses the whole query otherwise, so a refusal for scope asks again
+ * without the teams.
+ *
  * @param {string} token a personal access token
  * @param {{owner: string, repo: string, number: number}} pull which pull request
  * @returns {Promise<object>} the GraphQL pullRequest node
  * @throws {Error} carrying GitHub's first error when no pull request came back
  */
 export async function pullReviewers(token, { owner, repo, number }) {
-  const answer = await call(token, "/graphql", {
-    method: "POST",
-    body: { query: REVIEWERS, variables: { owner, repo, number } },
-  });
+  const ask = (teams) =>
+    call(token, "/graphql", {
+      method: "POST",
+      body: { query: reviewersQuery(teams), variables: { owner, repo, number } },
+    });
+
+  let answer = await ask(true);
+
+  if (answer.errors?.some((error) => error.type === "INSUFFICIENT_SCOPES")) answer = await ask(false);
 
   // A team the token cannot read errors alongside data that is still good.
   const node = answer.data?.repository?.pullRequest;
