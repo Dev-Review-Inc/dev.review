@@ -145,6 +145,12 @@ pub fn utterance(text: &str) -> String {
     for c in text.chars() {
         let last = sentences.last_mut().unwrap();
 
+        // Markdown is never read aloud; an underscore joins words.
+        if matches!(c, '*' | '`' | '#') {
+            continue;
+        }
+        let c = if c == '_' { ' ' } else { c };
+
         if c.is_whitespace() {
             if last.ends_with(['.', '!', '?']) || c == '\n' {
                 sentences.push(String::new());
@@ -377,6 +383,11 @@ mod tests {
         assert_eq!(utterance("It adds a cache.  Why? Speed!\nThen\ttests"), "It adds a cache.\tWhy?\tSpeed!\tThen tests\n");
         assert_eq!(utterance("v1.2 ships"), "v1.2 ships\n");
         assert_eq!(utterance(" \n "), "\n");
+    }
+
+    #[test]
+    fn never_reads_markdown_aloud() {
+        assert_eq!(utterance("**Yes.** The `user_id` column has # no index."), "Yes.\tThe user id column has no index.\n");
     }
 
     #[test]
