@@ -4,9 +4,12 @@
 // The dock is in index.html, outside everything render() redraws. It shows
 // folded beside any item whose agent it can resume and loads nothing until
 // unfolded. Folding keeps claude running; selecting another item stops it.
+// Unfolding turns the header's mic off: both resume the session, and two
+// writers fork it.
 
 import { element } from "./dom.js";
 import { resizableDock } from "./resize.js";
+import { finishVoice, sharedAgent } from "./voice.js";
 
 // The dock drawn: which item it is for, and how to take it down.
 let current = null;
@@ -30,16 +33,34 @@ export function drawTerminal(app) {
   dock.classList.add("collapsed");
   dock.hidden = !key;
 
-  if (key) current = { key, teardown: mount(app, dock, agent) };
+  if (key) current = { key, ...mount(app, dock, sharedAgent(app)) };
 }
 
-// The folded dock for one agent. Returns what takes it down.
+/**
+ * Stop a running terminal and fold the dock, for the mic to take over.
+ *
+ * @returns {void}
+ */
+export function stopTerminal() {
+  current?.stop();
+}
+
+// The folded dock for one agent: what stops its terminal, and what takes it
+// down. Voice moves `agent.session` on, so the terminal resumes where the talk
+// left off.
 function mount(app, dock, agent) {
   const head = element("div", "terminal-head", "");
   const host = element("div", "terminal-host", "");
   const grip = element("div", "grip terminal-grip", "");
   const fold = document.createElement("button");
+  const title = element("span", "terminal-title mono", "");
   let running = null;
+
+  const begin = () => {
+    const it = start(app, host, agent, () => running === it && (running = null));
+
+    return it;
+  };
 
   const folded = (yes) => {
     if (yes) dock.classList.add("collapsed");
@@ -55,16 +76,35 @@ function mount(app, dock, agent) {
     const unfolding = dock.classList.contains("collapsed");
 
     folded(!unfolding);
-    if (unfolding && !running) running = start(app, host, agent, () => (running = null));
-    running?.focus();
+    if (unfolding && !running) {
+      const voice = finishVoice();
+
+      if (voice) {
+        const waiting = (running = { teardown() {} });
+
+        voice.then(() => running === waiting && (running = begin()));
+      } else running = begin();
+    }
+    running?.focus?.();
   });
   folded(true);
   resizableDock(grip);
+  title.textContent = `claude --resume · ${agent.cwd}`;
+  head.append(fold, title);
 
-  head.append(fold, element("span", "terminal-title mono", `claude --resume · ${agent.cwd}`));
   dock.append(grip, head, host);
 
-  return () => running?.teardown();
+  return {
+    teardown() {
+      running?.teardown();
+      running = null;
+    },
+    stop() {
+      running?.teardown();
+      running = null;
+      folded(true);
+    },
+  };
 }
 
 // claude in xterm, in `host`. `exited` is told when claude stops on its own.

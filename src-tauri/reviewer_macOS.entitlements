@@ -5,7 +5,7 @@
   distribution, built by merging tauri.conf.appstore.json over tauri.conf.json
   with the appstore Cargo feature turned on; see docs/releasing.md for the
   exact command. Not used by the Developer ID `.dmg` build, which is not
-  sandboxed and carries no entitlements file at all.
+  sandboxed and carries reviewer_dmg.entitlements instead.
 
   Unlike reviewer_iOS.entitlements, this one is not known to need copying back
   into a gitignored gen/ directory after a regen step - `cargo tauri build`

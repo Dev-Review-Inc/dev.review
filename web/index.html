@@ -1633,8 +1633,10 @@
   /* The agent in a terminal, docked right in the space the reading column
      leaves: web/src/app/terminal.js. Folded, it is a strip with a way back. */
   main:has(> #terminal-dock:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 46rem) minmax(280px, 1fr); }
-  main.dock-sized:has(> #terminal-dock:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr) var(--dock-width); }
-  main:has(> #terminal-dock.collapsed:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr) 32px; }
+  /* Capped by the room left, as a drag is: a width kept from a wider window
+     would otherwise push the dock's head off the right edge. */
+  main.dock-sized:has(> #terminal-dock:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr) max(280px, min(var(--dock-width), 100% - var(--rail-width, 300px) - 320px)); }
+  main:has(> #terminal-dock.collapsed:not([hidden])) { grid-template-columns: var(--rail-width, 300px) minmax(0, 1fr) 44px; }
   #terminal-dock {
     position: relative;
     display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0;
@@ -1657,9 +1659,26 @@
   .terminal-host { min-height: 0; padding: var(--space3); }
   .terminal-host .xterm { height: 100%; }
   #terminal-dock.collapsed .terminal-head { flex-direction: column; padding: var(--space2) 0; border-bottom: none; height: 100%; }
+  #terminal-dock.collapsed .terminal-fold { font-size: var(--textDisplay); }
   #terminal-dock.collapsed .terminal-title,
-  #terminal-dock.collapsed .terminal-head > button:not(.terminal-fold),
   #terminal-dock.collapsed .terminal-host { display: none; }
+
+  /* The agent by voice: one mic in the header, its look the state of the
+     talk (web/src/app/voice.js). Off reads as the other icons do. */
+  .voice-mic.is-listening { color: var(--accent); animation: listening 1.6s ease-in-out infinite; }
+  /* On, it sits on a disc of its own colour; thinking spins a ring round it. */
+  .voice-mic[aria-pressed="true"] { position: relative; border-radius: 50%; background: color-mix(in srgb, currentColor 18%, transparent); }
+  .voice-mic.is-thinking { color: var(--amber); }
+  .voice-mic.is-thinking::after {
+    content: ""; position: absolute; inset: -3px; border-radius: 50%;
+    border: 2px solid transparent; border-top-color: currentColor; border-right-color: currentColor;
+    animation: spin .9s linear infinite;
+  }
+  .voice-mic.is-speaking { color: var(--green); }
+  @keyframes listening { 50% { opacity: .45; } }
+  @media (prefers-reduced-motion: reduce) {
+    .voice-mic.is-listening, .voice-mic.is-thinking::after { animation: none; }
+  }
 
   /* A narrow viewport ----------------------------------------------------
      The app on a phone, and inside a marketing page being read on one. One
@@ -1888,6 +1907,7 @@
     </span>
 
     <span class="spacer"></span>
+    <button id="voice-mic" hidden></button>
     <button id="signout" title="Forget this destination's token and sign in again" hidden>Sign out</button>
   </header>
 

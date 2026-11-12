@@ -47,7 +47,7 @@ pub struct Refusal {
     pub message: String,
 }
 
-fn refuse(code: &'static str, message: &str) -> Refusal {
+pub(crate) fn refuse(code: &'static str, message: &str) -> Refusal {
     Refusal { code, message: message.to_string() }
 }
 
@@ -56,13 +56,13 @@ pub fn arguments(session: &str) -> Vec<String> {
     vec!["--resume".into(), session.into()]
 }
 
-/// Whether this machine can open the request.
-pub fn check(request: &Request) -> Result<(), Refusal> {
-    if !uuid(&request.session) {
+/// Whether this machine can resume `session` in `cwd`.
+pub fn check(session: &str, cwd: &str) -> Result<(), Refusal> {
+    if !uuid(session) {
         return Err(refuse("session", "the draft names no session that can be resumed"));
     }
 
-    let cwd = Path::new(&request.cwd);
+    let cwd = Path::new(cwd);
 
     if !cwd.is_absolute() || !cwd.is_dir() {
         return Err(refuse("elsewhere", "the agent ran on another machine"));
@@ -116,7 +116,7 @@ pub fn terminal_open(
     request: Request,
     events: Channel<InvokeResponseBody>,
 ) -> Result<u32, Refusal> {
-    check(&request)?;
+    check(&request.session, &request.cwd)?;
 
     let program = locate(std::env::var_os("HOME"), std::env::var_os("PATH"))
         .ok_or_else(|| refuse("claude", "cannot find claude in ~/.local/bin or on PATH"))?;
@@ -203,8 +203,8 @@ mod tests {
 
     const SESSION: &str = "3f2a9c1e-0b4d-4e8a-9f6c-2d1e7b5a8c90";
 
-    fn request(cwd: &Path) -> Request {
-        Request { session: SESSION.into(), cwd: cwd.to_string_lossy().into_owned(), cols: 80, rows: 24 }
+    fn check_in(cwd: &Path) -> Result<(), Refusal> {
+        check(SESSION, &cwd.to_string_lossy())
     }
 
     #[test]
@@ -216,26 +216,23 @@ mod tests {
     fn opens_where_the_agents_folder_is_here() {
         let dir = tempfile::tempdir().unwrap();
 
-        assert_eq!(check(&request(dir.path())), Ok(()));
+        assert_eq!(check_in(dir.path()), Ok(()));
     }
 
     #[test]
     fn says_another_machine_when_the_agents_folder_is_not_here() {
-        assert_eq!(check(&request(Path::new("/no/such/folder/anywhere"))).unwrap_err().code, "elsewhere");
+        assert_eq!(check_in(Path::new("/no/such/folder/anywhere")).unwrap_err().code, "elsewhere");
     }
 
     #[test]
     fn refuses_a_relative_folder() {
-        assert_eq!(check(&request(Path::new("repo"))).unwrap_err().code, "elsewhere");
+        assert_eq!(check_in(Path::new("repo")).unwrap_err().code, "elsewhere");
     }
 
     #[test]
     fn refuses_a_session_that_is_not_a_uuid() {
         let dir = tempfile::tempdir().unwrap();
-        let mut asked = request(dir.path());
-        asked.session = "--dangerously-skip-permissions".into();
-
-        assert_eq!(check(&asked).unwrap_err().code, "session");
+        assert_eq!(check("--dangerously-skip-permissions", &dir.path().to_string_lossy()).unwrap_err().code, "session");
     }
 
     #[test]
