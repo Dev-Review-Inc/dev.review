@@ -390,8 +390,70 @@ describe("the mic in the header", () => {
     assert.equal(on(), "is-thinking");
 
     toggleVoice(app);
+    toggleVoice(app);
     assert.equal(on(), "is-off");
     assert.equal(FakeRecognition.last.aborted, true);
+  });
+
+  test("a click while it talks stops listening and lets it finish; a second click silences it", async () => {
+    let answer;
+    let spoken;
+    let hushed = 0;
+
+    app.voice = {
+      ask: () => new Promise((done) => (answer = done)),
+      say: () => new Promise((done) => (spoken = done)),
+      hush: async () => {
+        hushed += 1;
+      },
+    };
+    drawVoice(app);
+    toggleVoice(app);
+    FakeRecognition.last.hear("why");
+
+    toggleVoice(app);
+    assert.equal(on(), "is-thinking");
+    assert.equal(mic["aria-pressed"], "false");
+    assert.equal(FakeRecognition.last.listening, false);
+
+    answer({ reply: "Because the old name lied.", session: "first" });
+    await new Promise((done) => setTimeout(done, 0));
+    assert.equal(on(), "is-speaking");
+    assert.equal(FakeRecognition.last.listening, false);
+    assert.equal(hushed, 0);
+
+    FakeRecognition.last.onresult?.({ resultIndex: 0, results: [Object.assign([{ transcript: "hang on a second" }], { isFinal: false })] });
+    assert.equal(hushed, 0);
+
+    spoken();
+    await new Promise((done) => setTimeout(done, 0));
+    assert.equal(on(), "is-off");
+    assert.equal(FakeRecognition.last.listening, false);
+  });
+
+  test("a second click while it finishes silences it at once", async () => {
+    let hushed = 0;
+
+    app.voice = {
+      ask: async () => ({ reply: "A long answer.", session: "first" }),
+      say: () => new Promise(() => {}),
+      hush: async () => {
+        hushed += 1;
+      },
+    };
+    drawVoice(app);
+    toggleVoice(app);
+    FakeRecognition.last.hear("why");
+    await new Promise((done) => setTimeout(done, 0));
+    assert.equal(on(), "is-speaking");
+
+    toggleVoice(app);
+    assert.equal(on(), "is-speaking");
+    assert.equal(hushed, 0);
+
+    toggleVoice(app);
+    assert.equal(on(), "is-off");
+    assert.equal(hushed, 1);
   });
 
   test("selecting another item turns it off", () => {

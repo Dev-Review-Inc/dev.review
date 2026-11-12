@@ -82,6 +82,13 @@ export function drawVoice(app) {
  * @returns {void}
  */
 export function toggleVoice(app) {
+  // Thinking or speaking, a click stops the listening but lets it finish.
+  if (talk && !talk.muted && /thinking|speaking/.test(talk.state)) {
+    talk.muted = true;
+    talk.mute();
+
+    return paint();
+  }
   if (talk) return stopVoice();
 
   stopTerminal();
@@ -98,6 +105,7 @@ export function toggleVoice(app) {
 
   conversation.teardown = started?.teardown;
   conversation.finish = started?.finish;
+  conversation.mute = started?.mute;
   if (!started) stopVoice();
 }
 
@@ -139,7 +147,7 @@ function paint() {
 
   const state = talk?.state ?? "off";
 
-  restyle(button({ role: "icon", icon: MIC_ICON, title: TITLES[state], pressed: Boolean(talk) }), mic);
+  restyle(button({ role: "icon", icon: MIC_ICON, title: TITLES[state], pressed: Boolean(talk) && !talk.muted }), mic);
   mic.className += ` voice-mic is-${state}`;
 }
 
@@ -180,6 +188,8 @@ export function startVoice(
   let closed = false;
   // Set when the terminal is waiting for this turn; its answer is then not spoken.
   let finishing = false;
+  // Set when the reader stops the listening; the turn in flight still finishes.
+  let muted = false;
   // The turn in flight, settled once its session has moved on.
   let pending = Promise.resolve();
   // Bumped when a turn is no longer wanted, so it goes quiet.
@@ -193,6 +203,8 @@ export function startVoice(
   };
 
   const hear = () => {
+    if (muted) return;
+
     try {
       recognition.start();
     } catch {
@@ -233,7 +245,7 @@ export function startVoice(
       say(failure.message, "error");
     }
 
-    if (wanted()) listen();
+    if (wanted()) muted ? show("off") : listen();
   };
 
   recognition.continuous = false;
@@ -242,6 +254,8 @@ export function startVoice(
   recognition.onresult = (event) => {
     const results = Array.from(event.results);
     const heard = results.map((result) => result[0].transcript).join("").trim();
+
+    if (muted) return;
 
     if (state === "speaking") {
       if (echoes(heard, reply)) return;
@@ -277,5 +291,10 @@ export function startVoice(
     return pending;
   };
 
-  return { teardown, finish };
+  const mute = () => {
+    muted = true;
+    recognition.abort();
+  };
+
+  return { teardown, finish, mute };
 }
