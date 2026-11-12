@@ -81,8 +81,10 @@
 		CEF6A3CAC593BBA1A71B120D /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		D03C6BD4D965EC23170A80EA /* ReviewerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewerWidget.swift; sourceTree = "<group>"; };
 		D34AB69634524E6A4B5DC98C /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		D6238E536214B068B53E6DE7 /* speaker.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = speaker.py; sourceTree = "<group>"; };
 		D8E76F411226544BF0A142B1 /* terminal.rs */ = {isa = PBXFileReference; path = terminal.rs; sourceTree = "<group>"; };
 		DAECEE9A377BBB8B280FA5FB /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		E09D50A4039877D4FF56886C /* voice.rs */ = {isa = PBXFileReference; path = voice.rs; sourceTree = "<group>"; };
 		E5891BB66B1AEB97CE950682 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		F7DF8B1FEB22D855C4ED8AA7 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -186,9 +188,11 @@
 				CEF6A3CAC593BBA1A71B120D /* lib.rs */,
 				5266D8655BFAEF9F0FFB4245 /* links.rs */,
 				13C45D5BD6BC34BF911BE9B1 /* main.rs */,
+				D6238E536214B068B53E6DE7 /* speaker.py */,
 				A0D76F655B17A1743ADD7DB9 /* storage.rs */,
 				D8E76F411226544BF0A142B1 /* terminal.rs */,
 				1F07B3C231D9537B9697B791 /* unlock.rs */,
+				E09D50A4039877D4FF56886C /* voice.rs */,
 				C3D33031C147FD83B9E4D3A5 /* widget.rs */,
 			);
 			name = src;
