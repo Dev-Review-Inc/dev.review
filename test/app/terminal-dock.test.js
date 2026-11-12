@@ -6,6 +6,7 @@ import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { drawTerminal } from "../../web/src/app/terminal.js";
+import { stopVoice, toggleVoice } from "../../web/src/app/voice.js";
 
 function stub(tag = "div") {
   const listeners = {};
@@ -63,10 +64,12 @@ const pull = (key, withAgent = agent) => ({ key, draft: { agent: withAgent } });
 describe("the terminal dock", () => {
   let dock;
   let app;
+  let mic;
 
   beforeEach(() => {
     dock = stub("aside");
     dock.hidden = true;
+    mic = stub("button");
     app = { terminal: { open: async () => ({ close() {}, write() {}, resize() {} }) }, selected: pull("a") };
     globalThis.document = {
       head: stub("head"),
@@ -76,6 +79,8 @@ describe("the terminal dock", () => {
   });
 
   afterEach(() => {
+    stopVoice();
+    delete globalThis.SpeechRecognition;
     app.selected = null;
     drawTerminal(app);
     delete globalThis.document;
@@ -133,6 +138,96 @@ describe("the terminal dock", () => {
 
     assert.notEqual(dock.children, drawn);
     assert.equal(dock.classList.contains("collapsed"), true);
+  });
+
+  const host = () => dock.children.find((node) => node.className === "terminal-host");
+
+  // Recognition that only says whether it is still listening.
+  class Listening {
+    start() {
+      this.listening = true;
+    }
+
+    stop() {}
+
+    abort() {
+      this.listening = false;
+    }
+  }
+
+  const talk = () => {
+    app.voice = { ask: () => new Promise(() => {}), say: async () => {}, hush: async () => {} };
+    globalThis.SpeechRecognition = Listening;
+    document.getElementById = (id) => ({ "terminal-dock": dock, "voice-mic": mic })[id] ?? null;
+  };
+  test("carries no mic: the mic is in the header", () => {
+    talk();
+    drawTerminal(app);
+
+    assert.deepEqual(buttons(dock).map((button) => button.className), ["terminal-fold"]);
+  });
+
+  // Both resume the same session; two writers would fork it.
+  test("turning the mic on stops a running terminal and folds the dock", () => {
+    talk();
+    drawTerminal(app);
+    titled(dock, "Expand").click();
+    const drawing = host().children;
+
+    toggleVoice(app);
+
+    assert.equal(dock.classList.contains("collapsed"), true);
+    assert.notEqual(host().children, drawing);
+    assert.equal(mic["aria-pressed"], "true");
+  });
+
+  test("unfolding turns the mic off before the terminal starts", () => {
+    talk();
+    drawTerminal(app);
+    toggleVoice(app);
+
+    titled(dock, "Expand").click();
+
+    assert.equal(mic["aria-pressed"], "false");
+    assert.equal(loaded(), true);
+  });
+
+  test("unfolding while the agent thinks waits for its answer, then starts the terminal", async () => {
+    let answer;
+    let spoken = 0;
+    let heard;
+
+    talk();
+    app.voice.ask = () => new Promise((done) => (answer = done));
+    app.voice.say = async () => {
+      spoken += 1;
+    };
+    globalThis.SpeechRecognition = class extends Listening {
+      constructor() {
+        super();
+        heard = (words) => {
+          const result = [{ transcript: words }];
+
+          result.isFinal = true;
+          this.onresult({ resultIndex: 0, results: [result] });
+        };
+      }
+    };
+    drawTerminal(app);
+    toggleVoice(app);
+    heard("why rename the column");
+
+    titled(dock, "Expand").click();
+
+    assert.equal(loaded(), false);
+    assert.equal(mic["aria-pressed"], "true");
+
+    answer({ reply: "Clarity.", session: "moved-on" });
+    await new Promise((done) => setTimeout(done, 0));
+
+    assert.equal(mic["aria-pressed"], "false");
+    assert.equal(loaded(), true);
+    assert.equal(spoken, 0);
   });
 
   test("hides beside an item with no agent, and where the build has no terminal", () => {

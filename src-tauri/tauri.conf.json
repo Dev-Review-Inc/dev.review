@@ -38,6 +38,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "entitlements": "reviewer_dmg.entitlements"
+    },
     "iOS": {
       "template": "ios-project.yml",
       "developmentTeam": "L22C9S8VZ7"

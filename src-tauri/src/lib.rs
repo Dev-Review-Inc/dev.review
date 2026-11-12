@@ -20,6 +20,9 @@ mod git;
 // The agent in a terminal spawns `claude`, so it is compiled out where git.rs is.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
 mod terminal;
+// Talking to the agent by voice spawns `claude` and a speaker, likewise.
+#[cfg(not(any(target_os = "ios", feature = "appstore")))]
+mod voice;
 // Opening a folder in an editor spawns `open`, so it goes where git.rs goes.
 // Off macOS it finds no editors in /Applications and offers none.
 #[cfg(not(any(target_os = "ios", feature = "appstore")))]
@@ -73,13 +76,15 @@ mod widget;
 pub fn run() {
     let builder = tauri::Builder::default();
 
-    // A terminal outlives nothing: closing the window closes them all.
+    // A terminal or voice outlives nothing: closing the window or quitting
+    // ends them all. Cmd+Q may exit without destroying the window first.
     #[cfg(not(feature = "appstore"))]
     let builder = builder
         .manage(terminal::Terminals::default())
+        .manage(voice::Voice::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                terminal::close_all(&tauri::Manager::state::<terminal::Terminals>(window));
+                end(window);
             }
         });
 
@@ -124,14 +129,33 @@ pub fn run() {
             #[cfg(not(feature = "appstore"))]
             terminal::terminal_close,
             #[cfg(not(feature = "appstore"))]
+            voice::voice_ask,
+            #[cfg(not(feature = "appstore"))]
+            voice::voice_say,
+            #[cfg(not(feature = "appstore"))]
+            voice::voice_hush,
+            #[cfg(not(feature = "appstore"))]
             editor::editors_installed,
             #[cfg(not(feature = "appstore"))]
             editor::editor_open,
             git_native_available,
             terminal_available,
         ])
-        .run(tauri::generate_context!())
-        .expect("the desktop app failed to start");
+        .build(tauri::generate_context!())
+        .expect("the desktop app failed to start")
+        .run(|_app, _event| {
+            #[cfg(not(feature = "appstore"))]
+            if let tauri::RunEvent::Exit = _event {
+                end(_app);
+            }
+        });
+}
+
+/// Close every terminal and hush the voice.
+#[cfg(not(any(target_os = "ios", feature = "appstore")))]
+fn end<R: tauri::Runtime>(app: &impl tauri::Manager<R>) {
+    terminal::close_all(&app.state::<terminal::Terminals>());
+    voice::hush(&app.state::<voice::Voice>());
 }
 
 /// Whether this build's git.rs is present and can shell out to the real git.

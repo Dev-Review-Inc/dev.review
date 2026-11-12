@@ -31,6 +31,10 @@ export const COPIED_ICON =
 export const LEAVE_ICON =
   '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h7.5m0 0-2.5-2.5m2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// A microphone: talk to the agent by voice.
+export const MIC_ICON =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
 // Three lines: a menu, not a chevron - the mobile header's own control for
 // the review pane, which now opens as a drawer over the page rather than
 // folding in place, so it reads as what it is.

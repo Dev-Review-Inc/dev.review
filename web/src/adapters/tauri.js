@@ -132,6 +132,30 @@ export async function terminalOpener() {
 }
 
 /**
+ * The agent by voice in this build, or null where nothing can run it: one
+ * headless turn per question, and speech for its answer. See src-tauri/src/voice.rs.
+ *
+ * @returns {Promise<{ask: Function, say: Function, hush: Function}|null>} the agent
+ */
+export async function voiceAgent() {
+  const api = core();
+
+  if (!api) return null;
+  if (!(await api.invoke("terminal_available").catch(() => false))) return null;
+
+  const call = (name, args) =>
+    api.invoke(name, args).catch((refusal) => {
+      throw new Error(refusal?.message || String(refusal));
+    });
+
+  return {
+    ask: (request) => call("voice_ask", { request }),
+    say: (text) => call("voice_say", { text }),
+    hush: () => call("voice_hush"),
+  };
+}
+
+/**
  * What opens a folder in the reader's editor in this build, or null where
  * nothing can or no editor is installed. See src-tauri/src/editor.rs.
  *

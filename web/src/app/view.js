@@ -10,7 +10,7 @@ import { App } from "./app.js";
 import { backstop } from "./backstop.js";
 import { startup } from "./booting.js";
 import { demoWanted, installDemo, resetDemo } from "./demo.js";
-import { editorOpener, inTauriIOS, terminalOpener } from "../adapters/tauri.js";
+import { editorOpener, inTauriIOS, terminalOpener, voiceAgent } from "../adapters/tauri.js";
 import { KeychainKeyValueStore } from "../state/keychain-key-value-store.js";
 import { afterClick, find, say } from "./dom.js";
 import { leaveWords } from "./words.js";
@@ -30,6 +30,7 @@ import { DISMISS, closeVerdictMenu, drawFooter, labelList, toggleVerdictMenu } f
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { drawTerminal } from "./terminal.js";
+import { drawVoice, toggleVoice } from "./voice.js";
 import { resizableRail } from "./resize.js";
 import { closeEditor, drawSummary } from "./summary.js";
 
@@ -70,6 +71,13 @@ app.terminal = null;
 terminalOpener().then((opener) => {
   app.terminal = opener;
   if (opener) app.changed();
+});
+
+// The same agent by voice: null until the desktop build says it can.
+app.voice = null;
+voiceAgent().then((agent) => {
+  app.voice = agent;
+  if (agent) app.changed();
 });
 
 // What opens the agent's folder in an editor: null until the desktop build
@@ -118,6 +126,7 @@ function render() {
   releaseMedia();
 
   drawHeader(app);
+  drawVoice(app);
   drawRail(app);
   drawTab();
   drawSummary(app);
@@ -221,6 +230,7 @@ find("source-button").addEventListener("click", () => toggleSetup(app));
 find("setup-backdrop").addEventListener("click", closeSetup);
 find("queue-button").addEventListener("click", () => toggleQueue(app));
 find("queue-backdrop").addEventListener("click", closeQueue);
+find("voice-mic").addEventListener("click", () => toggleVoice(app));
 
 find("files-flagged").addEventListener("click", () => {
   if (!app.source) return;
