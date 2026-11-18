@@ -1,11 +1,12 @@
 // The agent's terminal docks on the right, beside the code and its comments,
 // for the item selected. It starts folded and loads nothing until unfolded.
-// Folding keeps claude running; selecting another item stops it.
+// Folding keeps claude running, and so does selecting another item: the dock
+// comes back as it was. A terminal out of sight goes after 30 quiet seconds.
 
-import { test, describe, beforeEach, afterEach } from "node:test";
+import { test, describe, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
-import { drawTerminal } from "../../web/src/app/terminal.js";
+import { closeTerminals, drawTerminal } from "../../web/src/app/terminal.js";
 import { stopVoice, toggleVoice } from "../../web/src/app/voice.js";
 
 function stub(tag = "div") {
@@ -81,8 +82,7 @@ describe("the terminal dock", () => {
   afterEach(() => {
     stopVoice();
     delete globalThis.SpeechRecognition;
-    app.selected = null;
-    drawTerminal(app);
+    closeTerminals();
     delete globalThis.document;
   });
 
@@ -128,7 +128,7 @@ describe("the terminal dock", () => {
     assert.equal(dock.classList.contains("collapsed"), false);
   });
 
-  test("selecting another item tears the terminal down and folds", () => {
+  test("selecting another item shows that item's own folded dock", () => {
     drawTerminal(app);
     titled(dock, "Expand").click();
     const drawn = dock.children;
@@ -141,6 +141,46 @@ describe("the terminal dock", () => {
   });
 
   const host = () => dock.children.find((node) => node.className === "terminal-host");
+
+  test("coming back to an item shows its terminal as it was left", () => {
+    drawTerminal(app);
+    titled(dock, "Expand").click();
+    const drawing = host();
+
+    app.selected = pull("b");
+    drawTerminal(app);
+    app.selected = pull("a");
+    drawTerminal(app);
+
+    assert.equal(host(), drawing);
+    assert.equal(dock.classList.contains("collapsed"), false);
+  });
+
+  test("a terminal out of sight goes after 30 quiet seconds", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      drawTerminal(app);
+      titled(dock, "Expand").click();
+      const drawing = host();
+
+      app.selected = pull("b");
+      drawTerminal(app);
+      mock.timers.tick(29_000);
+      app.selected = pull("a");
+      drawTerminal(app);
+      assert.equal(host(), drawing);
+
+      app.selected = pull("b");
+      drawTerminal(app);
+      mock.timers.tick(30_000);
+      app.selected = pull("a");
+      drawTerminal(app);
+      assert.notEqual(host(), drawing);
+      assert.equal(dock.classList.contains("collapsed"), true);
+    } finally {
+      mock.timers.reset();
+    }
+  });
 
   // Recognition that only says whether it is still listening.
   class Listening {
