@@ -421,6 +421,22 @@ async function openPage(socket, targetId, browserContextId, url) {
     },
 
     /**
+     * Press a key, the way a keyboard does.
+     *
+     * @param {string} key the key's name, e.g. "k", "Enter", "ArrowDown"
+     * @param {number} [modifiers] CDP's bit field: 2 control, 4 meta
+     * @returns {Promise<void>} when it is down and up again
+     */
+    async press(key, modifiers = 0) {
+      const codes = { Enter: 13, Escape: 27, ArrowUp: 38, ArrowDown: 40 };
+      const keyCode = codes[key] ?? key.toUpperCase().charCodeAt(0);
+      const event = { key, modifiers, windowsVirtualKeyCode: keyCode };
+
+      await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...event });
+      await send("Input.dispatchKeyEvent", { type: "keyUp", ...event });
+    },
+
+    /**
      * Choose an option in a select, which has no box a mouse can reach headless.
      *
      * @param {string} selector the select

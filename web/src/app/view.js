@@ -27,6 +27,7 @@ import {
 import { closeDescriptionEditor, drawDescription } from "./description-pane.js";
 import { drawDiff } from "./diff-pane.js";
 import { DISMISS, closeVerdictMenu, drawFooter, labelList, toggleVerdictMenu } from "./footer.js";
+import { closePalette, togglePalette } from "./palette.js";
 import { drawQa, releaseMedia } from "./qa.js";
 import { drawRail, togglePaneCollapsed } from "./rail.js";
 import { drawTerminal } from "./terminal.js";
@@ -231,6 +232,15 @@ find("setup-backdrop").addEventListener("click", closeSetup);
 find("queue-button").addEventListener("click", () => toggleQueue(app));
 find("queue-backdrop").addEventListener("click", closeQueue);
 find("voice-mic").addEventListener("click", () => toggleVoice(app));
+find("palette-backdrop").addEventListener("click", closePalette);
+
+window.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k" || !app.source) return;
+
+  event.preventDefault();
+  closeQueue();
+  togglePalette(app, open);
+});
 
 find("files-flagged").addEventListener("click", () => {
   if (!app.source) return;

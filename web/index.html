@@ -661,6 +661,39 @@
     background: rgba(0, 0, 0, .4);
   }
 
+  /* Command-K ----------------------------------------------------------- */
+
+  .palette-backdrop { z-index: 50; background: rgba(0, 0, 0, .4); }
+
+  #palette {
+    position: fixed; top: 12vh; left: 50%; transform: translateX(-50%); z-index: 51;
+    width: min(560px, calc(100vw - 24px)); max-height: 60vh;
+    display: flex; flex-direction: column;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--panel); box-shadow: 0 18px 44px var(--shadow);
+  }
+
+  #palette-input {
+    padding: 12px 14px; border: 0; border-bottom: 1px solid var(--border2);
+    background: none; color: inherit; font: inherit; font-size: var(--textLead); outline: none;
+  }
+
+  #palette-results { overflow-y: auto; }
+
+  .palette-row {
+    display: flex; gap: 10px; align-items: baseline;
+    width: 100%; padding: 9px 14px;
+    border: 0; border-left: 2px solid transparent;
+    background: none; color: inherit; text-align: left; cursor: pointer;
+  }
+
+  .palette-row:hover { background: var(--panel2); }
+  .palette-row[aria-selected="true"] { background: var(--hl); border-left-color: var(--accent); }
+  .palette-number { font-weight: 700; flex-shrink: 0; }
+  .palette-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .palette-repo { color: var(--faint); font-size: var(--textSmall); flex-shrink: 0; }
+  .palette-empty { padding: 12px 14px; color: var(--faint); font-size: var(--textSmall); }
+
   /* Queue --------------------------------------------------------------- */
 
   .row {
@@ -1958,6 +1991,13 @@
     <!-- The agent in a terminal, filled by web/src/app/terminal.js. -->
     <aside id="terminal-dock" hidden></aside>
   </main>
+
+  <!-- Command-K, filled by web/src/app/palette.js. -->
+  <div class="backdrop palette-backdrop" id="palette-backdrop" hidden></div>
+  <div id="palette" role="dialog" aria-label="Find on the queue" hidden>
+    <input id="palette-input" type="search" placeholder="Number or words" autocomplete="off" spellcheck="false">
+    <div id="palette-results"></div>
+  </div>
 
   <footer>
     <div class="payload mono">
