@@ -119,16 +119,17 @@ function sameCommit(reviewedAt, head) {
  * @param {string} file the log file's name within `.reviewer/events/`
  * @param {string} key "owner/repo#42"
  * @param {{url: string, event: string}} review what was sent, and where it landed
+ * @param {string} seen the draftedAt of the draft that was sent, so a redraft reads as a new question
  * @param {number} time when it was sent, milliseconds since the epoch
  * @returns {void}
  * @throws {Error} if the log cannot be written
  */
-function record(draftsDir, file, key, review, time) {
+function record(draftsDir, file, key, review, seen, time) {
   const dir = path.join(draftsDir, "..", ".reviewer", "events");
 
   const lines = [
-    { collection: "pulls", objectId: key, action: "post", data: review, time, version: VERSION },
-    { collection: "pulls", objectId: key, action: "dismiss", data: null, time: time + 1, version: VERSION },
+    { collection: "pulls", objectId: key, action: "post", data: { ...review, seen }, time, version: VERSION },
+    { collection: "pulls", objectId: key, action: "dismiss", data: { seen }, time: time + 1, version: VERSION },
   ];
 
   fs.mkdirSync(dir, { recursive: true });
@@ -238,7 +239,7 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
   const posted = { key, url: sent.html_url, event: payload.event };
 
   try {
-    record(draftsDir, logFile, key, { url: posted.url, event: posted.event }, now());
+    record(draftsDir, logFile, key, { url: posted.url, event: posted.event }, draft.draftedAt || "", now());
   } catch (error) {
     return { posted, logError: error.message };
   }

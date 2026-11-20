@@ -167,7 +167,7 @@ The queue tooling lives in this skill. It owns no paths — hand it the drafts d
 node ~/.claude/skills/dev-review-sweep/collector/queue.js next <drafts-dir> [limit]   # pull requests with no draft yet, plus what got deferred
 ```
 
-It skips what already has a draft, and also what the sync log says the reader already posted or dismissed — so pruning a handled draft never gets it redrafted. A dismissed pull request comes back only once it has moved since the dismissal; a posted one only when the reader clears it in the app.
+It skips what already has a draft, and also what the sync log says the reader already posted or dismissed, so pruning a handled draft never gets it redrafted. A dismissed pull request comes back once it has moved since the dismissal. A pull request the reader posted a review on comes back only when its head commit is no longer the commit that review was posted at; a comment, a label or a CI run does not bring it back. The queue lists those held back under `unchangedSincePost`. When it cannot check a posted review's commit, it holds the pull request back and lists the key and the reason under `postedCheckFailed`.
 
 A draft is not a draft until it is finished. A claim whose run died — the machine slept, the network dropped, the power went — sits on disk with no `finishedAt` and nothing in its folder changing. Once nothing there has moved for 30 minutes the queue treats the pull request as undrafted again: it comes back in `fresh`, and its key is also listed under `stale`, so you can say in your summary that you took a dead claim over rather than found new work. /dev-review overwrites the dead claim on its own; hand it the pull request as usual.
 
@@ -226,7 +226,7 @@ These delete matching draft folders (and their QA media) from disk only. Leave t
 
 ## Finish with
 
-One short paragraph: what you drafted, which of those were dead claims taken over, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, which of those were dead claims taken over, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read, and any `postedCheckFailed` entry, included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
 ````
 
 ## The queue helper
@@ -248,8 +248,8 @@ The sweep asks this which pull requests have no draft yet, and posts through it 
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
-import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
-import { readEvents, resolutions } from "./prune-drafts.js";
+import { selectNew, revived, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
+import { readEvents, resolutions, postedReviews } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
 import { draftState } from "./draft-state.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
@@ -311,6 +311,50 @@ function openReviewRequests() {
   return dedupe(search("--review-requested=@me"), search("--author=@me"));
 }
 
+/**
+ * The posted pull requests about to be drafted again whose head is still the
+ * commit the review was posted at.
+ *
+ * A comment, a label or a CI run moves a pull request's updatedAt, but only a
+ * new head is new code to review. A review that cannot be checked (no review
+ * id in its url, or gh failing) counts as unchanged: the sweep never redrafts
+ * on doubt, and reports the key in `failed`.
+ *
+ * @param {object[]} prs pull requests a dismissal no longer holds back
+ * @param {Map<string, {url: (string|undefined), time: number}>} posted posted
+ *   reviews, as prune-drafts' `postedReviews` folds them
+ * @returns {{unchanged: Set<string>, failed: {key: string, reason: string}[]}}
+ */
+function unchangedSincePost(prs, posted) {
+  const unchanged = new Set();
+  const failed = [];
+
+  for (const pr of prs) {
+    const review = posted.get(key(pr));
+    if (!review) continue;
+
+    const repo = pr.repository.nameWithOwner;
+    const id = /#pullrequestreview-(\d+)$/.exec(review.url || "")?.[1];
+
+    try {
+      if (!id) throw new Error(`no review id in ${review.url || "the posted url"}`);
+
+      const gh = (route, jq) =>
+        execFileSync("gh", ["api", route, "--jq", jq], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+      const reviewed = gh(`repos/${repo}/pulls/${pr.number}/reviews/${id}`, ".commit_id");
+      const head = gh(`repos/${repo}/pulls/${pr.number}`, ".head.sha");
+
+      if (!reviewed || !head) throw new Error("no commit for the review or the head");
+      if (reviewed === head) unchanged.add(key(pr));
+    } catch (error) {
+      unchanged.add(key(pr));
+      failed.push({ key: key(pr), reason: error.message.split("\n")[0] });
+    }
+  }
+
+  return { unchanged, failed };
+}
+
 const [command, draftsDir, limit] = process.argv.slice(2);
 
 if (command === "next" && draftsDir) {
@@ -350,13 +394,15 @@ if (command === "next" && draftsDir) {
 
   // The sync log keeps the selector honest after a prune: a pull the reader
   // posted on or dismissed is not fresh just because its draft is gone.
+  // A posted pull comes back only for a new head, not for a comment or label.
   const { drafted, stale } = draftedAndStale(draftsDir, scoped);
-  const { fresh, deferred } = selectNew(
-    scoped,
-    drafted,
-    Number(limit) || 4,
-    resolutions(readEvents(draftsDir)),
+  const events = readEvents(draftsDir);
+  const resolved = resolutions(events);
+  const { unchanged, failed: postedCheckFailed } = unchangedSincePost(
+    revived(scoped, resolved).filter((pr) => !drafted.has(key(pr))),
+    postedReviews(events),
   );
+  const { fresh, deferred } = selectNew(scoped, drafted, Number(limit) || 4, resolved, unchanged);
 
   console.log(
     JSON.stringify(
@@ -374,6 +420,8 @@ if (command === "next" && draftsDir) {
         deferred: deferred.map(key),
         skipped: skipped.map(key),
         stale,
+        unchangedSincePost: [...unchanged],
+        ...(postedCheckFailed.length ? { postedCheckFailed } : {}),
         ...(rulesError ? { rulesError } : {}),
       },
       null,
@@ -438,19 +486,39 @@ export function dedupe(...lists) {
  * The sync log's word holds even after the draft is pruned: a posted pull is
  * never re-drafted (reviewing it again is the reader's gesture, in the app),
  * and a dismissed one only once it has moved since the dismissal — the same
- * revival rule the app applies.
+ * revival rule the app applies. A pull the reader posted a review on also
+ * reads as dismissed, and a comment or a label moves it too; `unchanged` names
+ * the ones whose head is still the commit that review was posted at, and those
+ * stay skipped.
  *
  * @param {object[]} prs open review requests
  * @param {Set<string>} drafted keys of pull requests a draft already exists for
  * @param {number} limit most pull requests to draft in one sweep
  * @param {Map<string, {action: string, time: number}>} [resolved] terminal
  *   resolutions from the sync log, as prune-drafts' `resolutions` folds them
+ * @param {Set<string>} [unchanged] keys of posted pull requests whose head has
+ *   not moved since the review
  * @returns {{fresh: object[], deferred: object[]}}
  */
-export function selectNew(prs, drafted, limit, resolved = new Map()) {
-  const undrafted = prs.filter((pr) => !drafted.has(key(pr)) && !handled(pr, resolved.get(key(pr))));
+export function selectNew(prs, drafted, limit, resolved = new Map(), unchanged = new Set()) {
+  const undrafted = prs.filter(
+    (pr) => !drafted.has(key(pr)) && !unchanged.has(key(pr)) && !handled(pr, resolved.get(key(pr))),
+  );
 
   return { fresh: undrafted.slice(0, limit), deferred: undrafted.slice(limit) };
+}
+
+/**
+ * The pull requests a dismissal no longer holds back, because they moved
+ * after it.
+ *
+ * @param {object[]} prs open review requests
+ * @param {Map<string, {action: string, time: number}>} resolved terminal
+ *   resolutions from the sync log
+ * @returns {object[]} the dismissed pull requests the sweep would draft again
+ */
+export function revived(prs, resolved) {
+  return prs.filter((pr) => resolved.get(key(pr))?.action === "dismiss" && !handled(pr, resolved.get(key(pr))));
 }
 
 /**
@@ -893,6 +961,43 @@ export function resolutions(events) {
   }
 
   return resolved;
+}
+
+/**
+ * Where each pull request's posted review landed, for the ones whose latest
+ * word is that post.
+ *
+ * A post is followed by the dismiss that takes it off the queue, so that one
+ * dismiss still leaves the post the latest word. Any other later event (a
+ * restore, a dismissal of a redraft) means the reader has moved past it.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @returns {Map<string, {url: (string|undefined), time: number}>} posted
+ *   reviews by pull key ("owner/repo#42"), url as the post recorded it
+ */
+export function postedReviews(events) {
+  const pulls = events.filter(
+    (event) => event && event.collection === "pulls" && typeof event.objectId === "string" && typeof event.time === "number",
+  );
+  const posts = new Map();
+
+  for (const event of pulls) {
+    if (event.action !== "post") continue;
+
+    const current = posts.get(event.objectId);
+
+    if (!current || event.time > current.time) {
+      posts.set(event.objectId, { url: typeof event.data?.url === "string" ? event.data.url : undefined, time: event.time });
+    }
+  }
+
+  for (const [key, review] of posts) {
+    const later = pulls.filter((event) => event.objectId === key && event.time > review.time);
+
+    if (later.length > 1 || later.some((event) => event.action !== "dismiss")) posts.delete(key);
+  }
+
+  return posts;
 }
 
 /**
@@ -1441,16 +1546,17 @@ function sameCommit(reviewedAt, head) {
  * @param {string} file the log file's name within `.reviewer/events/`
  * @param {string} key "owner/repo#42"
  * @param {{url: string, event: string}} review what was sent, and where it landed
+ * @param {string} seen the draftedAt of the draft that was sent, so a redraft reads as a new question
  * @param {number} time when it was sent, milliseconds since the epoch
  * @returns {void}
  * @throws {Error} if the log cannot be written
  */
-function record(draftsDir, file, key, review, time) {
+function record(draftsDir, file, key, review, seen, time) {
   const dir = path.join(draftsDir, "..", ".reviewer", "events");
 
   const lines = [
-    { collection: "pulls", objectId: key, action: "post", data: review, time, version: VERSION },
-    { collection: "pulls", objectId: key, action: "dismiss", data: null, time: time + 1, version: VERSION },
+    { collection: "pulls", objectId: key, action: "post", data: { ...review, seen }, time, version: VERSION },
+    { collection: "pulls", objectId: key, action: "dismiss", data: { seen }, time: time + 1, version: VERSION },
   ];
 
   fs.mkdirSync(dir, { recursive: true });
@@ -1560,7 +1666,7 @@ export function post({ draftsDir, key, gh, now = Date.now, logFile = SWEEP_LOG }
   const posted = { key, url: sent.html_url, event: payload.event };
 
   try {
-    record(draftsDir, logFile, key, { url: posted.url, event: posted.event }, now());
+    record(draftsDir, logFile, key, { url: posted.url, event: posted.event }, draft.draftedAt || "", now());
   } catch (error) {
     return { posted, logError: error.message };
   }

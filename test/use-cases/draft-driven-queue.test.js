@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { theApp, agentWrites, aDraft } from "./helper.js";
 import { pullsFromDrafts } from "../../web/src/queries/index.js";
 import { MemoryAdapter } from "../../web/src/adapters/memory.js";
+import { EventStoreEvent } from "../../web/src/state/event-store-event.js";
 
 // An issue draft: no verdict, a proposed replacement body, an issue url.
 function anIssueDraft(overrides = {}) {
@@ -152,7 +153,7 @@ describe("living with a draft-driven queue", () => {
     assert.equal(app.queue().length, 1);
   });
 
-  test("a redraft does not bring back a pull the reader posted on", async () => {
+  test("a finished redraft brings back a pull the reader posted on, ready to post", async () => {
     await agentWrites(adapter, anIssueDraft());
     await app.loadQueue();
 
@@ -160,16 +161,71 @@ describe("living with a draft-driven queue", () => {
       url: "https://github.com/org/app/issues/7#issuecomment-1",
     });
 
-    // The sweep pruning the handled draft and drafting it again must not
-    // reopen a question the posted review already answered.
-    await agentWrites(
-      adapter,
-      anIssueDraft({ draftedAt: new Date(Date.now() + 1000).toISOString() }),
-    );
+    // The sweep redrafts a posted pull only for new code, so a new draft is
+    // a new question. The old post answered the old draft, not this one.
+    await agentWrites(adapter, anIssueDraft({ draftedAt: "2026-11-20T14:04:26Z" }));
+    await app.loadQueue();
+
+    const [entry] = app.queue();
+
+    assert.equal(app.queue().length, 1);
+    assert.equal(app.dismissed().length, 0);
+    assert.equal(entry.postedAt, null);
+    assert.equal(app.queries.isPosted(app.source, entry), false);
+
+    await app.commands.recordPostedTriage(app.source, entry, {
+      url: "https://github.com/org/app/issues/7#issuecomment-2",
+    });
+
+    assert.equal(app.queue().length, 0);
+    assert.equal(app.dismissed()[0].postedUrl, "https://github.com/org/app/issues/7#issuecomment-2");
+  });
+
+  test("a post logged before it named its draft is read by the dismissal that followed it", async () => {
+    // What the log holds for a review posted before the post event recorded
+    // its draft: the post, then a dismiss naming the draft it answered.
+    await app.state.absorb(app.source.id, [
+      new EventStoreEvent("pulls", "org/app#7", "post", { url: "https://github.com/org/app/issues/7#issuecomment-1", event: "" }, Date.now() - 2000),
+      new EventStoreEvent("pulls", "org/app#7", "dismiss", { seen: "2026-08-16T09:00:00Z" }, Date.now() - 1000),
+    ]);
+
+    await agentWrites(adapter, anIssueDraft({ draftedAt: "2026-11-20T14:04:26Z" }));
+    await app.loadQueue();
+
+    assert.equal(app.queue().length, 1);
+    assert.equal(app.queries.isPosted(app.source, app.queue()[0]), false);
+  });
+
+  test("a redraft still being written leaves a posted pull answered", async () => {
+    await agentWrites(adapter, anIssueDraft());
+    await app.loadQueue();
+
+    await app.commands.recordPostedTriage(app.source, app.queue()[0], {
+      url: "https://github.com/org/app/issues/7#issuecomment-1",
+    });
+
+    await agentWrites(adapter, anIssueDraft({ draftedAt: "2026-11-20T14:04:26Z", finishedAt: "" }));
     await app.loadQueue();
 
     assert.equal(app.queue().length, 0);
-    assert.equal(app.dismissed().length, 1);
+    assert.ok(app.dismissed()[0].postedAt);
+  });
+
+  test("dismissing the redraft of a posted pull does not mark the new draft posted", async () => {
+    await agentWrites(adapter, anIssueDraft());
+    await app.loadQueue();
+
+    await app.commands.recordPostedTriage(app.source, app.queue()[0], {
+      url: "https://github.com/org/app/issues/7#issuecomment-1",
+    });
+
+    await agentWrites(adapter, anIssueDraft({ draftedAt: "2026-11-20T14:04:26Z" }));
+    await app.loadQueue();
+
+    await app.commands.dismissPull(app.source, app.queue()[0]);
+
+    assert.equal(app.queue().length, 0);
+    assert.equal(app.dismissed()[0].postedAt, null);
   });
 
   test("posting the triage leaves the queue", async () => {

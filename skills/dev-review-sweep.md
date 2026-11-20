@@ -11,7 +11,7 @@ The queue tooling lives in this skill. It owns no paths — hand it the drafts d
 node ~/.claude/skills/dev-review-sweep/collector/queue.js next <drafts-dir> [limit]   # pull requests with no draft yet, plus what got deferred
 ```
 
-It skips what already has a draft, and also what the sync log says the reader already posted or dismissed — so pruning a handled draft never gets it redrafted. A dismissed pull request comes back only once it has moved since the dismissal; a posted one only when the reader clears it in the app.
+It skips what already has a draft, and also what the sync log says the reader already posted or dismissed, so pruning a handled draft never gets it redrafted. A dismissed pull request comes back once it has moved since the dismissal. A pull request the reader posted a review on comes back only when its head commit is no longer the commit that review was posted at; a comment, a label or a CI run does not bring it back. The queue lists those held back under `unchangedSincePost`. When it cannot check a posted review's commit, it holds the pull request back and lists the key and the reason under `postedCheckFailed`.
 
 A draft is not a draft until it is finished. A claim whose run died — the machine slept, the network dropped, the power went — sits on disk with no `finishedAt` and nothing in its folder changing. Once nothing there has moved for 30 minutes the queue treats the pull request as undrafted again: it comes back in `fresh`, and its key is also listed under `stale`, so you can say in your summary that you took a dead claim over rather than found new work. /dev-review overwrites the dead claim on its own; hand it the pull request as usual.
 
@@ -70,4 +70,4 @@ These delete matching draft folders (and their QA media) from disk only. Leave t
 
 ## Finish with
 
-One short paragraph: what you drafted, which of those were dead claims taken over, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.
+One short paragraph: what you drafted, which of those were dead claims taken over, what was posted (with URLs), what post.js refused and why, what was skipped by rule, any `rulesError`, any `logError`, how many were deferred and which, how many drafts were pruned as posted, dismissed, or settled upstream, and anything that failed and why — a key whose state could not be read, and any `postedCheckFailed` entry, included — including any storage sync failure /dev-review or the prune step reported. Never let the cap pass silently.

@@ -188,7 +188,7 @@ export class Queries {
    *
    * The window is over this listing and nothing else. Dropping off it does not
    * expire the dismissal: the event stays in the log, still syncs, and still
-   * keeps its pull request out of {@link queue} for good.
+   * keeps its pull request out of {@link queue} until a new draft spends it.
    *
    * Each entry carries `restorable`: whether a draft still holds a place this
    * app could put the pull request back on the queue. Restoring clears the
@@ -244,9 +244,9 @@ export class Queries {
       isReady: Boolean(draft && draft.finishedAt),
       isDrafting: unfinished && !stalled,
       isStalled: stalled,
-      dismissedAt: this._dismissal(pull, decision),
-      postedAt: decision.postedAt || null,
-      postedUrl: decision.postedUrl || "",
+      dismissedAt: this._dismissal(pull, decision, draft),
+      postedAt: this._posted(draft, decision),
+      postedUrl: this._posted(draft, decision) ? decision.postedUrl || "" : "",
     };
   }
 
@@ -264,34 +264,38 @@ export class Queries {
    * vote: an agent stamping its draft in the future cannot spend the
    * dismissal the instant it is made.
    *
-   * Unless the reader posted. A posted review answered for good, and the
-   * sweep pruning the handled draft then drafting the pull request again
-   * must not reopen it. Reviewing again after a post is the reader's own
-   * gesture - clearing the draft, which forgets the post - never a redraft.
+   * A posted review is the same answer with one difference: only a finished
+   * draft reopens it. The sweep redrafts a posted pull request only when its
+   * code moved, and a claim still being written may yet die, so the reader is
+   * asked again once there is a new review to read.
    *
    * Deciding it here is what keeps the queue and the dismissed list from
    * disagreeing: they are one decision read twice.
    *
    * @param {object} pull one entry from the queue
    * @param {object} decision what the reader decided about it
+   * @param {object} [draft] the draft held for it now
    * @returns {number|null} when it was dismissed, or null once that is spent
    */
-  _dismissal(pull, decision) {
+  _dismissal(pull, decision, draft) {
     const dismissedAt = decision.dismissedAt || null;
 
     if (!dismissedAt || !pull.isRequested) return dismissedAt;
 
-    // Posted spends nothing: no redraft revives an answered review.
-    if (decision.postedAt) return dismissedAt;
-
-    // A different draft is a new question; the same one is answered.
+    // A different draft is a new question; the same one is answered. A
+    // posted review waits for the new one to be finished.
     if (decision.dismissedSeen !== undefined) {
+      if (decision.postedAt && !draft?.finishedAt) return dismissedAt;
+
       return pull.updatedAt !== decision.dismissedSeen ? null : dismissedAt;
     }
 
-    // A dismissal from before it recorded what it saw. The old time
+    // A dismissal from before it recorded what it saw cannot tell a post's
+    // draft from a new one, so a post stands. Otherwise the old time
     // comparison decides, except that a stamp from the future is a lie
     // about the clock and does not outvote the reader.
+    if (decision.postedAt) return dismissedAt;
+
     const movedAt = Date.parse(pull.updatedAt || "");
 
     return movedAt > dismissedAt && movedAt <= Date.now() ? null : dismissedAt;
@@ -300,19 +304,38 @@ export class Queries {
   /**
    * Whether the reader has already sent this review.
    *
-   * The event log is the record, not the draft: an agent quietly rewriting
-   * its draft (new commits landing, a scheduled sweep re-running) does not
-   * un-post a review the reader already sent. Asking for a fresh draft from
-   * inside the app is different - see commands.forgetPost, fired from the
-   * same action that throws the old draft away - because that is the reader
-   * saying the posted review no longer describes what is here.
+   * The event log is the record, not the draft: a draft still being written
+   * does not un-post a review the reader already sent. A finished draft of
+   * new code is a review that has not gone out, so it reads as unposted (see
+   * {@link _posted}). Asking for a fresh draft from inside the app forgets
+   * the post at once - see commands.forgetPost, fired from the same action
+   * that throws the old draft away.
    *
    * @param {object} source the source being read
    * @param {object} pull the pull request
    * @returns {boolean} whether it went out
    */
   isPosted(source, pull) {
-    return Boolean(this._pullDecision(source, pull.key).postedAt);
+    return Boolean(this._posted(this.drafts.find(pull.key), this._pullDecision(source, pull.key)));
+  }
+
+  /**
+   * When the reader posted the review of the draft held now, or null.
+   *
+   * A post answers the draft it was sent from. A finished draft with another
+   * stamp is a review of new code that has not gone out, so the old post
+   * does not lock it. A post from before it recorded its draft falls back on
+   * the dismissal that followed it, and with neither it stands.
+   *
+   * @param {object} [draft] the draft held for the pull request now
+   * @param {object} decision what the reader decided about it
+   * @returns {number|null} when it was posted
+   */
+  _posted(draft, decision) {
+    const seen = decision.postedSeen ?? decision.dismissedSeen;
+    const redrafted = Boolean(draft?.finishedAt) && seen !== undefined && draft.draftedAt !== seen;
+
+    return decision.postedAt && !redrafted ? decision.postedAt : null;
   }
 
   /**

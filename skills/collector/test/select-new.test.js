@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { selectNew, withinWorkspace, dedupe, splitByRules } from "../select-new.js";
+import { selectNew, revived, withinWorkspace, dedupe, splitByRules } from "../select-new.js";
 import { parseRules } from "../rules.js";
 
 const pr = (n, repo = "org/app") => ({
@@ -49,6 +49,39 @@ test("never re-selects a pull the reader posted on, however new the push", () =>
 
   const { fresh } = selectNew([moved], new Set(), 10, resolved);
   assert.deepStrictEqual(fresh, []);
+});
+
+test("keeps a moved pull skipped when its posted review's head has not changed", () => {
+  const resolved = new Map([["org/app#1", { action: "dismiss", time: Date.parse("2026-08-10T00:00:00Z") }]]);
+  const commented = { ...pr(1), updatedAt: "2026-08-11T00:00:00Z" };
+
+  const { fresh } = selectNew([commented, pr(2)], new Set(), 10, resolved, new Set(["org/app#1"]));
+  assert.deepStrictEqual(fresh.map((p) => p.number), [2]);
+});
+
+test("re-selects a moved pull whose posted review's head has changed", () => {
+  const resolved = new Map([["org/app#1", { action: "dismiss", time: Date.parse("2026-08-10T00:00:00Z") }]]);
+  const pushed = { ...pr(1), updatedAt: "2026-08-11T00:00:00Z" };
+
+  const { fresh } = selectNew([pushed], new Set(), 10, resolved, new Set());
+  assert.deepStrictEqual(fresh.map((p) => p.number), [1]);
+});
+
+test("revived lists only the dismissed pulls that moved after the dismissal", () => {
+  const time = Date.parse("2026-08-10T00:00:00Z");
+  const resolved = new Map([
+    ["org/app#1", { action: "dismiss", time }],
+    ["org/app#2", { action: "dismiss", time }],
+    ["org/app#3", { action: "post", time }],
+  ]);
+  const prs = [
+    { ...pr(1), updatedAt: "2026-08-11T00:00:00Z" },
+    { ...pr(2), updatedAt: "2026-08-09T00:00:00Z" },
+    { ...pr(3), updatedAt: "2026-08-11T00:00:00Z" },
+    { ...pr(4), updatedAt: "2026-08-11T00:00:00Z" },
+  ];
+
+  assert.deepStrictEqual(revived(prs, resolved).map((p) => p.number), [1]);
 });
 
 test("a dismissed pull with no updatedAt from the search stays skipped", () => {
