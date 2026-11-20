@@ -8,6 +8,7 @@ import path from "node:path";
 import {
   finishedPulls,
   resolutions,
+  postedReviews,
   commentPrefix,
   parseEventLines,
   readEvents,
@@ -90,6 +91,45 @@ test("the latest terminal event is the resolution", () => {
     event("org/app#1", "dismiss", 300),
   ]);
   assert.deepStrictEqual(resolved.get("org/app#1"), { action: "dismiss", time: 300 });
+});
+
+// ---- postedReviews: where the reader's latest posted review landed
+
+const posted = (objectId, url, time) => ({ ...event(objectId, "post", time), data: { url, event: "COMMENT" } });
+const REVIEW = "https://github.com/org/app/pull/1#pullrequestreview-5875450110";
+
+test("a posted review carries its url and time", () => {
+  const reviews = postedReviews([posted("org/app#1", REVIEW, 100), event("org/app#1", "dismiss", 101)]);
+  assert.deepStrictEqual(reviews.get("org/app#1"), { url: REVIEW, time: 100 });
+});
+
+test("the latest post is the posted review", () => {
+  const reviews = postedReviews([
+    posted("org/app#1", "https://github.com/org/app/pull/1#pullrequestreview-1", 100),
+    event("org/app#1", "dismiss", 101),
+    posted("org/app#1", REVIEW, 300),
+    event("org/app#1", "dismiss", 301),
+  ]);
+  assert.deepStrictEqual(reviews.get("org/app#1"), { url: REVIEW, time: 300 });
+});
+
+test("a post with no url is still a posted review", () => {
+  const reviews = postedReviews([event("org/app#1", "post", 100)]);
+  assert.deepStrictEqual(reviews.get("org/app#1"), { url: undefined, time: 100 });
+});
+
+test("a post the reader has since moved past is not the latest word", () => {
+  const reviews = postedReviews([
+    posted("org/app#1", REVIEW, 100),
+    event("org/app#1", "dismiss", 101),
+    event("org/app#1", "dismiss", 500),
+  ]);
+  assert.strictEqual(reviews.has("org/app#1"), false);
+});
+
+test("posted reviews ignore other collections", () => {
+  const reviews = postedReviews([{ ...posted("org/app#1", REVIEW, 100), collection: "hunks" }]);
+  assert.strictEqual(reviews.size, 0);
 });
 
 // ---- parseEventLines: defensive against a partial or interrupted log

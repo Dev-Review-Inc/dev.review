@@ -116,6 +116,43 @@ export function resolutions(events) {
 }
 
 /**
+ * Where each pull request's posted review landed, for the ones whose latest
+ * word is that post.
+ *
+ * A post is followed by the dismiss that takes it off the queue, so that one
+ * dismiss still leaves the post the latest word. Any other later event (a
+ * restore, a dismissal of a redraft) means the reader has moved past it.
+ *
+ * @param {object[]} events parsed sync-log events, any collection
+ * @returns {Map<string, {url: (string|undefined), time: number}>} posted
+ *   reviews by pull key ("owner/repo#42"), url as the post recorded it
+ */
+export function postedReviews(events) {
+  const pulls = events.filter(
+    (event) => event && event.collection === "pulls" && typeof event.objectId === "string" && typeof event.time === "number",
+  );
+  const posts = new Map();
+
+  for (const event of pulls) {
+    if (event.action !== "post") continue;
+
+    const current = posts.get(event.objectId);
+
+    if (!current || event.time > current.time) {
+      posts.set(event.objectId, { url: typeof event.data?.url === "string" ? event.data.url : undefined, time: event.time });
+    }
+  }
+
+  for (const [key, review] of posts) {
+    const later = pulls.filter((event) => event.objectId === key && event.time > review.time);
+
+    if (later.length > 1 || later.some((event) => event.action !== "dismiss")) posts.delete(key);
+  }
+
+  return posts;
+}
+
+/**
  * The reader's standing comment prefix: the string of the latest
  * `setCommentPrefix` preference event by time, across every device's log.
  *

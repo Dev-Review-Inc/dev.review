@@ -278,11 +278,11 @@ test("records the post as the app does: a post, then a dismiss", () => {
       collection: "pulls",
       objectId: KEY,
       action: "post",
-      data: { url: "https://github.com/org/app/pull/42#pullrequestreview-7", event: "COMMENT" },
+      data: { url: "https://github.com/org/app/pull/42#pullrequestreview-7", event: "COMMENT", seen: "2026-09-18T10:00:00Z" },
       time: NOW,
       version: "v1",
     },
-    { collection: "pulls", objectId: KEY, action: "dismiss", data: null, time: NOW + 1, version: "v1" },
+    { collection: "pulls", objectId: KEY, action: "dismiss", data: { seen: "2026-09-18T10:00:00Z" }, time: NOW + 1, version: "v1" },
   ]);
 
   // The log's other readers see a finished pull request.

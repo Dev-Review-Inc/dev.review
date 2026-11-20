@@ -10,8 +10,8 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
-import { selectNew, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
-import { readEvents, resolutions } from "./prune-drafts.js";
+import { selectNew, revived, key, withinWorkspace, dedupe, splitByRules } from "./select-new.js";
+import { readEvents, resolutions, postedReviews } from "./prune-drafts.js";
 import { draftPath } from "./draft-path.js";
 import { draftState } from "./draft-state.js";
 import { findCheckouts, repoFromRemote, searchRoots, neighborhood } from "./resolve-repo.js";
@@ -73,6 +73,50 @@ function openReviewRequests() {
   return dedupe(search("--review-requested=@me"), search("--author=@me"));
 }
 
+/**
+ * The posted pull requests about to be drafted again whose head is still the
+ * commit the review was posted at.
+ *
+ * A comment, a label or a CI run moves a pull request's updatedAt, but only a
+ * new head is new code to review. A review that cannot be checked (no review
+ * id in its url, or gh failing) counts as unchanged: the sweep never redrafts
+ * on doubt, and reports the key in `failed`.
+ *
+ * @param {object[]} prs pull requests a dismissal no longer holds back
+ * @param {Map<string, {url: (string|undefined), time: number}>} posted posted
+ *   reviews, as prune-drafts' `postedReviews` folds them
+ * @returns {{unchanged: Set<string>, failed: {key: string, reason: string}[]}}
+ */
+function unchangedSincePost(prs, posted) {
+  const unchanged = new Set();
+  const failed = [];
+
+  for (const pr of prs) {
+    const review = posted.get(key(pr));
+    if (!review) continue;
+
+    const repo = pr.repository.nameWithOwner;
+    const id = /#pullrequestreview-(\d+)$/.exec(review.url || "")?.[1];
+
+    try {
+      if (!id) throw new Error(`no review id in ${review.url || "the posted url"}`);
+
+      const gh = (route, jq) =>
+        execFileSync("gh", ["api", route, "--jq", jq], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+      const reviewed = gh(`repos/${repo}/pulls/${pr.number}/reviews/${id}`, ".commit_id");
+      const head = gh(`repos/${repo}/pulls/${pr.number}`, ".head.sha");
+
+      if (!reviewed || !head) throw new Error("no commit for the review or the head");
+      if (reviewed === head) unchanged.add(key(pr));
+    } catch (error) {
+      unchanged.add(key(pr));
+      failed.push({ key: key(pr), reason: error.message.split("\n")[0] });
+    }
+  }
+
+  return { unchanged, failed };
+}
+
 const [command, draftsDir, limit] = process.argv.slice(2);
 
 if (command === "next" && draftsDir) {
@@ -112,13 +156,15 @@ if (command === "next" && draftsDir) {
 
   // The sync log keeps the selector honest after a prune: a pull the reader
   // posted on or dismissed is not fresh just because its draft is gone.
+  // A posted pull comes back only for a new head, not for a comment or label.
   const { drafted, stale } = draftedAndStale(draftsDir, scoped);
-  const { fresh, deferred } = selectNew(
-    scoped,
-    drafted,
-    Number(limit) || 4,
-    resolutions(readEvents(draftsDir)),
+  const events = readEvents(draftsDir);
+  const resolved = resolutions(events);
+  const { unchanged, failed: postedCheckFailed } = unchangedSincePost(
+    revived(scoped, resolved).filter((pr) => !drafted.has(key(pr))),
+    postedReviews(events),
   );
+  const { fresh, deferred } = selectNew(scoped, drafted, Number(limit) || 4, resolved, unchanged);
 
   console.log(
     JSON.stringify(
@@ -136,6 +182,8 @@ if (command === "next" && draftsDir) {
         deferred: deferred.map(key),
         skipped: skipped.map(key),
         stale,
+        unchangedSincePost: [...unchanged],
+        ...(postedCheckFailed.length ? { postedCheckFailed } : {}),
         ...(rulesError ? { rulesError } : {}),
       },
       null,

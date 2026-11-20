@@ -47,19 +47,39 @@ export function dedupe(...lists) {
  * The sync log's word holds even after the draft is pruned: a posted pull is
  * never re-drafted (reviewing it again is the reader's gesture, in the app),
  * and a dismissed one only once it has moved since the dismissal — the same
- * revival rule the app applies.
+ * revival rule the app applies. A pull the reader posted a review on also
+ * reads as dismissed, and a comment or a label moves it too; `unchanged` names
+ * the ones whose head is still the commit that review was posted at, and those
+ * stay skipped.
  *
  * @param {object[]} prs open review requests
  * @param {Set<string>} drafted keys of pull requests a draft already exists for
  * @param {number} limit most pull requests to draft in one sweep
  * @param {Map<string, {action: string, time: number}>} [resolved] terminal
  *   resolutions from the sync log, as prune-drafts' `resolutions` folds them
+ * @param {Set<string>} [unchanged] keys of posted pull requests whose head has
+ *   not moved since the review
  * @returns {{fresh: object[], deferred: object[]}}
  */
-export function selectNew(prs, drafted, limit, resolved = new Map()) {
-  const undrafted = prs.filter((pr) => !drafted.has(key(pr)) && !handled(pr, resolved.get(key(pr))));
+export function selectNew(prs, drafted, limit, resolved = new Map(), unchanged = new Set()) {
+  const undrafted = prs.filter(
+    (pr) => !drafted.has(key(pr)) && !unchanged.has(key(pr)) && !handled(pr, resolved.get(key(pr))),
+  );
 
   return { fresh: undrafted.slice(0, limit), deferred: undrafted.slice(limit) };
+}
+
+/**
+ * The pull requests a dismissal no longer holds back, because they moved
+ * after it.
+ *
+ * @param {object[]} prs open review requests
+ * @param {Map<string, {action: string, time: number}>} resolved terminal
+ *   resolutions from the sync log
+ * @returns {object[]} the dismissed pull requests the sweep would draft again
+ */
+export function revived(prs, resolved) {
+  return prs.filter((pr) => resolved.get(key(pr))?.action === "dismiss" && !handled(pr, resolved.get(key(pr))));
 }
 
 /**
