@@ -974,10 +974,10 @@ describe("A review request that comes back", () => {
     assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), false);
   });
 
-  test("a redraft after the review does not put it back on the queue", async () => {
-    // The sweep drafting again - even a newer draft - is not a new question
-    // once the review is posted. The renamed title proves the redraft was
-    // read; the queue staying empty proves it revived nothing.
+  test("a finished redraft after the review puts it back on the queue", async () => {
+    // The sweep drafts a posted pull request again only for new code, so a
+    // finished redraft is a review that has not gone out. The renamed title
+    // proves the queue lists the redraft, not the posted review.
     await page.eval(`(() => {
       const draft = ${JSON.stringify(aDraft())};
 
@@ -988,12 +988,12 @@ describe("A review request that comes back", () => {
     await page.eval('window.dispatchEvent(new Event("focus"))');
 
     await page.until(
-      'document.querySelector("#dismissed .setup-row .name")?.textContent === "Re-root the errors, take two"',
-      "the redraft to be read",
+      'document.querySelector("#queue-waiting").textContent === "1 to review"',
+      "the redraft to come back",
     );
 
-    assert.equal(await page.text("#queue-waiting"), "nothing to review");
-    assert.equal(await page.eval('document.querySelector("#dismissed").hidden'), false);
+    assert.equal(await page.count("#queue .row"), 1);
+    assert.match(await page.text("#queue .row"), /Re-root the errors, take two/);
   });
 
   test("nothing went wrong along the way", () => {
