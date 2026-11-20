@@ -105,9 +105,8 @@ describe("a dismissed pull request whose review is requested again", () => {
 });
 
 describe("a pull request the reader posted on", () => {
-  // Posting spends the question for good: a redraft revives a plain
-  // dismissal, but "review it again" after a post is the reader's explicit
-  // gesture (clearing the draft), never a sweep side-effect.
+  // A post recorded before dismissals named their draft cannot tell the
+  // draft it answered from a new one, so it stays answered.
   test("stays off the queue however new the redraft is", async () => {
     const pull = aPull({ isRequested: true, updatedAt: AFTER });
     const app = await theApp({ pulls: [pull] });

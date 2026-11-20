@@ -268,7 +268,7 @@ export class Commands {
    * @returns {Promise<void>} when it is in local storage
    */
   recordPostedReview(source, pull, review) {
-    this.track(source, "pulls", pull.key, "post", review);
+    this.track(source, "pulls", pull.key, "post", { ...review, seen: pull.draft?.draftedAt || "" });
     // A sent review is done with, so it leaves the queue without the reader
     // having to say so twice.
     this.track(source, "pulls", pull.key, "dismiss", { seen: pull.draft?.draftedAt || "" });
@@ -379,7 +379,7 @@ export class Commands {
    * @returns {Promise<void>} when it is in local storage
    */
   recordPostedTriage(source, pull, { url }) {
-    this.track(source, "pulls", pull.key, "post", { url, event: "" });
+    this.track(source, "pulls", pull.key, "post", { url, event: "", seen: pull.draft?.draftedAt || "" });
     this.track(source, "pulls", pull.key, "dismiss", { seen: pull.draft?.draftedAt || "" });
 
     return this.state.settled();

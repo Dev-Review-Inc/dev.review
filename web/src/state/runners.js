@@ -130,6 +130,7 @@ export default {
   "pulls.post": change((data, event) => ({
     postedAt: event.time,
     postedUrl: data.url || "",
+    postedSeen: data.seen,
     verdict: data.event,
   })),
 
@@ -137,7 +138,7 @@ export default {
   // review that no longer exists once the agent rewrites it from scratch -
   // forgetting it is what lets a new one go out instead of the buttons
   // staying locked against a review that has already been superseded.
-  "pulls.redraft": change(() => ({ postedAt: null, postedUrl: "" })),
+  "pulls.redraft": change(() => ({ postedAt: null, postedUrl: "", postedSeen: undefined })),
 
   // ---- What the reader decided about one finding.
   //
